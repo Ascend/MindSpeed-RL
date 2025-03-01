@@ -16,10 +16,21 @@
 
 import pytest  # Just try can import or not
 
+from mindspeed_rl import MegatronConfig
+
 from tests.test_tools.dist_test import DistributedTest
 
-class TestMock(DistributedTest):
+
+class TestConfig(DistributedTest):
     world_size = 1
 
-    def test_mock_op(self):
-        assert 1 + 1 == 2, "Failed !"
+    def test_megatron_config(self):
+        model_config = {'model': {'llama_7b': {'use_mcore_models': True, 'useless_case': 1}}}
+        config = {'model': 'llama_7b', 'use_mcore_models': False, 'bad_case': 1}
+
+        m_config = MegatronConfig(config, model_config.get('model'))
+
+        assert not m_config.use_mcore_models, "use_mcore_models Failed !"
+
+        assert not hasattr(m_config, 'useless_case'), "useless_case Failed !"
+        assert not hasattr(m_config, 'bad_case'), "bad_case Failed !"

@@ -12,14 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Just an initialize test"""
 
-import pytest  # Just try can import or not
+from .config_cls import MegatronConfig
 
-from tests.test_tools.dist_test import DistributedTest
-
-class TestMock(DistributedTest):
-    world_size = 1
-
-    def test_mock_op(self):
-        assert 1 + 1 == 2, "Failed !"
+__all__ = ['MegatronConfig']

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="56236a64-b9db-404a-8cbb-6d0026593f8b" name="90.90.94.168">
+        <fileTransfer rootFolder="/home/f00812941/MindSpeed-RL" accessType="SFTP" host="90.90.94.168" port="22" sshConfigId="8caf5aab-9b3f-4166-88fb-1a04190f2ea4" sshConfig="root@90.90.94.168:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

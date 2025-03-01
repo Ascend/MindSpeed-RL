@@ -1,7 +1,0 @@
-defaults:
-  - model:
-      - llama32_1b
-
-actor_config:
-  model: llama32_1b
-  use_mcore_models: true

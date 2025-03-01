@@ -15,8 +15,8 @@
 """Just an initialize test"""
 
 import pytest  # Just try can import or not
-
 from tests.test_tools.dist_test import DistributedTest
+
 
 class TestMock(DistributedTest):
     world_size = 1

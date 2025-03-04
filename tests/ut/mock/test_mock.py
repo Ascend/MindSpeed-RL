@@ -2,8 +2,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 """Just an initialize test"""
 
-import pytest  # Just try can import or not
-
 from tests.test_tools.dist_test import DistributedTest
 
 

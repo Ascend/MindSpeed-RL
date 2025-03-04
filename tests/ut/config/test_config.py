@@ -1,8 +1,6 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
-import pytest  # Just try can import or not
-
 from mindspeed_rl import MegatronConfig
 
 from tests.test_tools.dist_test import DistributedTest

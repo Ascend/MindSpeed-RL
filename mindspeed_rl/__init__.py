@@ -3,6 +3,8 @@
 
 from .config_cls import MegatronConfig
 from .utils import get_tokenizer, Metric, Loggers, WandbLogger
+from .datasets import DataLoader, InstructionDataset
 
 __all__ = ['MegatronConfig',
-           'get_tokenizer', 'Metric', 'Loggers', 'WandbLogger']
+           'get_tokenizer', 'Metric', 'Loggers', 'WandbLogger',
+           'DataLoader', 'InstructionDataset']

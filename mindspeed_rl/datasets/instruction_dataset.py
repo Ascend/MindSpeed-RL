@@ -16,13 +16,32 @@ warnings.filterwarnings("ignore")
 
 
 class InstructionDataset(BaseDataset):
+    """InstructionDataset.
+
+    Args:
+        parallel_state: Megatron parallel state
+        dataset_type: data type (default is LLM)
+        data_prefix: path+prefix for data
+        is_packed_data: True supported only
+        tokenizer: tokenizer by get_tokenizer
+        seq_length: teh length of sequence (default is 2048)
+        num_samples: minimal samples
+        name: name for index file
+        documents: a list with the range that gives the number of documents
+        seed: random seed
+        full_shuffle_index: full shuffle for all index
+        get_item_in_order: do not use shuffle index
+        reset_position_ids: support for TND Training
+        prompt_type: for instruction training, model related
+        prompt_type_path: the path to templates.json
+    """
     def __init__(self,
                  parallel_state: Any,
                  dataset_type: str = "LLM",
                  data_prefix: str = "",
                  is_packed_data: bool = True,
                  tokenizer: Callable = None,
-                 seq_length: int = 128,
+                 seq_length: int = 2048,
                  num_samples: int = None,
                  name: str = "",
                  documents: List[int] = None,

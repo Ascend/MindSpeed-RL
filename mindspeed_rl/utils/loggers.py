@@ -1,7 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 import os
 import logging
-from typing import Union
 from logging import handlers
 from datetime import datetime, timezone
 
@@ -17,9 +16,7 @@ class Loggers(object):
                  ):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logger_level)
-        sh = logging.StreamHandler()
         th = handlers.TimedRotatingFileHandler(filename=name, when='D', backupCount=3, encoding='utf-8')
-        self.logger.addHandler(sh)
         self.logger.addHandler(th)
 
     def handle_msg(self, msg, level, iteration, steps):

@@ -1,8 +1,12 @@
 # Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-from typing import Dict, List, Tuple, Union
+import os
+import random
+from typing import Dict, List
 
+import numpy as np
 import torch
+import torch_npu
 from torch import Tensor
 
 
@@ -128,3 +132,14 @@ def get_batch_metrices_mean(metrics_list: List[Dict]) -> Dict[str, Tensor]:
             append_to_dict(batch_metrics, metrics)
     metrics_mean = {key: torch.tensor(value).mean() for key, value in batch_metrics.items()}
     return metrics_mean
+
+
+def seed_all(seed=1234):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.use_deterministic_algorithms(True)
+
+    torch_npu.npu.manual_seed_all(seed)
+    torch_npu.npu.manual_seed(seed)

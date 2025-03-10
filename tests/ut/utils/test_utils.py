@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import torch
 
 from mindspeed_rl.utils.utils import (
-    get_tune_attention_mask,
     generate_mask,
     generate_position_ids,
     append_to_dict,
@@ -15,21 +14,6 @@ from mindspeed_rl.utils.utils import (
 
 
 class TestUtils(unittest.TestCase):
-    def test_get_tune_attention_mask(self):
-        input_tensor = torch.tensor([[0, 1, 1, 0], [1, 0, 1, 1]], dtype=torch.float32)
-        expected_output = torch.tensor([[[[True, True, True, True],
-                                          [True, False, True, True],
-                                          [True, False, False, True],
-                                          [True, False, False, True]]],
-
-                                        [[[False, True, True, True],
-                                          [False, True, True, True],
-                                          [False, True, False, True],
-                                          [False, True, False, False]]]])
-        output = get_tune_attention_mask(input_tensor)
-        self.assertEqual(output.shape, expected_output.shape)
-        self.assertTrue(torch.all(output == expected_output))
-    
     def test_generate_mask(self):
         data_pad = torch.tensor([[1, 2, 3], [4, 5, 0]], dtype=torch.int64)
         seq_lengths = torch.tensor([3, 2], dtype=torch.int64)

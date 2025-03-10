@@ -6,13 +6,11 @@ from .loggers import Loggers, WandbLogger
 from .metrics import Metric
 from .utils import (
     get_batch_metrices_mean,
-    get_tune_attention_mask,
     num_floating_point_operations
 )
 from .transfer_dock import TransferDock, GRPOTransferDock
 
 
 __all__ = ['get_tokenizer', 'Loggers', 'WandbLogger', 'Metric',
-           'get_batch_metrices_mean', 'get_tune_attention_mask',
-           'num_floating_point_operations', 'seed_all', 'TransferDock', 'GRPOTransferDock']
+           'get_batch_metrices_mean', 'num_floating_point_operations', 'seed_all', 'TransferDock', 'GRPOTransferDock']
 

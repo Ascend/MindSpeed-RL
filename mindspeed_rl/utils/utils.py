@@ -1,4 +1,3 @@
-# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import os
 import random
@@ -8,25 +7,6 @@ import numpy as np
 import torch
 import torch_npu
 from torch import Tensor
-
-
-def get_tune_attention_mask(attention_mask_1d: torch.Tensor) -> torch.Tensor:
-    """
-    Creates a lower triangular attention mask and applies the original 1D attention mask to it.
-
-    Args:
-        attention_mask_1d (torch.Tensor): A 1D binary tensor where 1 indicates valid positions and 0 indicates positions to be masked out.
-
-    Returns:
-        torch.Tensor: A 4D boolean tensor representing the combined attention mask.
-    """
-    micro_batch_size, seq_length = attention_mask_1d.size()
-    attention_mask = torch.tril(torch.ones(
-        (micro_batch_size, seq_length, seq_length), device=attention_mask_1d.device)).view(
-        micro_batch_size, 1, seq_length, seq_length)
-    attention_mask = attention_mask.masked_fill((attention_mask_1d < 0.5).view(-1, 1, 1, seq_length), value=0)
-    attention_mask = (attention_mask < 0.5)
-    return attention_mask
 
 
 def generate_position_ids(input_ids: Tensor):

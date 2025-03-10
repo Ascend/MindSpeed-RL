@@ -1,10 +1,9 @@
 # coding=utf-8
-# Copyright (c) 2024, HUAWEI CORPORATION.  All rights reserved.
+# Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import os
 import re
 import json
-import logging
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum, unique
@@ -16,8 +15,6 @@ if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer
 
     from .formatter import Formatter
-
-logger = logging.getLogger(__name__)
 
 cur_file_dir = Path(__file__).absolute().parent
 

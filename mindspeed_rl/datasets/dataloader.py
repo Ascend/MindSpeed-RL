@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2025, HUAWEN. All rights rI CORPORATIOeserved.
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
 import torch
 from transformers import DataCollatorForSeq2Seq

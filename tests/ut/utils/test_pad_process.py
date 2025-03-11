@@ -1,6 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-import unittest
 from unittest.mock import MagicMock
+import pytest
 
 import torch
 
@@ -10,8 +10,12 @@ from mindspeed_rl.utils.pad_process import (
     truncate_middle_and_pad,
 )
 
+from tests.test_tools.dist_test import DistributedTest
 
-class TestPadProcess(unittest.TestCase):
+
+class TestPadProcess(DistributedTest):
+    world_size = 1
+
     def test_remove_padding_and_split_to_list(self):
         responses = torch.tensor([[1, 2, 3, 4, 0, 0], [4, 5, 6, 1, 1, 0]], dtype=torch.int64)
         eos_token_id = 77
@@ -21,9 +25,9 @@ class TestPadProcess(unittest.TestCase):
             torch.tensor([4, 5, 6, 1, 1], dtype=torch.int64)
         ]
         output = remove_padding_and_split_to_list(responses, eos_token_id, pad_token_id)
-        self.assertEqual(len(output), len(expected_output))
+        assert len(output) == len(expected_output), "After processing, the length is wrong!"
         for out, exp in zip(output, expected_output):
-            self.assertTrue(torch.all(out == exp))
+            assert torch.all(out == exp), "The function of remove padding failed!"
 
     def test_pad_multiple(self):
         data_list = [
@@ -39,8 +43,8 @@ class TestPadProcess(unittest.TestCase):
             [6, 0, 0, 0]
         ])
         output = pad_multiple(data_list, pad_id, multiple)
-        self.assertEqual(output.shape, expected_output.shape)
-        self.assertTrue(torch.allclose(output, expected_output))
+        assert output.shape == expected_output.shape, "After padding, the shape has been changed!"
+        assert torch.allclose(output, expected_output), "After padding, the result has been changed!"
 
     def test_truncate_middle_and_pad(self):
         input_tensor = torch.tensor([
@@ -57,5 +61,5 @@ class TestPadProcess(unittest.TestCase):
             [[0.3, 0.4, 0.5], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]
         ], dtype=torch.float32)
         
-        self.assertEqual(output.shape, expected_output.shape)
-        self.assertTrue(torch.allclose(output, expected_output))
+        assert output.shape == expected_output.shape, "After truncating, the shape has been changed!"
+        assert torch.allclose(output, expected_output), "After truncating, the result has been changed!"

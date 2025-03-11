@@ -5,6 +5,8 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestAdaptiveKLController(DistributedTest):
+    world_size = 1
+
     @pytest.fixture
     def setUp(self):
         from mindspeed_rl.trainer.utils.compute_utils import AdaptiveKLController
@@ -20,6 +22,8 @@ class TestAdaptiveKLController(DistributedTest):
 
 
 class TestFixedKLController(DistributedTest):
+    world_size = 1
+
     @pytest.fixture
     def setUp(self):
         from mindspeed_rl.trainer.utils.compute_utils import FixedKLController
@@ -32,6 +36,8 @@ class TestFixedKLController(DistributedTest):
 
 
 class TestComputeGaeAdvantageReturn(DistributedTest):
+    world_size = 1
+
     def test_compute_gae_advantage_return(self):
         from mindspeed_rl.trainer.utils.compute_utils import compute_gae_advantage_return
         import torch
@@ -50,6 +56,8 @@ class TestComputeGaeAdvantageReturn(DistributedTest):
 
 
 class TestComputeGroupNormAdvantageReturn(DistributedTest):
+    world_size = 1
+
     def test_compute_group_norm_advantage_return(self):
         import torch
         from mindspeed_rl.trainer.utils.compute_utils import compute_group_norm_advantage_return
@@ -63,6 +71,8 @@ class TestComputeGroupNormAdvantageReturn(DistributedTest):
 
 
 class TestGetLastReward(DistributedTest):
+    world_size = 1
+
     def test_get_last_reward(self):
         import torch
         from mindspeed_rl.trainer.utils.compute_utils import get_last_reward

@@ -1,6 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-import unittest
 from unittest.mock import MagicMock
+import pytest
 
 import torch
 
@@ -12,27 +12,31 @@ from mindspeed_rl.utils.utils import (
     get_batch_metrices_mean
 )
 
+from tests.test_tools.dist_test import DistributedTest
 
-class TestUtils(unittest.TestCase):
+
+class TestUtils(DistributedTest):
+    world_size = 1
+    
     def test_generate_mask(self):
         data_pad = torch.tensor([[1, 2, 3], [4, 5, 0]], dtype=torch.int64)
         seq_lengths = torch.tensor([3, 2], dtype=torch.int64)
         expected_mask = torch.tensor([[1, 1, 1], [1, 1, 0]], dtype=torch.int64)
         output = generate_mask(data_pad, seq_lengths)
-        self.assertEqual(output.shape, expected_mask.shape)
-        self.assertTrue(torch.all(output == expected_mask))
+        assert output.shape == expected_mask.shape, "Acquisition of mask shape failed!"
+        assert torch.all(output == expected_mask), "Acquisition of mask value failed!"
 
     def test_generate_position_ids(self):
         input_ids = torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.int64)
         expected_output = [[0, 1, 2], [0, 1, 2]]
         output = generate_position_ids(input_ids)
-        self.assertEqual(output, expected_output)
+        assert output == expected_output, "Acquisition of position ids value failed!"
 
     def test_append_to_dict(self):
         data = {'a': [1]}
         new_data = {'a': 2}
         append_to_dict(data, new_data)
-        self.assertEqual(data, {'a': [1, 2]})
+        assert data == {'a': [1, 2]}, "Dict append method failed!"
 
     def test_num_floating_point_operations(self):
         args = MagicMock()
@@ -56,7 +60,7 @@ class TestUtils(unittest.TestCase):
             (30522 / (2 * 6 * 512))
         )
         actual_operations = num_floating_point_operations(args, batch_size)
-        self.assertEqual(actual_operations, expected_operations)
+        assert actual_operations == expected_operations, "Acquisition of num float operations failed!"
 
     def test_get_batch_metrices_mean(self):
         metrics_list = [
@@ -69,5 +73,5 @@ class TestUtils(unittest.TestCase):
             'reward': torch.tensor([0.8, 0.7, 0.75]).mean()
         }
         actual_mean = get_batch_metrices_mean(metrics_list)
-        self.assertEqual(actual_mean['loss'].item(), expected_mean['loss'].item())
-        self.assertEqual(actual_mean['reward'].item(), expected_mean['reward'].item())
+        assert actual_mean['loss'].item() == expected_mean['loss'].item(), "Acquisition of metric loss mean value failed!"
+        assert actual_mean['reward'].item() == expected_mean['reward'].item(), "Acquisition of metric reward mean value failed!"

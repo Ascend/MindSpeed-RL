@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 cur_file_dir = Path(__file__).absolute().parent
 
-TEMPLATES_DIR = os.path.join(cur_file_dir.parent, "configs/templates.json")
+TEMPLATES_DIR = os.path.join(cur_file_dir.parent.parent, "configs/templates.json")
 
 
 @unique

@@ -8,7 +8,6 @@ import numpy as np
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
 from mindspeed_rl.utils import Loggers
 
-
 logger = Loggers('build_train_valid_test_datasets')
 
 
@@ -20,8 +19,8 @@ def build_train_valid_test_datasets(
         dataset_cls: Any,
         tokenizer: Any,
         parallel_state: Any,
-        full_shuffle_index: bool = False,
-        get_item_in_order: bool = False,
+        full_shuffle_instruction_dataset: bool = False,
+        no_shuffle: bool = False,
         reset_position_ids: bool = False,
         prompt_type: str = None,
         prompt_type_path: str = None,
@@ -39,8 +38,8 @@ def build_train_valid_test_datasets(
         dataset_cls: An class implemented based on BaseDataset
         tokenizer: tokenizer by get_tokenizer
         parallel_state: megatron parallel state
-        full_shuffle_index: full shuffle for all index
-        get_item_in_order: do not use shuffle index
+        full_shuffle_instruction_dataset: full shuffle for all index
+        no_shuffle: do not use shuffle index
         reset_position_ids: support for TND Training
         prompt_type: for instruction training, model related
         prompt_type_path: the path to templates.json
@@ -63,8 +62,8 @@ def build_train_valid_test_datasets(
         tokenizer=tokenizer,
         dataset_cls=dataset_cls,
         parallel_state=parallel_state,
-        full_shuffle_index=full_shuffle_index,
-        get_item_in_order=get_item_in_order,
+        full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
+        no_shuffle=no_shuffle,
         reset_position_ids=reset_position_ids,
         prompt_type=prompt_type,
         prompt_type_path=prompt_type_path,
@@ -83,8 +82,8 @@ def _build_train_valid_test_datasets(
         tokenizer=None,
         dataset_cls=None,
         parallel_state=None,
-        full_shuffle_index=None,
-        get_item_in_order=None,
+        full_shuffle_instruction_dataset=None,
+        no_shuffle=None,
         reset_position_ids=None,
         prompt_type=None,
         prompt_type_path=None,
@@ -96,6 +95,9 @@ def _build_train_valid_test_datasets(
     # 设置默认数据集类，保持向后兼容
     if dataset_cls is None:
         raise ValueError("dataset_cls must be provided.")
+
+    if isinstance(data_prefix, list):
+        data_prefix = data_prefix[0]
 
     # Target indexed dataset.
     packed_indexed_dataset = get_packed_indexed_dataset(data_prefix=data_prefix)
@@ -127,8 +129,8 @@ def _build_train_valid_test_datasets(
                 name=name,
                 documents=documents,
                 seed=seed,
-                full_shuffle_index=full_shuffle_index,
-                get_item_in_order=get_item_in_order,
+                full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
+                no_shuffle=no_shuffle,
                 reset_position_ids=reset_position_ids,
                 prompt_type=prompt_type,
                 prompt_type_path=prompt_type_path,

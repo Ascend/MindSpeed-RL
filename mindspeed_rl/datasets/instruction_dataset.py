@@ -29,8 +29,8 @@ class InstructionDataset(BaseDataset):
         name: name for index file
         documents: a list with the range that gives the number of documents
         seed: random seed
-        full_shuffle_index: full shuffle for all index
-        get_item_in_order: do not use shuffle index
+        full_shuffle_instruction_dataset: full shuffle for all index
+        no_shuffle: do not use shuffle index
         reset_position_ids: support for TND Training
         prompt_type: for instruction training, model related
         prompt_type_path: the path to templates.json
@@ -46,8 +46,8 @@ class InstructionDataset(BaseDataset):
                  name: str = "",
                  documents: List[int] = None,
                  seed: int = 42,
-                 full_shuffle_index: bool = False,
-                 get_item_in_order: bool = False,
+                 full_shuffle_instruction_dataset: bool = False,
+                 no_shuffle: bool = False,
                  reset_position_ids: bool = False,
                  prompt_type: str = None,
                  prompt_type_path: str = None,
@@ -62,8 +62,8 @@ class InstructionDataset(BaseDataset):
         self.name = name
         self.documents = documents
         self.seed = seed
-        self.full_shuffle_index = full_shuffle_index
-        self.get_item_in_order = get_item_in_order
+        self.full_shuffle_instruction_dataset = full_shuffle_instruction_dataset
+        self.no_shuffle = no_shuffle
         self.reset_position_ids = reset_position_ids
         self.prompt_type = prompt_type
         self.prompt_type_path = prompt_type_path
@@ -77,7 +77,7 @@ class InstructionDataset(BaseDataset):
                                                        nb_documents=len(self.documents),
                                                        num_samples=self.num_samples,
                                                        seed=self.seed,
-                                                       full_shuffle_index=full_shuffle_index,
+                                                       full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
                                                        parallel_state=self.parallel_state)
 
             self.dataset_type = "Preference_DS_Packed"
@@ -93,7 +93,7 @@ class InstructionDataset(BaseDataset):
         if self.is_packed_data:
             doc_idx = self.shuffle_index[idx]
 
-            if self.get_item_in_order:
+            if self.no_shuffle:
                 doc_idx = idx % len(self.dataset)
 
             item = self.dataset[doc_idx]

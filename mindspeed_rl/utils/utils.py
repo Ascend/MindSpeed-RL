@@ -1,5 +1,8 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import os
+import sys
+
+import time
 import random
 from typing import Dict, List
 
@@ -7,6 +10,15 @@ import numpy as np
 import torch
 import torch_npu
 from torch import Tensor
+
+
+def synchronize_time():
+    """Synchronize training start time across all distributed processes."""
+    cur_time = time.time()
+    start_time_tensor = torch.tensor([cur_time], dtype=torch.float, device='cuda')
+    torch.distributed.all_reduce(start_time_tensor, op=torch.distributed.ReduceOp.MIN)
+    min_time = time.asctime(time.localtime(start_time_tensor.item()))
+    return min_time
 
 
 def generate_position_ids(input_ids: Tensor):
@@ -123,3 +135,16 @@ def seed_all(seed=1234):
 
     torch_npu.npu.manual_seed_all(seed)
     torch_npu.npu.manual_seed(seed)
+
+
+def parse_args_from_config(config):
+    # model configs
+    # Parsing utils parameters.
+    for key, value in config.items():  # config is transformed into a dict
+        if isinstance(value, bool):
+            if value:
+                sys.argv.append(f"--{key.replace('_', '-')}")
+        elif value is None:
+            continue
+        else:
+            sys.argv.append(f"--{key.replace('_', '-')}={value}")

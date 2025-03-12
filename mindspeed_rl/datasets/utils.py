@@ -13,6 +13,25 @@ def cyclic_iter(iter):
             yield x
 
 
+def get_train_valid_test_num_samples(
+        train_samples, train_iters, global_batch_size, eval_interval, eval_iters):
+    """Train/valid/test num samples."""
+
+    # Number of train/valid/test samples.
+    if train_samples:
+        train_samples = train_samples
+    else:
+        train_samples = train_iters * global_batch_size
+    eval_iters = (train_iters // eval_interval + 1) * eval_iters
+    test_iters = eval_iters
+
+    return (
+        train_samples,
+        eval_iters * global_batch_size,
+        test_iters * global_batch_size,
+    )
+
+
 def build_data_iter(dataloader, dataloader_type):
     # Build iterators.
     dl_type = dataloader_type
@@ -81,7 +100,7 @@ def _build_index_mappings(
         nb_documents,
         num_samples: int,
         seed,
-        full_shuffle_index,
+        full_shuffle_instruction_dataset,
         parallel_state
 ):
     """
@@ -112,7 +131,7 @@ def _build_index_mappings(
                 shuffle_idx.extend(new_document_ids.tolist())
                 epoch += 1
 
-            if full_shuffle_index:
+            if full_shuffle_instruction_dataset:
                 random.shuffle(shuffle_idx)
 
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)

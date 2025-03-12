@@ -2,16 +2,16 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
 import os
-
+import shutil
 import struct
 import glob
 import re
-
 from enum import Enum
 from functools import lru_cache
 from abc import ABC, abstractmethod
 from itertools import accumulate
-from typing import Optional, Tuple, Type, Union
+from types import TracebackType
+from typing import Optional, Tuple, Type, Union, List
 
 import torch
 import numpy
@@ -47,10 +47,10 @@ class IndexedDataset(torch.utils.data.Dataset):
     """
 
     def __init__(
-        self,
-        path_prefix: str,
-        multimodal: bool = False,
-        mmap: bool = True,
+            self,
+            path_prefix: str,
+            multimodal: bool = False,
+            mmap: bool = True,
     ) -> None:
         super().__init__()
         self.path_prefix = None
@@ -63,7 +63,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.initialize(path_prefix, multimodal, mmap)
 
     def initialize(
-        self, path_prefix: str, multimodal: bool, mmap: bool
+            self, path_prefix: str, multimodal: bool, mmap: bool
     ) -> None:
         """Initialize the dataset
 
@@ -126,7 +126,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         return len(self.index)
 
     def __getitem__(
-        self, idx: Union[int, numpy.integer, slice]
+            self, idx: Union[int, numpy.integer, slice]
     ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """Return from the dataset
 
@@ -519,9 +519,9 @@ class _IndexReader(object):
                 dtype=numpy.int8,
                 count=self.sequence_count,
                 offset=offset
-                + self.sequence_lengths.nbytes
-                + self.sequence_pointers.nbytes
-                + self.document_indices.nbytes,
+                       + self.sequence_lengths.nbytes
+                       + self.sequence_pointers.nbytes
+                       + self.document_indices.nbytes,
             )
 
         if self.sequence_lengths.shape[0] != len(self) or self.sequence_lengths.shape[0] != self.sequence_count \
@@ -557,3 +557,206 @@ class _IndexReader(object):
             self.sequence_lengths[idx],
             self.sequence_modes[idx] if self.sequence_modes is not None else None,
         )
+
+
+class IndexedDatasetBuilder(object):
+    """Builder class for the IndexedDataset class
+
+    Args:
+        bin_path (str): The path to the data (.bin) file
+
+        dtype (Type[numpy.number], optional): The dtype of the index file. Defaults to numpy.int32.
+
+        multimodal (bool, optional): Whether the dataset is multimodal. Defaults to False.
+    """
+
+    def __init__(
+            self, bin_path: str, dtype: Type[numpy.number] = numpy.int32, multimodal: bool = False
+    ) -> None:
+        self.data_file = open(bin_path, "wb")
+        self.dtype = dtype
+        self.multimodal = multimodal
+
+        self.sequence_lengths = []
+        self.document_indices = [0]
+        self.sequence_modes = [] if self.multimodal else None
+
+    def add_item(self, tensor: torch.Tensor, mode: int = 0) -> None:
+        """Add a single item to the dataset
+
+        Args:
+            tensor (torch.Tensor): The item to add to the data file
+
+            mode (int, optional): The mode for the item. Defaults to 0.
+        """
+        np_array = numpy.array(tensor.numpy(), dtype=self.dtype)
+        self.data_file.write(np_array.tobytes(order="C"))
+        self.sequence_lengths.append(np_array.size)
+        if self.multimodal:
+            self.sequence_modes.append(mode)
+
+    def add_document(
+            self, tensor: torch.Tensor, lengths: List[int], modes: Optional[List[int]] = None
+    ) -> None:
+        """Add an entire document to the dataset
+
+        Args:
+            tensor (torch.Tensor): The document to add
+
+            lengths (List[int]): The lengths of each item in the document
+
+            modes (Optional[List[int]], optional): The modes for each item in the document. Defaults to None.
+        """
+        np_array = numpy.array(tensor, dtype=self.dtype)
+        self.data_file.write(np_array.tobytes(order="C"))
+        self.sequence_lengths.extend(lengths)
+        self.document_indices.append(len(self.sequence_lengths))
+        if self.multimodal:
+            self.sequence_modes.extend(modes if modes is not None else [0] * lengths)
+
+    def end_document(self) -> None:
+        """Finalize the document, for use with IndexedDatasetBuilder.add_item"""
+        self.document_indices.append(len(self.sequence_lengths))
+
+    def add_index(self, path_prefix: str) -> None:
+        """Add an entire IndexedDataset to the dataset
+
+        Args:
+            path_prefix (str): The index (.idx) and data (.bin) prefix
+        """
+        # Concatenate index
+        index = _IndexReader(get_idx_path(path_prefix), multimodal=self.multimodal)
+        if index.dtype != self.dtype:
+            raise ValueError("index.dtype shoule be equal with dtype.")
+
+        offset = len(self.sequence_lengths)
+        self.sequence_lengths.extend(index.sequence_lengths)
+        self.document_indices.extend((offset + index.document_indices)[1:])
+
+        if self.multimodal:
+            self.sequence_modes.extend(index.sequence_modes)
+
+        # Concatenate data
+        with open(get_bin_path(path_prefix), "rb") as f:
+            shutil.copyfileobj(f, self.data_file)
+
+    def finalize(self, idx_path: str) -> None:
+        """Clean up and write the index (.idx) file
+
+        Args:
+            idx_path (str): The path to the index file
+        """
+        self.data_file.close()
+        with _IndexWriter(idx_path, self.dtype) as writer:
+            writer.write(self.sequence_lengths, self.sequence_modes, self.document_indices)
+
+
+class _IndexWriter(object):
+    """Object class to write the index (.idx) file
+
+    Args:
+        idx_path (str): The path to the index file
+
+        dtype (Type[numpy.number]): The dtype of the index file
+    """
+
+    def __init__(self, idx_path: str, dtype: Type[numpy.number]) -> None:
+        self.idx_path = idx_path
+        self.dtype = dtype
+
+    def __enter__(self) -> "_IndexWriter":
+        """Enter the context introduced by the 'with' keyword
+
+        Returns:
+            _IndexWriter: The instance
+        """
+        self.idx_writer = open(self.idx_path, "wb")
+        # fixed, vestigial practice
+        self.idx_writer.write(_INDEX_HEADER)
+        # fixed, vestigial practice
+        self.idx_writer.write(struct.pack("<Q", 1))
+        # the numeric code for the dtype
+        self.idx_writer.write(struct.pack("<B", DType.code_from_dtype(self.dtype)))
+        return self
+
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType],
+    ):
+        """Exit the context introduced by the 'with' keyword
+
+        Args:
+            exc_type (Optional[Type[BaseException]]): Exception type
+
+            exc_val (Optional[BaseException]): Exception value
+
+            exc_tb (Optional[TracebackType]): Exception traceback object
+
+        Returns:
+            Optional[bool]: Whether to silence the exception
+        """
+        self.idx_writer.close()
+
+    def write(
+            self,
+            sequence_lengths: List[int],
+            sequence_modes: Optional[List[int]],
+            document_indices: List[int],
+    ) -> None:
+        """Write the index (.idx) file
+
+        Args:
+            sequence_lengths (List[int]): The length of each sequence
+
+            sequence_modes (Optional[List[int]]): The mode of each sequences
+
+            document_indices (List[int]): The seqyebce indices demarcating the end of each document
+        """
+        sequence_pointers = self._sequence_pointers(sequence_lengths)
+
+        # the number of sequences in the dataset
+        sequence_count = len(sequence_lengths)
+        self.idx_writer.write(struct.pack("<Q", sequence_count))
+
+        # the number of documents in the dataset
+        document_count = len(document_indices)
+        self.idx_writer.write(struct.pack("<Q", document_count))
+
+        # the number of tokens per sequence
+        sequence_lengths = numpy.array(sequence_lengths, dtype=numpy.int32)
+        self.idx_writer.write(sequence_lengths.tobytes(order="C"))
+        del sequence_lengths
+
+        # the byte offsets for all sequences
+        sequence_pointers = numpy.array(sequence_pointers, dtype=numpy.int64)
+        self.idx_writer.write(sequence_pointers.tobytes(order="C"))
+        del sequence_pointers
+
+        # the sequence indices marking the end of each document
+        document_indices = numpy.array(document_indices, dtype=numpy.int64)
+        self.idx_writer.write(document_indices.tobytes(order="C"))
+
+        # the mode per sequence
+        if sequence_modes is not None:
+            sequence_modes = numpy.array(sequence_modes, dtype=numpy.int8)
+            self.idx_writer.write(sequence_modes.tobytes(order='C'))
+            del sequence_modes
+
+    def _sequence_pointers(self, sequence_lengths: List[int]) -> List[int]:
+        """Build the sequence pointers per the sequence lengths and dtype size
+
+        Args:
+            sequence_lengths (List[int]): The length of each sequence
+
+        Returns:
+            List[int]: The pointer to the beginning of each sequence
+        """
+        itemsize = DType.size(self.dtype)
+        curr_ptr = 0
+        list_ptr = []
+        for length in sequence_lengths:
+            list_ptr.append(curr_ptr)
+            curr_ptr += length * itemsize
+        return list_ptr

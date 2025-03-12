@@ -1,10 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-
-
 from abc import ABC, abstractmethod
-
-
-from abc import ABC
 
 
 class BaseInferEngine(ABC):

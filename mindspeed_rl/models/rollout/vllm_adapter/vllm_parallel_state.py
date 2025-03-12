@@ -1,5 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright 2023 The vLLM team.
 
 """Model and data parallel groups."""
 import os
@@ -15,9 +16,8 @@ from vllm.distributed.parallel_state import (
     init_distributed_environment,
     init_model_parallel_group,
 )
-from vllm.logger import init_logger
 
-logger = init_logger(__name__)
+
 """
 This version is strongly tied with Megatron to implement HybridEngine and weight sharing between vllm and Megatron.
 - We assume the Megatron tp+dp+pp world is already established before calling this function.
@@ -229,43 +229,4 @@ def initialize_model_parallel(
     )
 
     ps._PP = _PP  # for verl
-
-
-"""
-Device mesh utilities
-"""
-
-
-def get_device_mesh():
-    if _DEVICE_MESH is None:
-        raise ValueError("device mesh is not initialized")
-    return _DEVICE_MESH
-
-
-"""
-Tensor model parallel utilities
-"""
-
-
-def get_tensor_model_parallel_group():
-    """Get the tensor model parallel group the caller rank belongs to."""
-    if _TP is None:
-        raise ValueError("tensor model parallel group is not initialized")
-    return _TP.device_group
-
-
-def get_tensor_model_parallel_world_size():
-    """Return world size for the tensor model parallel group."""
-    return torch.distributed.get_world_size(group=get_tensor_model_parallel_group())
-
-
-def get_tensor_model_parallel_rank():
-    """Return my rank for the tensor model parallel group."""
-    return torch.distributed.get_rank(group=get_tensor_model_parallel_group())
-
-
-def get_tensor_model_parallel_src_rank():
-    global_rank = torch.distributed.get_rank()
-    local_world_size = get_tensor_model_parallel_world_size()
-    return (global_rank // local_world_size) * local_world_size
 

@@ -12,3 +12,5 @@ for script in $test_scripts; do
     sh "$script"
 
 done
+
+echo "st end"

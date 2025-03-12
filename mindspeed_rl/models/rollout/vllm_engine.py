@@ -1,19 +1,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright 2023 The vLLM team.
 
-
-"""
-The vllm_rollout that can be applied in different backend
-When working with FSDP:
-- Use DTensor weight loader (recommended) or HF weight loader
-- Utilize state_dict from the FSDP to synchronize the weights among tp ranks in vLLM
-When working with Megatron:
-- Use Megatron weight loader
-- During training, only the current pp stage holds the parameters
-- Before inference, broadcast the parameters of the current pp rank to all other pp ranks (all pp ranks holds all the parameters)
-- Bind the parameters to the inference engine
-- Do inference in tp. pp is treated as additional dp
-- After inference, all the parameters that doesn't belong to this pp rank is freed.
-"""
 import os
 from contextlib import contextmanager
 
@@ -24,12 +12,13 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 
-from mindspeed_rl.models.base.inference_engine_base import BaseInferEngine
+from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import initialize_parallel_state
 from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
     load_megatron_weights,
-    update_megatron_weight_loader
+    update_megatron_weight_loader,
+    InferParallelConfig
 )
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_model_loader import DummyMegatronModelLoader
 
@@ -185,8 +174,10 @@ class VLLMInferEngine(BaseInferEngine):
                 params.data = self.cpu_model[name]
 
     def sync_model_weights(self, params, load_format='megatron'):
+        infer_parallel_config = InferParallelConfig(self.infer_tensor_parallel_size, self.infer_pipeline_parallel_size, self.infer_expert_parallel_size)
         load_megatron_weights(params, 
             self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model, 
+            infer_parallel_config,
             self.megatron_config)
 
     @torch.no_grad()

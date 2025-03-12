@@ -10,6 +10,20 @@ import torch
 import torch.distributed
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
+
+
+def dummy_compile(*compile_args, **compile_kwargs):
+    def decorate(fn):
+        def wrapper(*args, **kwargs):
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorate
+
+
+torch.compile = dummy_compile
+
 from vllm import LLM, SamplingParams
 
 from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
@@ -23,7 +37,6 @@ from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_model_loader import DummyMegatronModelLoader
 
 
-
 class VLLMInferEngine(BaseInferEngine):
     def __init__(
             self,
@@ -35,7 +48,7 @@ class VLLMInferEngine(BaseInferEngine):
             infer_pipeline_parallel_size: int,
             infer_expert_parallel_size: int,
             megatron_config: MegatronConfig,
-            sampling_config: dict, 
+            sampling_config: dict,
             max_num_seqs: int = 1,
             max_model_len: int = 2048,
             dtype: str = "bfloat16",
@@ -79,7 +92,7 @@ class VLLMInferEngine(BaseInferEngine):
         )
         # Additional initialization logic for VLLMInferEngine
         print("Entering VLLMInferEngine::__init__")
-        
+
         # Initialize sampling parameters from SamplingConfig
         self.sampling_config = sampling_config
         try:
@@ -97,7 +110,7 @@ class VLLMInferEngine(BaseInferEngine):
         except Exception as e:
             print(f"Error creating SamplingParams from dictionary: {e}")
             raise
-        
+
         self.megatron_config = megatron_config
 
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -162,7 +175,6 @@ class VLLMInferEngine(BaseInferEngine):
         self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine = None
         self.llm.llm_engine.model_executor.driver_worker.worker.gpu_cache = None
 
-
     def offload_model_weights(self):
         if not self.cpu_model:
             self.cpu_model = {}
@@ -174,11 +186,12 @@ class VLLMInferEngine(BaseInferEngine):
                 params.data = self.cpu_model[name]
 
     def sync_model_weights(self, params, load_format='megatron'):
-        infer_parallel_config = InferParallelConfig(self.infer_tensor_parallel_size, self.infer_pipeline_parallel_size, self.infer_expert_parallel_size)
-        load_megatron_weights(params, 
-            self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model, 
-            infer_parallel_config,
-            self.megatron_config)
+        infer_parallel_config = InferParallelConfig(self.infer_tensor_parallel_size, self.infer_pipeline_parallel_size,
+                                                    self.infer_expert_parallel_size)
+        load_megatron_weights(params,
+                              self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model,
+                              infer_parallel_config,
+                              self.megatron_config)
 
     @torch.no_grad()
     def generate_sequences(self, idx_list, **kwargs):
@@ -257,7 +270,7 @@ def get_local_rank() -> int:
     # Check if launched via torchrun (LOCAL_RANK is set)
     if "LOCAL_RANK" in os.environ:
         return int(os.environ["LOCAL_RANK"])
-    
+
     # Check if launched via ray
     try:
         # Get the local rank from ray's runtime context
@@ -267,7 +280,7 @@ def get_local_rank() -> int:
 
     except Exception as e:
         print(f"Warning: Failed to get local rank from ray runtime context. Error: {e}")
-    
+
     # Default to 0 (for testing or single-process scenarios)
     print("Warning: Unable to determine local rank. Defaulting to 0.")
     return 0

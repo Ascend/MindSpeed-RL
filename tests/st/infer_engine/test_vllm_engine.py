@@ -18,28 +18,23 @@ megatron_dict = {"num_attention_heads": 32,
                  "num_query_groups": 8,
                  "group_query_attention": True}
 sampling_config = {
-            "num_completions": 1,  # 每个输入提示生成的独立完成项数量
-            "logprobs": 1,  # 返回的 top token 的对数概率数量
-            "max_tokens": 128,  # 生成输出的最大 token 数量
-            "best_of": 2,  # 内部生成候选完成项的数量，从中选择最佳的一个
-            "top_p": 1.0,  # 核采样的累积概率阈值
-            "top_k": 50,  # 采样时考虑的最高概率 token 的数量
-            "min_p": 0.0,  # token 选择的最小概率阈值
-            "temperature": 0.2,  # 控制预测随机性的温度参数
-            "detokenize": False  # 是否将生成的 token 转换回可读字符串
-        }
+    "num_completions": 1,  # 每个输入提示生成的独立完成项数量
+    "logprobs": 1,  # 返回的 top token 的对数概率数量
+    "max_tokens": 128,  # 生成输出的最大 token 数量
+    "best_of": 2,  # 内部生成候选完成项的数量，从中选择最佳的一个
+    "top_p": 1.0,  # 核采样的累积概率阈值
+    "top_k": 50,  # 采样时考虑的最高概率 token 的数量
+    "min_p": 0.0,  # token 选择的最小概率阈值
+    "temperature": 0.2,  # 控制预测随机性的温度参数
+    "detokenize": False  # 是否将生成的 token 转换回可读字符串
+}
 
 
 def main():
     logger = Loggers(
-            name="TestLogger",
-            logger_level=logging.DEBUG
-        )
+        name="TestLogger",
+    )
     logger.info("start test_vllm_engine")
-    rank = int(os.getenv("RANK", "-1"))
-    local_rank = int(os.getenv("LOCAL_RANK", "0"))
-    world_size = int(os.getenv("WORLD_SIZE", "-1"))
-
 
     conversation = [
         {

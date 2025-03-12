@@ -1,4 +1,5 @@
 # coding=utf-8
+# Copyright (c) 2020; NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
 import os
@@ -101,7 +102,7 @@ def _build_index_mappings(
         nb_documents,
         num_samples: int,
         seed,
-        full_shuffle_instruction_dataset,
+        full_shuffle_dataset,
         parallel_state
 ):
     """
@@ -132,7 +133,7 @@ def _build_index_mappings(
                 shuffle_idx.extend(new_document_ids.tolist())
                 epoch += 1
 
-            if full_shuffle_instruction_dataset:
+            if full_shuffle_dataset:
                 random.shuffle(shuffle_idx)
 
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)

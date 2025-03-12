@@ -77,7 +77,7 @@ class InstructionDataset(BaseDataset):
                                                        nb_documents=len(self.documents),
                                                        num_samples=self.num_samples,
                                                        seed=self.seed,
-                                                       full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
+                                                       full_shuffle_dataset=full_shuffle_instruction_dataset,
                                                        parallel_state=self.parallel_state)
 
             self.dataset_type = "Preference_DS_Packed"

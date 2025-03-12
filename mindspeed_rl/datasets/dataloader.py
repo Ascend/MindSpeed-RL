@@ -5,6 +5,7 @@ import torch
 from transformers import DataCollatorForSeq2Seq
 
 from .data_samplers import PretrainingSampler
+from .data_samplers import PromptSampler
 
 
 class DataLoader(torch.utils.data.DataLoader):
@@ -69,3 +70,29 @@ class DataLoader(torch.utils.data.DataLoader):
                        collate_fn=collator,
                        pin_memory=True
                        )
+
+
+class PromptDataLoader(torch.utils.data.DataLoader):
+    def __init__(self, args, dataset, consumed_samples):
+        batch_sampler = PromptSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            batch_size=args.global_batch_size)
+
+        def collator(features, return_tensors=None):
+            features_dict = {}
+
+            features_dict["prompts"] = [torch.tensor(value['input_ids']) for value in features]
+
+            for add_key in args.dataset_additional_keys:
+                features_dict[add_key] = [torch.tensor(value[add_key]) for value in features]
+
+            return features_dict
+
+        super().__init__(dataset,
+                        batch_sampler=batch_sampler,
+                        num_workers=args.num_workers,
+                        generator=torch.Generator().manual_seed(args.seed),
+                        collate_fn=collator,
+                        pin_memory=True
+                         )

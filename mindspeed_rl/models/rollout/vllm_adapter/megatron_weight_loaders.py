@@ -103,7 +103,7 @@ def qkv_split_weight(query_key_value,
 
 
 def qkv_split_bias(query_key_value, infer_paralle_config: InferParallelConfig, megatron_config: MegatronConfig):
-    infer_tensor_parallel_size = infer_paralle_config.infer_pipeline_parallel_size
+    infer_tensor_parallel_size = infer_paralle_config.infer_tensor_parallel_size
     nh = megatron_config.num_attention_heads // infer_tensor_parallel_size
     ng = (megatron_config.num_query_groups if megatron_config.group_query_attention else megatron_config.num_attention_heads) // infer_tensor_parallel_size
     repeats = nh // ng

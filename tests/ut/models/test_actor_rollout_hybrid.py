@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
-from mindspeed_rl.config_cls.vllm_config import vLLMConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.actor import Actor
 from tests.test_tools.dist_test import DistributedTest
 
@@ -23,7 +23,7 @@ class TestActorRolloutHybrid(DistributedTest):
         self.opt_param_scheduler = MagicMock()
         self.inference_model = MagicMock()
         self.sharding_manager = MagicMock()
-        self.generate_config = vLLMConfig({"infer_tensor_parallel_size": 8})
+        self.generate_config = GenerateConfig({"infer_tensor_parallel_size": 8})
         self.forward_backward_func = MagicMock()
 
         self.actor_rollout = ActorRolloutHybrid(

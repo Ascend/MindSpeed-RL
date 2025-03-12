@@ -1,4 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+
 from .compute_utils import (
     AdaptiveKLController,
     FixedKLController,
@@ -8,6 +9,7 @@ from .compute_utils import (
 )
 
 from .training import get_tune_attention_mask, get_finetune_data_on_this_tp_rank, broadcast_data
+from .transfer_dock import TransferDock, GRPOTransferDock
 
 __all__ = [
     "AdaptiveKLController",
@@ -17,5 +19,7 @@ __all__ = [
     "get_finetune_data_on_this_tp_rank",
     "broadcast_data",
     "get_last_reward",
-    "compute_grpo_data_metrics"
+    "compute_grpo_data_metrics",
+    'TransferDock',
+    'GRPOTransferDock'
 ]

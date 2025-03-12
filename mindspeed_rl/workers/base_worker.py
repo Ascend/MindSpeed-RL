@@ -1,8 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import os
-import logging
-import sys
 from abc import ABC
 from types import ModuleType
 from typing import List, Callable
@@ -11,15 +9,18 @@ import socket
 import torch
 import ray
 
+from mindspeed_rl.utils.loggers import Loggers
+
+logger = Loggers("base_worker")
+
 try:
     from mindspeed_llm import megatron_adaptor
 except ImportError:
-    from mindspeed_rl.utils.loggers import Loggers
-    Loggers().logger.warning('megatron_adaptor is failed to import.')
+    logger.warning('megatron_adaptor is failed to import.')
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
-from mindspeed_rl.config_cls.vllm_config import vLLMConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.trainer.utils.parallel_state import (
     set_parallel_state,
     get_pipeline_model_parallel_rank,
@@ -31,8 +32,6 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_tensor_model_parallel_src_rank
 )
 from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
-
-logger = logging.getLogger(__name__)
 
 
 class BaseRayWorker:
@@ -82,7 +81,7 @@ class BaseWorker(BaseRayWorker, ABC):
             self,
             megatron_config: MegatronConfig = None,
             rl_config: RLConfig = None,
-            generate_config: vLLMConfig = None,
+            generate_config: GenerateConfig = None,
             model_provider: Callable = None,
             initialize_func: Callable = None,
             parallel_state: ModuleType = None,

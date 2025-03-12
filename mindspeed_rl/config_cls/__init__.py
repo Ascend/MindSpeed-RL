@@ -3,4 +3,6 @@
 
 from .megatron_config import MegatronConfig
 from .generate_config import GenerateConfig
-__all__ = ['MegatronConfig', 'GenerateConfig']
+from .rl_config import RLConfig
+
+__all__ = ['MegatronConfig', 'GenerateConfig', 'RLConfig']

@@ -27,7 +27,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
-from mindspeed_rl.config_cls.vllm_config import vLLMConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
@@ -73,7 +73,7 @@ class RayActorGroup:
             get_args: Callable = None,
             get_tokenizer: Callable = None,
             get_forward_backward_func: Callable = None,
-            generate_config: vLLMConfig = None,
+            generate_config: GenerateConfig = None,
             resources: Dict[str, float] = None,
             num_resources_per_node: int = None,
             **kwargs

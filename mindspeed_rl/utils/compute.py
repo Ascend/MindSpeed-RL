@@ -1,7 +1,18 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 from typing import Dict, List, Tuple, Union
 import torch
-from mindspeed_rl.trainer.utils.parallel_state import get_parallel_state
+
+_ParallelState = None
+
+
+def set_parallel_state(parallel_state):
+    global _ParallelState
+    _ParallelState = parallel_state
+
+
+def get_parallel_state():
+    global _ParallelState
+    return _ParallelState
 
 
 def vocab_parallel_log_softmax(logits):

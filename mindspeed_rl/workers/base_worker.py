@@ -22,7 +22,6 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.trainer.utils.parallel_state import (
-    set_parallel_state,
     get_pipeline_model_parallel_rank,
     get_pipeline_model_parallel_src_rank,
     get_pipeline_model_parallel_group,
@@ -31,6 +30,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_tensor_model_parallel_rank,
     get_tensor_model_parallel_src_rank
 )
+from mindspeed_rl.utils.compute import set_parallel_state
 from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
 
 

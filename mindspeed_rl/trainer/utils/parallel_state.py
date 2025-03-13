@@ -1,15 +1,4 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-_ParallelState = None
-
-
-def set_parallel_state(parallel_state):
-    global _ParallelState
-    _ParallelState = parallel_state
-
-
-def get_parallel_state():
-    global _ParallelState
-    return _ParallelState
 
 
 def get_pipeline_model_parallel_rank(mpu, use_vllm=False):

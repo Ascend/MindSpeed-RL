@@ -6,7 +6,7 @@ from typing import Optional, Any, Tuple
 import numpy as np
 
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
-from mindspeed_rl.utils import Loggers
+from mindspeed_rl.utils.loggers import Loggers
 
 logger = Loggers('build_train_valid_test_datasets')
 

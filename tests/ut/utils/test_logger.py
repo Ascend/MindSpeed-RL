@@ -16,7 +16,7 @@ class TestLogger(DistributedTest):
     def setup_logger(self):
         """Fixture to set up the logger for each test."""
         self.logger = Loggers(
-            name="TestLogger",
+            name="test_logger",
             logger_level=logging.DEBUG
         )
 

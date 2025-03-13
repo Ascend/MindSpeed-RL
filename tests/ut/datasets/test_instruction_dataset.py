@@ -4,7 +4,7 @@
 import numpy as np
 
 from mindspeed_rl import get_tokenizer
-from mindspeed_rl import InstructionDataset, DataLoader
+from mindspeed_rl import InstructionDataset, InstructionDataLoader
 
 from tests.test_tools.dist_test import DistributedTest
 
@@ -40,7 +40,7 @@ class TestInstructionDataset(DistributedTest):
             prompt_type_path='./configs/templates.json'
         )
 
-        dataloader = DataLoader(
+        dataloader = InstructionDataLoader(
             dataset=dataset,
             parallel_state=parallel_state,
             tokenizer=None,
@@ -88,7 +88,7 @@ class TestInstructionDataset(DistributedTest):
         )
 
 
-        dataloader = DataLoader(
+        dataloader = InstructionDataLoader(
             dataset=dataset,
             parallel_state=parallel_state,
             tokenizer=None,

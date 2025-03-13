@@ -35,7 +35,7 @@ from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils import parse_args_from_config
 from mindspeed_rl.utils.utils import seed_all
 
-logger = Loggers().logger
+logger = Loggers('test_resharding')
 
 MODEL_PATH = "/data/for_dt/weights/Qwen2.5-7B-mg"
 TOKENIZER_TYPE = "PretrainedFromHF"

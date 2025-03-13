@@ -1,9 +1,15 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
+import os
+from pathlib import Path
+
 from typing import Dict
 
 from mindspeed_rl.config_cls.base_config import BaseConfig
-from mindspeed_rl.datasets.templates import TEMPLATES_DIR
+
+
+cur_file_dir = Path(__file__).absolute().parent
+TEMPLATES_DIR = os.path.join(cur_file_dir.parent.parent, "configs/templates.json")
 
 
 class MegatronConfig(BaseConfig):

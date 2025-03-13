@@ -1,4 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
+
 class LossRegister:
     class_map = dict()
 

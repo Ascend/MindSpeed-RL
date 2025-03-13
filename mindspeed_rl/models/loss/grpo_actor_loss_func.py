@@ -3,7 +3,7 @@ from typing import Dict, Tuple
 
 import torch
 
-from mindspeed_rl.models.loss import LossFuncFactory
+from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.utils.utils import generate_mask
 import mindspeed_rl.utils.torch_functional as F

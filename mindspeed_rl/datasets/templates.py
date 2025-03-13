@@ -1,10 +1,8 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
-import os
 import re
 import json
-from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
@@ -15,10 +13,6 @@ if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer
 
     from .formatter import Formatter
-
-cur_file_dir = Path(__file__).absolute().parent
-
-TEMPLATES_DIR = os.path.join(cur_file_dir.parent.parent, "configs/templates.json")
 
 
 @unique
@@ -309,7 +303,7 @@ def _register_template(
     )
 
 
-def register_custom_template(name, json_file_path=TEMPLATES_DIR) -> str:
+def register_custom_template(name, json_file_path=None) -> str:
     if name in templates:
         return name
 

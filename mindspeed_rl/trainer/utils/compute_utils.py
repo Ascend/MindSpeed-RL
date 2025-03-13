@@ -22,7 +22,7 @@ import numpy as np
 
 import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.utils import generate_mask
-from mindspeed_rl.utils import get_tokenizer
+from mindspeed_rl.utils.tokenizer import get_tokenizer
 
 
 class AdaptiveKLController:

@@ -6,10 +6,12 @@ from abc import ABC
 import torch
 
 from mindspeed_rl.utils import Loggers
-from .utils.training import get_tune_attention_mask, get_finetune_data_on_this_tp_rank, broadcast_data
-from .utils.training import average_losses_across_data_parallel_group
+from mindspeed_rl.utils.utils import get_tune_attention_mask
+from .utils.training import (
+    get_finetune_data_on_this_tp_rank, broadcast_data, average_losses_across_data_parallel_group
+)
 
-logger = Loggers('SFTTrainer')
+logger = Loggers('stf_trainer')
 
 
 class SFTTrainer(ABC):

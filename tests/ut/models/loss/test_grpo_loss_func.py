@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 import torch
 
-from mindspeed_rl.models.loss import BaseLossFunc
+from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.models.loss.grpo_actor_loss_func import GRPOActorLossFunc
 from tests.test_tools.dist_test import DistributedTest
 

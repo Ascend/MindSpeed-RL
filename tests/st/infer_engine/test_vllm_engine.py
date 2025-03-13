@@ -4,6 +4,7 @@
 import os
 import logging
 
+import tensordict
 import torch
 from torch_npu.contrib import transfer_to_npu
 
@@ -32,7 +33,7 @@ sampling_config = {
 
 def main():
     logger = Loggers(
-        name="TestLogger",
+        name="test_vllm_engine",
     )
     logger.info("start test_vllm_engine")
 

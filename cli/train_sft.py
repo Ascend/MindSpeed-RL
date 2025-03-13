@@ -32,7 +32,7 @@ from mindspeed_llm.training.arguments import parse_args_decorator
 from mindspeed_rl.trainer.sft_trainer import SFTTrainer
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.datasets.instruction_dataset import InstructionDataset
-from mindspeed_rl.datasets.dataloader import DataLoader
+from mindspeed_rl.datasets.dataloader import InstructionDataLoader
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.datasets.utils import build_data_iter, get_train_valid_test_num_samples
 from mindspeed_rl.utils import get_tokenizer, Loggers, synchronize_time, seed_all, parse_args_from_config
@@ -91,7 +91,7 @@ def sft_train(args):
     #  build_dataloader
     train_dataloader = None
     if train_dataset is not None and len(train_dataset) > 0:
-        train_dataloader = DataLoader(
+        train_dataloader = InstructionDataLoader(
             dataset=train_dataset,
             parallel_state=parallel_state,
             tokenizer=tokenizer,
@@ -107,7 +107,7 @@ def sft_train(args):
 
     valid_dataloader = None
     if valid_dataset is not None and len(valid_dataset) > 0:
-        valid_dataloader = DataLoader(
+        valid_dataloader = InstructionDataLoader(
         dataset=valid_dataset,
         parallel_state=parallel_state,
         tokenizer=tokenizer,
@@ -123,7 +123,7 @@ def sft_train(args):
 
     test_dataloader = None
     if test_dataset is not None and len(test_dataset) > 0:
-        test_dataloader = DataLoader(
+        test_dataloader = InstructionDataLoader(
             dataset=test_dataset,
             parallel_state=parallel_state,
             tokenizer=tokenizer,

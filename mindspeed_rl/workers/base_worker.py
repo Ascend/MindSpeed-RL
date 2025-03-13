@@ -4,9 +4,10 @@ import os
 from abc import ABC
 from types import ModuleType
 from typing import List, Callable
-
 import socket
+
 import torch
+import torch_npu
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers

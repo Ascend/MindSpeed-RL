@@ -8,7 +8,7 @@ from .data_samplers import PretrainingSampler
 from .data_samplers import PromptSampler
 
 
-class DataLoader(torch.utils.data.DataLoader):
+class InstructionDataLoader(torch.utils.data.DataLoader):
     """DataLoader.
 
     Args:

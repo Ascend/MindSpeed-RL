@@ -8,7 +8,7 @@ from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
 
-logger = Loggers()
+logger = Loggers('rule_verifier')
 
 
 def _math_worker(q, prediction, reference):

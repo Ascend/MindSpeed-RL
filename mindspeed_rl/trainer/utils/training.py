@@ -9,40 +9,6 @@ _TRAIN_START_TIME = time.time()
 _MAX_DATA_DIM = 5
 
 
-def get_tune_attention_mask(attention_mask_1d, reset_attention_mask=True, tokenizer_padding_side="right"):
-    """
-    Generate the final attention mask based on the input parameters and attention mask.
-
-    Args:
-        reset_attention_mask: Indicating whether to reset the attention mask.
-        tokenizer_padding_side: Indicating the padding direction of the tokenizer, which can be "left" or "right".
-        attention_mask_1d: A 1D attention mask tensor.
-
-    Returns:
-        The final attention mask tensor.
-    """
-    micro_batch_size, seq_length = attention_mask_1d.size()
-    if reset_attention_mask:
-        att_mask_batch = micro_batch_size
-    else:
-        att_mask_batch = 1
-
-    if tokenizer_padding_side == "left":
-        attention_mask = torch.tril(
-            torch.ones(seq_length, seq_length, device=attention_mask_1d.device, dtype=torch.bool)).view(1, 1,
-                                                                                                        seq_length,
-                                                                                                        seq_length)
-        attention_mask_tran = attention_mask_1d.view(seq_length, 1, -1)
-        attention_mask = attention_mask.masked_fill((attention_mask_tran < 0.5).view(-1, 1, 1, seq_length), value=0)
-    else:
-        attention_mask = torch.tril(torch.ones(
-            (att_mask_batch, seq_length, seq_length), device=attention_mask_1d.device)).view(
-            att_mask_batch, 1, seq_length, seq_length)
-    attention_mask = attention_mask.masked_fill((attention_mask_1d < 0.5).view(-1, 1, 1, seq_length), value=0)
-    attention_mask = (attention_mask < 0.5)
-    return attention_mask
-
-
 def get_finetune_data_on_this_tp_rank(data_iterator, parallel_state, reset_attention_mask, tokenizer_padding_side):
     """
     Get the data for fine-tuning on this tensor parallel rank.

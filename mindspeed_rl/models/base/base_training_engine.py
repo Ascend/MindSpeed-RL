@@ -9,8 +9,9 @@ from torch.utils.data import DataLoader
 
 from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
-from mindspeed_rl.utils.utils import append_to_dict, generate_mask, generate_position_ids
-from mindspeed_rl.trainer.utils import get_tune_attention_mask
+from mindspeed_rl.utils.utils import (
+    append_to_dict, generate_mask, generate_position_ids, get_tune_attention_mask
+)
 
 
 class BaseTrainingEngine(ABC):

@@ -4,7 +4,7 @@
 from megatron.core import parallel_state
 
 from mindspeed_rl import get_tokenizer, build_train_valid_test_datasets
-from mindspeed_rl import InstructionDataset, DataLoader
+from mindspeed_rl import InstructionDataset, InstructionDataLoader
 
 from tests.test_tools.dist_test import DistributedTest
 
@@ -35,7 +35,7 @@ class TestBuildTrainValidTestDataset(DistributedTest):
             extra_param=None
         )
 
-        train_dl = DataLoader(
+        train_dl = InstructionDataLoader(
             dataset=train_ds,
             parallel_state=parallel_state,
             tokenizer=None,
@@ -77,7 +77,7 @@ class TestBuildTrainValidTestDataset(DistributedTest):
             extra_param=None
         )
 
-        train_dl = DataLoader(
+        train_dl = InstructionDataLoader(
             dataset=train_ds,
             parallel_state=parallel_state,
             tokenizer=None,

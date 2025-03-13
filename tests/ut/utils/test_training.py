@@ -13,7 +13,7 @@ class TestGetTuneAttentionMask(DistributedTest):
         self.attention_mask_1d = torch.rand(5, 10)
 
     def test_reset_attention_mask_true(self, setUp):
-        from mindspeed_rl.trainer.utils.training import get_tune_attention_mask
+        from mindspeed_rl.utils.utils import get_tune_attention_mask
         result = get_tune_attention_mask(self.attention_mask_1d, self.reset_attention_mask, self.tokenizer_padding_side)
         assert result.size(0) == 5
 

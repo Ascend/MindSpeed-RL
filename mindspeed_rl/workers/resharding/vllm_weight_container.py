@@ -25,7 +25,7 @@ import numpy as np
 
 from torch.distributed import new_group
 
-from mindspeed_rl.workers.resharding.memory_buffer import ModelWeightBuffer, build_model_weight_buffer
+from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer
 
 _PP_ALLGATHER_GROUP = None
 _TP_ALLGATHER_GROUP = None

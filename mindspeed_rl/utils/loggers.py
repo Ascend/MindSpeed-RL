@@ -5,6 +5,7 @@ import logging
 from logging import handlers
 from datetime import datetime, timezone
 
+import tensordict
 import torch
 import torch_npu
 import torch.distributed as dist

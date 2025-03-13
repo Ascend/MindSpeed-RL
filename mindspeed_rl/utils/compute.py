@@ -77,6 +77,7 @@ def compute_log_probs(
     Returns:
         A tuple containing the log probabilities and the valid length.
     """
+    labels = labels.clone()
     mpu = get_parallel_state()
     if mpu.get_tensor_model_parallel_world_size() > 1:
         tp_vocab_size = logits.size(2)

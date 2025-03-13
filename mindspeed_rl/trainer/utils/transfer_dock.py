@@ -37,10 +37,10 @@ class TransferDock(ABC):
         self.index_dispatch_stop_signal = False
 
     def _put(
-        self,
-        experience_columns: List[str],
-        experience: List[List[List[torch.Tensor]]],
-        indexes: List[int] = None,
+            self,
+            experience_columns: List[str],
+            experience: List[List[List[torch.Tensor]]],
+            indexes: List[int] = None,
     ):
         """Put data into specified columns and rows.
 
@@ -66,10 +66,10 @@ class TransferDock(ABC):
             self._put_without_index(experience_columns, experience)
 
     def _put_with_index(
-        self,
-        experience_columns: List[str],
-        experience: List[List[List[torch.Tensor]]],
-        indexes: List[int],
+            self,
+            experience_columns: List[str],
+            experience: List[List[List[torch.Tensor]]],
+            indexes: List[int],
     ):
         """Put data into specified columns and rows.
 
@@ -87,8 +87,8 @@ class TransferDock(ABC):
 
             for i, index in enumerate(indexes):
                 while (
-                    single_column not in self.initialize_stop_signal.keys()
-                    or self.initialize_stop_signal[single_column]
+                        single_column not in self.initialize_stop_signal.keys()
+                        or self.initialize_stop_signal[single_column]
                 ):
                     time.sleep(0.1)
                 self.experience_data[single_column][index] = experience[column_idx][i]
@@ -174,9 +174,7 @@ class TransferDock(ABC):
             else:
                 data_ready = sum(itemgetter(*indexes)(self.experience_data_status[single_column])) == len(indexes)
 
-    def _clear_experience_data_and_status(
-        self,
-    ):
+    def _clear_experience_data_and_status(self):
         """Clear data and data status in TransferDock.
 
         Returns: None
@@ -255,13 +253,13 @@ class GRPOTransferDock(TransferDock):
         super().__init__(self.max_len, self.experience_columns)
 
     def get_experience(
-        self,
-        consumer: str,
-        experience_columns: List[str],
-        experience_count: int = None,
-        indexes: List[int] = None,
-        pad_id: int = None,
-        multiple: int = 1,
+            self,
+            consumer: str,
+            experience_columns: List[str],
+            experience_count: int = None,
+            indexes: List[int] = None,
+            pad_id: int = None,
+            multiple: int = 1,
     ):
         """Get padded experience data from GRPOTransferDock.
 
@@ -291,10 +289,10 @@ class GRPOTransferDock(TransferDock):
         return experience_batch, indexes
 
     def put_experience(
-        self,
-        data_dict: Dict[str, Union[Tensor, List[Tensor]]],
-        indexes: List[int] = None,
-        num_responses: int = 1,
+            self,
+            data_dict: Dict[str, Union[Tensor, List[Tensor]]],
+            indexes: List[int] = None,
+            num_responses: int = 1,
     ):
         """Put data into specified columns and rows.
 
@@ -363,9 +361,7 @@ class GRPOTransferDock(TransferDock):
         """
         return self.experience_consumer_status[consumer].sum() == self.max_len
 
-    def clear(
-        self,
-    ):
+    def clear(self):
         """Reset consumer status.Clear data and data status in GRPOTransferDock.
 
         Returns: None
@@ -376,9 +372,7 @@ class GRPOTransferDock(TransferDock):
         }
         self._clear_experience_data_and_status()
 
-    def get_consumer_status(
-        self,
-    ):
+    def get_consumer_status(self):
         """Get consumer status.
 
         Returns: Consumer status dict.
@@ -388,10 +382,10 @@ class GRPOTransferDock(TransferDock):
 
 
 def trans_experience_to_output(
-    experience: List[List[List[Tensor]]],
-    experience_columns: List[str],
-    pad_id: int,
-    multiple: int,
+        experience: List[List[List[Tensor]]],
+        experience_columns: List[str],
+        pad_id: int,
+        multiple: int,
 ):
     """Merge and pad data into dict.
 
@@ -407,10 +401,12 @@ def trans_experience_to_output(
     batch = {}
     for i, experience_column in enumerate(experience_columns):
         experience_i_all = [item for sublist in experience[i] for item in sublist]
-        if experience_column == "prompt_length" or experience_column == "response_length":
+        if experience_column in ["prompt_length", "response_length"]:
             padded = torch.cat(experience_i_all).reshape(-1, 1)
-        elif experience_column == "prompts" or experience_column == "responses" or experience_column == "input_ids":
+        elif experience_column in ["prompts", "input_ids", "labels"]:
             padded = pad_multiples(experience_i_all, pad_id=pad_id, multiple=multiple)
+        elif experience_column == "responses":
+            padded = pad_multiples(experience_i_all, pad_id=-100, multiple=multiple)
         else:
             padded = pad_multiples(experience_i_all, pad_id=0.0, multiple=multiple)
 
@@ -467,5 +463,4 @@ def pad_multiples(data_list: List[Tensor], pad_id: Union[float, int], multiple: 
     max_len = padded.size(1)
     target_len = ((max_len + multiple - 1) // multiple) * multiple
     padded = F.pad(padded, (0, target_len - max_len), value=pad_id)
-
     return padded

@@ -1,43 +1,174 @@
-# coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+"""
+Note that we don't combine the main with trainer as trainer is used by other main.
+"""
 from datetime import timedelta
 from typing import Dict
 
+import numpy as np
 import hydra
 import ray
 import torch
-from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
+from ray.util.placement_group import placement_group
 
-from mindspeed_rl.trainer.utils import GRPOTransferDock
-from mindspeed_rl.utils import Loggers
-from mindspeed_rl.utils.utils import parse_args_from_config, seed_all
+from mindspeed_rl.datasets.build_dataset import get_train_valid_test_split_
+from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
+from mindspeed_rl.utils import seed_all
+from mindspeed_rl.utils.loggers import Loggers
 
-logger = Loggers("test_actor_hybrid_worker")
+logger = Loggers("grpo_train")
 
 
 def parse_training_config(config: Dict):
     """
-    解析训练配置，提取 actor、rl 和 generate 的配置。
+    解析训练配置，提取 actor、ref、reward、rl 和 generate 的配置。
 
     :param config: 输入的全局配置字典。
-    :return: 包含 actor_config、rl_config 和 generate_config 的实例。
+    :return: 包含 actor_config、ref_config、reward_config、rl_config 和 generate_config 的实例。
     """
     from mindspeed_rl.config_cls.megatron_config import MegatronConfig
     from mindspeed_rl.config_cls.rl_config import RLConfig
     from mindspeed_rl.config_cls.generate_config import GenerateConfig
     actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
                                   config.get('model'))
+    ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
+                                config.get('model'))
+    reward_config = MegatronConfig({**config.get("megatron_training"), **config.get("reward_config")},
+                                   config.get('model'))
     rl_config = RLConfig(config.get("rl_config"))
     generate_config = GenerateConfig(config.get("generate_config"))
+    if generate_config.max_model_len <= actor_config.seq_length:
+        raise ValueError(
+            f"The sequence length must be greater than vllm max_model_len! "
+            f"sequence length={actor_config.seq_length},max_model_len={generate_config.max_model_len}")
 
-    return actor_config, rl_config, generate_config
+    return actor_config, ref_config, reward_config, rl_config, generate_config
+
+
+def get_colocate_placement_group(rl_config):
+    from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
+    from mindspeed_rl.workers.reference_woker import ReferenceWorker
+    from mindspeed_rl.workers.scheduler.launcher import get_npu_deployment
+    if rl_config.colocate_actor_ref or rl_config.colocate_all_models:
+        actor_num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
+        ref_num_npus = get_npu_deployment(rl_config, ReferenceWorker)
+        if actor_num_npus != ref_num_npus:
+            raise ValueError(f"num_npus must be the same when colocate actor and ref model.")
+
+        cpu_nums = 3 if rl_config.colocate_all_models else 2
+        bundles = [{"NPU": 1, "CPU": cpu_nums}
+                   for _ in range(actor_num_npus)]
+        pg = placement_group(bundles, strategy="PACK")
+        ray.get(pg.ready())
+        return pg
+    else:
+        return None
+
+
+def _build_train_valid_test_datasets(
+        data_prefix,
+        splits_string,
+        seq_length: int,
+        pad_token: int,
+        eos_token: int,
+        train_valid_test_num_samples,
+        seed,
+        dataset_cls=None,
+        args=None
+):
+    """Build train, valid, and test datasets."""
+
+    # 设置默认数据集类，保持向后兼容
+    if dataset_cls is None:
+        raise ValueError("dataset_cls must be provided.")
+
+    # Target indexed dataset.
+    packed_indexed_dataset = get_packed_indexed_dataset(data_prefix=data_prefix)
+
+    total_num_of_documents = len(list(packed_indexed_dataset.datasets.values())[0])
+    splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
+    logger.info(' > dataset split:')
+
+    def print_split_stats(name, index):
+        logger.info(f'    {name}:')
+        logger.info(
+            f'     document indices in [{splits[index]}, {splits[index + 1]}) total of {splits[index + 1] - splits[index]} documents')
+
+    print_split_stats('train', 0)
+    print_split_stats('validation', 1)
+    print_split_stats('test', 2)
+
+    def build_dataset(index, name):
+        dataset = None
+        if splits[index + 1] > splits[index]:
+            documents = np.arange(start=splits[index], stop=splits[index + 1], dtype=np.int32)
+            # 使用传入的dataset_cls动态创建数据集实例
+            dataset = dataset_cls(
+                name=name,
+                data_prefix=data_prefix,
+                documents=documents,
+                seq_length=seq_length,
+                pad_token=pad_token,
+                eos_token=eos_token,
+                num_samples=train_valid_test_num_samples[index],
+                is_packed_data=True,
+                seed=seed,
+                args=args
+            )
+        return dataset
+
+    train_dataset = build_dataset(0, 'train')
+    valid_dataset = build_dataset(1, 'valid')
+    test_dataset = build_dataset(2, 'test')
+
+    return train_dataset, valid_dataset, test_dataset
+
+
+def build_train_valid_test_datasets(
+        data_prefix,
+        splits_string,
+        seq_length: int,
+        train_valid_test_num_samples,
+        seed,
+        dataset_cls,
+        tokenizer=None,
+        args=None
+):
+    """Build train, valid, and test datasets."""
+
+    logger.info(' > datasets target sizes (minimum size):')
+    logger.info('    train:      {}'.format(train_valid_test_num_samples[0]))
+    logger.info('    validation: {}'.format(train_valid_test_num_samples[1]))
+    logger.info('    test:       {}'.format(train_valid_test_num_samples[2]))
+
+    if tokenizer:
+        pad_token = tokenizer.pad
+        eos_token = tokenizer.eos
+    else:
+        pad_token = 0
+        eos_token = 1
+
+    # Only Support Single dataset.
+    all_train_datasets, all_valid_datasets, all_test_datasets = _build_train_valid_test_datasets(
+        data_prefix=data_prefix[0],
+        splits_string=splits_string,
+        seq_length=seq_length,
+        pad_token=pad_token,
+        eos_token=eos_token,
+        train_valid_test_num_samples=train_valid_test_num_samples,
+        seed=seed,
+        dataset_cls=dataset_cls,
+        args=args
+    )
+
+    return all_train_datasets, all_valid_datasets, all_test_datasets
 
 
 @ray.remote
 def train(config):
     import sys
-
+    from mindspeed_rl.utils.utils import parse_args_from_config
     origin_sys_argv = sys.argv
     sys.argv = [sys.argv[0]]
     parse_args_from_config(config)
@@ -55,7 +186,6 @@ def train(config):
     from megatron.legacy.model import Float16Module
     from megatron.training.training import get_model, unwrap_model
     from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
-
     from megatron.core.models.gpt import GPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from megatron.core.transformer.spec_utils import import_module
@@ -65,6 +195,7 @@ def train(config):
     from megatron.training.initialize import _set_random_seed, _init_autoresume, _compile_dependencies, \
         _initialize_tp_communicators
 
+    from mindspeed_llm.tasks.posttrain.orm.orm_model import GPTRewardModel
     from mindspeed_llm.training.arguments import parse_args_decorator
 
     def gpt_model_provider(pre_process, post_process):
@@ -106,6 +237,52 @@ def train(config):
             position_embedding_type=args.position_embedding_type,
             rotary_percent=args.rotary_percent,
             seq_len_interpolation_factor=args.rotary_seq_len_interpolation_factor
+        )
+
+        return model
+
+    def rm_model_provider(pre_process, post_process):
+        """
+        Builds the model.
+
+        Args:
+            pre_process (bool, optional): Set to true if you need to compute embedings. Defaults to True.
+            post_process (bool, optional): Set to true if you need to want to compute output logits/loss.
+            Defaults to True.
+
+        Returns:
+            GPTRewardModel: The returned model
+        """
+        args = get_args()
+        logger.info('building GPT model ...')
+        # Experimental loading arguments from configs
+        config = core_transformer_config_from_args(args)
+
+        if args.spec is not None:
+            transformer_layer_spec = import_module(args.spec)
+        else:
+            transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+
+        if (not args.untie_embeddings_and_output_weights) and (args.pipeline_model_parallel_size > 1):
+            args.untie_embeddings_and_output_weights = True
+            logger.warning(
+                "untie_embeddings_and_output_weights is set to True, "
+                "since output_layer is not used in Outcome Reward model training."
+            )
+
+        model = GPTRewardModel(
+            config=config,
+            transformer_layer_spec=transformer_layer_spec,
+            vocab_size=args.padded_vocab_size,
+            max_sequence_length=args.max_position_embeddings,
+            pre_process=pre_process,
+            post_process=post_process,
+            post_layer_norm=not args.no_post_layer_norm,
+            fp16_lm_cross_entropy=args.fp16_lm_cross_entropy,
+            parallel_output=True,
+            share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights,
+            position_embedding_type=args.position_embedding_type,
+            rotary_percent=args.rotary_percent,
         )
 
         return model
@@ -251,27 +428,22 @@ def train(config):
                         f"{parallel_state.get_pipeline_model_parallel_world_size()}"
                     )
 
+    from mindspeed_rl.datasets.prompt_dataset import PromptDataset, build_prompt_data_loader
+    from mindspeed_rl.workers.rule_reward import RuleReward
+    from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
+    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
     from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
+    from mindspeed_rl.workers.reference_woker import ReferenceWorker
+    from mindspeed_rl.workers.reward_woker import RewardWorker
 
-    actor_config, rl_config, generate_config = parse_training_config(config)
-    bundles = [{"NPU": 1, "CPU": 1}]
-    pg = ray.util.placement_group(bundles, strategy="PACK")
-    ray.get(pg.ready())
+    actor_config, ref_config, reward_config, rl_config, generate_config = parse_training_config(config)
 
-    runtime_env = {
-        "env_vars": {
-            "MASTER_ADDR": "localhost",
-            "MASTER_PORT": "",
-            "WORLD_SIZE": '1',
-            "RANK": '0',
-        }
-    }
+    pgs = get_colocate_placement_group(rl_config)
 
     megatron_module = {
-        'get_model': get_model,
-        'model_provider': gpt_model_provider,
         'initialize_func': initialize_megatron,
         'parallel_state': parallel_state,
+        'get_model': get_model,
         'get_megatron_optimizer': get_megatron_optimizer,
         'get_optimizer_param_scheduler': get_optimizer_param_scheduler,
         'load_checkpoint': load_checkpoint,
@@ -284,31 +456,88 @@ def train(config):
         'local_ddp': LocalDDP,
         'distributed_data_parallel_config': DistributedDataParallelConfig,
     }
+    actor_worker = RayActorGroup(
+        worker=ActorHybridWorker,
+        placement_group=pgs,
+        megatron_config=actor_config,
+        rl_config=rl_config,
+        generate_config=generate_config,
+        model_provider=gpt_model_provider,
+        **megatron_module,
+    ).initialize()
 
-    actor_worker = ActorHybridWorker.options(
-        scheduling_strategy=PlacementGroupSchedulingStrategy(
-            placement_group=pg,
-            placement_group_bundle_index=0
-        ),
-        runtime_env=runtime_env
-    ).remote(
-        actor_config,
-        rl_config,
-        generate_config,
-        **megatron_module
+    reference_worker = RayActorGroup(
+        worker=ReferenceWorker,
+        placement_group=pgs,
+        megatron_config=ref_config,
+        rl_config=rl_config,
+        model_provider=gpt_model_provider,
+        **megatron_module,
+    ).initialize()
+
+    if not rl_config.colocate_all_models:
+        pgs = None
+
+    reward_list = []
+
+    if rl_config.reward_resource:
+        reward_worker = RayActorGroup(
+            worker=RewardWorker,
+            placement_group=pgs,
+            megatron_config=reward_config,
+            rl_config=rl_config,
+            model_provider=rm_model_provider,
+            **megatron_module,
+        ).initialize()
+
+        reward_list.append(reward_worker)
+
+    if rl_config.rule_reward:
+        rule_reward = RuleReward.remote()
+        rule_reward.initialize.remote(reward_config, rl_config.n_samples_per_prompt)
+        reward_list.append(rule_reward)
+
+    train_ds, _, _ = build_train_valid_test_datasets(
+        data_prefix=[actor_config.data_path, ],
+        splits_string=actor_config.split,
+        seq_length=actor_config.seq_length,
+        train_valid_test_num_samples=[
+            actor_config.train_iters * actor_config.global_batch_size, 0, 0
+        ],
+        seed=actor_config.seed,
+        dataset_cls=PromptDataset,
+        args=actor_config
+    )
+    actor_worker.wait_all_ref_objs_run_over()
+
+    consumed_train_samples = actor_worker.get_consumed_train_samples()
+    data_loader = build_prompt_data_loader(actor_config, train_ds, consumed_train_samples)
+
+    reference_worker.wait_all_ref_objs_run_over()
+    for reward in reward_list:
+        if hasattr(reward, 'wait_all_ref_objs_run_over'):
+            reward.wait_all_ref_objs_run_over()
+
+    trainer = RayGRPOTrainer(
+        actor_worker,
+        reference_worker,
+        reward_list,
+        tokenizer_name_or_path=actor_config.tokenizer_name_or_path,
+        global_batch_size=actor_config.global_batch_size,
+        micro_batch_size=actor_config.micro_batch_size,
+        train_iters=actor_config.train_iters,
+        save_interval=actor_config.save_interval,
+        dataset_additional_keys=actor_config.dataset_additional_keys,
+        **rl_config.__dict__
     )
 
-    ray.get(actor_worker.initialize.remote())
-
-    transfer_dock = GRPOTransferDock.remote(actor_config.global_batch_size)
-    ray.get(actor_worker.init_transfer_dock.remote(transfer_dock))
-
-    logger.info("==================== hybrid worker initialize test passed! ====================")
+    trainer.fit(data_loader)
 
 
-@hydra.main(config_path='../configs', config_name='test_actor_hybrid_worker', version_base=None)
+@hydra.main(config_path='../configs', config_name='grpo_trainer_qwen25_7b', version_base=None)
 def main(config):
     if not ray.is_initialized():
+        # this is for local ray cluster
         ray.init(runtime_env={
             'env_vars': {"RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES": "True",
                          'TOKENIZERS_PARALLELISM': 'true',

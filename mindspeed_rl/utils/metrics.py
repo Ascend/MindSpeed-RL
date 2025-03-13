@@ -1,6 +1,7 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 from abc import ABC, abstractmethod
+from typing import Dict
 
 import numpy as np
 import torch
@@ -10,19 +11,17 @@ class Metric(ABC):
     def __init__(self):
         self.metric = {}
 
-    @staticmethod
     def update(self, key="", value=None):
         """
         只做参数更新
         key: str
         value: dict|list|tensor. when key is None, maybe value is a dict
         """
-        if key:
-            self.metric[key] = value
-        elif isinstance(value, dict):
+        if isinstance(value, Dict):
             self.metric.update(value)
+        else:
+            self.metric[key] = value
 
-    @staticmethod
     def compute_mean(self, key, value, axis=0):
         """
         计算并返回当前的指标的均值。
@@ -43,7 +42,6 @@ class Metric(ABC):
 
         return value_mean
 
-    @staticmethod
     def compute_max(self, key, value, axis=0):
         """
         计算并返回当前的指标的最大值。
@@ -64,7 +62,6 @@ class Metric(ABC):
 
         return value_max
 
-    @staticmethod
     def compute_min(self, key, value, axis=0):
         """
         计算并返回当前的指标的最小值。

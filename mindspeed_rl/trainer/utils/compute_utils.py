@@ -1,3 +1,4 @@
+# Copyright 2022 The HuggingFace Team. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -140,7 +141,7 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
     experience_consumer_stage = "compute_advantage"
     experience_colums = ["responses", "token_level_rewards", "response_length"]
     tokenizer = get_tokenizer(tokenizer_name_or_path)
-    pad_token_id = tokenizer.pad_token if tokenizer.pad_token is not None else tokenizer.eod_token
+    pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch_data, index = ray.get(
             rb.get_experience.remote(
@@ -212,7 +213,7 @@ def compute_grpo_data_metrics(
         "response_length",
     ]
     tokenizer = get_tokenizer(tokenizer_name_or_path)
-    pad_id = tokenizer.pad_token if tokenizer.pad_token is not None else tokenizer.eod_token
+    pad_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(
             rb.get_experience.remote(experience_consumer_stage, experience_colums, experience_count, pad_id=pad_id)

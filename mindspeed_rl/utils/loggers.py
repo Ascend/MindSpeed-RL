@@ -63,41 +63,41 @@ class WandbLogger(Loggers):
     一般在trainer中初始化WandbLogger, 记录待可视化的训练指标
 
     """
-    def __init__(self, args):
+    def __init__(self, kwargs):
         super(WandbLogger, self).__init__()
 
         self.wandb = None
-        if getattr(args, 'wandb_project', ''):
-            self._init_wandb(args)
+        if kwargs.get("wandb_project", ""):
+            self._init_wandb(kwargs)
 
     def _import_wandb(self):
         try:
             import wandb
-        except ImportError:
+        except ImportError as e:
             raise ImportError('Please run "pip install wandb" to install wandb') from e
         self.wandb = wandb
 
-    def _init_wandb(self, args):
+    def _init_wandb(self, kwargs):
         if self.wandb is None:
             self._import_wandb()
 
-        if args.wandb_exp_name == '':
-            raise ValueError("Please specify the wandb experiment name!") from e
-        if args.wandb_save_dir:
-            save_dir = args.wandb_save_dir
+        if kwargs.get("wandb_exp_name", "") == "":
+            raise ValueError("Please specify the wandb experiment name!")
+        if kwargs.get("wandb_save_dir", ""):
+            save_dir = kwargs["wandb_save_dir"]
         else:
             # Defaults to the save dir.
-            save_dir = os.path.join(args.save, 'wandb')
+            save_dir = os.path.join("./", 'wandb')
         wandb_kwargs = {
             'dir': save_dir,
-            'name': args.wandb_exp_name,
-            'project': args.wandb_project,
-            'config': vars(args)}
+            'name': kwargs["wandb_exp_name"],
+            'project': kwargs["wandb_project"]}
         os.makedirs(wandb_kwargs['dir'], exist_ok=True)
 
         if not self.wandb.api.api_key:
             if not os.getenv("WANDB_API_KEY"):
-                raise ValueError("Please set your wandb api key in the environment variable, you can set WANDB_API_KEY=$your_wandb_api_key ") from e
+                raise ValueError(
+                    "Please set your wandb api key in the environment variable, you can set WANDB_API_KEY=$your_wandb_api_key ")
             self.wandb.login(key=os.getenv("WANDB_API_KEY"))
 
         # 初始化 wandb

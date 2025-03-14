@@ -18,10 +18,10 @@ megatron_training:
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path: /data/for_dt/weights/Qwen2.5-7B
-  global_batch_size: 4
+  global_batch_size: 1
   seq_length: 512
   save_interval: 10000
-  train_iters: 5
+  train_iters: 1
   stage: ray_grpo
   attention_dropout: 0.0
   init_method_std: 0.01
@@ -86,7 +86,7 @@ rl_config:
   clip_ratio: 0.2
   entropy_coeff: 0.001
   shuffle_minibatch: false
-  n_samples_per_prompt: 2
+  n_samples_per_prompt: 4
   rule_reward: false
   colocate_actor_ref: false
   colocate_all_models: false
@@ -108,7 +108,7 @@ generate_config:
 
   # vllm 模型相关设置
   max_num_seqs: 16
-  max_model_len: 4096
+  max_model_len: 1024
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
 

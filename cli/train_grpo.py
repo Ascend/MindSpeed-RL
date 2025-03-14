@@ -13,8 +13,7 @@ import torch
 from ray.util.placement_group import placement_group
 
 from mindspeed_rl.utils import get_tokenizer
-from mindspeed_rl.datasets.build_dataset import get_train_valid_test_split_
-from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
+from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils.loggers import Loggers
 
@@ -65,105 +64,6 @@ def get_colocate_placement_group(rl_config):
         return pg
     else:
         return None
-
-
-def _build_train_valid_test_datasets(
-        data_prefix,
-        splits_string,
-        seq_length: int,
-        pad_token: int,
-        eos_token: int,
-        train_valid_test_num_samples,
-        seed,
-        dataset_cls=None,
-        args=None
-):
-    """Build train, valid, and test datasets."""
-
-    # 设置默认数据集类，保持向后兼容
-    if dataset_cls is None:
-        raise ValueError("dataset_cls must be provided.")
-
-    # Target indexed dataset.
-    packed_indexed_dataset = get_packed_indexed_dataset(data_prefix=data_prefix)
-
-    total_num_of_documents = len(list(packed_indexed_dataset.datasets.values())[0])
-    splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
-    logger.info(' > dataset split:')
-
-    def print_split_stats(name, index):
-        logger.info(f'    {name}:')
-        logger.info(
-            f'     document indices in [{splits[index]}, {splits[index + 1]}) total of {splits[index + 1] - splits[index]} documents')
-
-    print_split_stats('train', 0)
-    print_split_stats('validation', 1)
-    print_split_stats('test', 2)
-
-    def build_dataset(index, name):
-        dataset = None
-        if splits[index + 1] > splits[index]:
-            documents = np.arange(start=splits[index], stop=splits[index + 1], dtype=np.int32)
-            # 使用传入的dataset_cls动态创建数据集实例
-            dataset = dataset_cls(
-                name=name,
-                data_prefix=data_prefix,
-                documents=documents,
-                seq_length=seq_length,
-                pad_token=pad_token,
-                eos_token=eos_token,
-                num_samples=train_valid_test_num_samples[index],
-                is_packed_data=True,
-                seed=seed,
-                args=args
-            )
-        return dataset
-
-    train_dataset = build_dataset(0, 'train')
-    valid_dataset = build_dataset(1, 'valid')
-    test_dataset = build_dataset(2, 'test')
-
-    return train_dataset, valid_dataset, test_dataset
-
-
-def build_train_valid_test_datasets(
-        data_prefix,
-        splits_string,
-        seq_length: int,
-        train_valid_test_num_samples,
-        seed,
-        dataset_cls,
-        tokenizer=None,
-        args=None
-):
-    """Build train, valid, and test datasets."""
-
-    logger.info(' > datasets target sizes (minimum size):')
-    logger.info('    train:      {}'.format(train_valid_test_num_samples[0]))
-    logger.info('    validation: {}'.format(train_valid_test_num_samples[1]))
-    logger.info('    test:       {}'.format(train_valid_test_num_samples[2]))
-
-    if tokenizer:
-        pad_token = tokenizer.pad
-        eos_token = tokenizer.eos
-    else:
-        pad_token = 0
-        eos_token = 1
-
-    # Only Support Single dataset.
-    all_train_datasets, all_valid_datasets, all_test_datasets = _build_train_valid_test_datasets(
-        data_prefix=data_prefix[0],
-        splits_string=splits_string,
-        seq_length=seq_length,
-        pad_token=pad_token,
-        eos_token=eos_token,
-        train_valid_test_num_samples=train_valid_test_num_samples,
-        seed=seed,
-        dataset_cls=dataset_cls,
-        args=args
-    )
-
-    return all_train_datasets, all_valid_datasets, all_test_datasets
 
 
 @ray.remote
@@ -429,7 +329,8 @@ def train(config):
                         f"{parallel_state.get_pipeline_model_parallel_world_size()}"
                     )
 
-    from mindspeed_rl.datasets.prompt_dataset import PromptDataset, build_prompt_data_loader
+    from mindspeed_rl.datasets.prompt_dataset import PromptDataset
+    from mindspeed_rl.datasets.dataloader import PromptDataLoader
     from mindspeed_rl.workers.rule_reward import RuleReward
     from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
     from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
@@ -512,12 +413,12 @@ def train(config):
         ],
         seed=actor_config.seed,
         dataset_cls=PromptDataset,
-        args=actor_config
+        extra_param=actor_config
     )
     actor_worker.wait_all_ref_objs_run_over()
 
     consumed_train_samples = actor_worker.get_consumed_train_samples()
-    data_loader = build_prompt_data_loader(actor_config, train_ds, consumed_train_samples)
+    data_loader = PromptDataLoader(actor_config, train_ds, consumed_train_samples)
 
     reference_worker.wait_all_ref_objs_run_over()
     for reward in reward_list:

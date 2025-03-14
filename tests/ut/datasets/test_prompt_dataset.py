@@ -23,7 +23,7 @@ class TestPromptDataset(DistributedTest):
         dummy_config.full_shuffle_instruction_dataset = False
         dummy_config.no_shuffle = True
         dummy_config.global_batch_size = 1
-        documents = np.arange(start=0, stop=52002, step=1, dtype=np.int32)
+        documents = np.arange(start=0, stop=3000, step=1, dtype=np.int32)
         dataset = PromptDataset(
             data_prefix=packed_data_prefix,
             is_packed_data=True,
@@ -31,9 +31,9 @@ class TestPromptDataset(DistributedTest):
             seq_length=1024,
             num_samples=100,
             documents=documents,
-            args=dummy_config,
+            extra_param=dummy_config,
         )
-        dataloader = PromptDataLoader(dummy_config, dataset, 100)
+        dataloader = PromptDataLoader(dummy_config, dataset, 0)
 
         for item in dataloader:
             assert item['prompts'][0][0] == 151644

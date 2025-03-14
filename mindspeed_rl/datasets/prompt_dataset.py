@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.datasets.utils import _infer_seqlen, get_prompt_index
 
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
@@ -21,16 +20,18 @@ class PromptDataset(BaseDataset):
             data_prefix: str = "",
             is_packed_data: bool = False,
             tokenizer: Callable = None,
-            token_param: Optional[Dict] = None,
             seq_length: int = 128,
-            preprocess_template: Optional[str] = None,
-            pad_token: int = 0,
-            eos_token: int = 1,
             num_samples: int = None,
             name: str = "",
             documents: Any = None,
             seed: int = 42,
-            args: MegatronConfig = None
+            full_shuffle_instruction_dataset: bool = False,
+            token_param: Optional[Dict] = None,
+            preprocess_template: Optional[str] = None,
+            pad_token: int = 0,
+            eos_token: int = 1,
+            extra_param: Any = None,
+            **kwargs,
     ):
         self.data_prefix = data_prefix
         self.is_packed_data = is_packed_data
@@ -41,7 +42,7 @@ class PromptDataset(BaseDataset):
         self.pad_token = pad_token
         self.eos_token = eos_token
         self.num_samples = num_samples
-        self.args = args
+        self.args = extra_param
 
         if self.is_packed_data:
             self.res_dataset = get_packed_indexed_dataset(data_prefix=self.data_prefix)
@@ -51,7 +52,7 @@ class PromptDataset(BaseDataset):
                                                        nb_documents=len(documents),
                                                        num_samples=self.num_samples,
                                                        seed=seed,
-                                                       full_shuffle_dataset=(not args.no_shuffle),
+                                                       full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
                                                        parallel_state=None)
             dataset_type = "Prompt_DS_Packed"
         else:
@@ -61,8 +62,6 @@ class PromptDataset(BaseDataset):
 
     def __getitem__(self, index):
         doc_idx = self.shuffle_index[index]
-        if self.args.no_shuffle:
-            doc_idx = index % len(self.res_dataset)
 
         item = self.res_dataset[doc_idx]
         return self._cut_instruction_token(item, np.int64)
@@ -149,34 +148,3 @@ class PromptDataset(BaseDataset):
             )
 
         return res
-
-
-def build_prompt_data_loader(config, dataset, consumed_samples):
-    """Build dataloader given an input dataset."""
-
-    if dataset is None or len(dataset) == 0:
-        return None
-
-    batch_sampler = PromptSampler(
-        total_samples=len(dataset),
-        consumed_samples=consumed_samples,
-        batch_size=config.global_batch_size)
-
-    def collate_fn(features, return_tensors=None):
-        features_dict = {}
-
-        features_dict["prompts"] = [torch.tensor(value['input_ids']) for value in features]
-
-        for add_key in config.dataset_additional_keys:
-            features_dict[add_key] = [torch.tensor(value[add_key]) for value in features]
-
-        return features_dict
-
-    return DataLoader(
-        dataset,
-        batch_sampler=batch_sampler,
-        num_workers=config.num_workers,
-        pin_memory=True,
-        persistent_workers=True if config.num_workers > 0 else False,
-        collate_fn=collate_fn
-    )

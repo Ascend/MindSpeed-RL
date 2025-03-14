@@ -102,7 +102,7 @@ def _build_index_mappings(
         nb_documents,
         num_samples: int,
         seed,
-        full_shuffle_dataset,
+        full_shuffle_instruction_dataset,
         parallel_state
 ):
     """
@@ -118,7 +118,7 @@ def _build_index_mappings(
     _filename += '_{}_indexmap'.format(name)
     _filename += '_{}ns'.format(num_samples)
     _filename += '_{}s'.format(seed)
-    shuffle_idx_filename = _filename + '_decoder_packed_shuffle_idx.npy'
+    shuffle_idx_filename = _filename + f'_nb{nb_documents}' + '_decoder_packed_shuffle_idx.npy'
 
     # Build the indexed mapping if not exist.
     if (not torch.distributed.is_initialized()) or (torch.distributed.get_rank()
@@ -133,7 +133,7 @@ def _build_index_mappings(
                 shuffle_idx.extend(new_document_ids.tolist())
                 epoch += 1
 
-            if full_shuffle_dataset:
+            if full_shuffle_instruction_dataset:
                 random.shuffle(shuffle_idx)
 
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)

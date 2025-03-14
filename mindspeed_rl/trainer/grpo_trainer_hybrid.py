@@ -1,5 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
-
+import copy
 from typing import List, Union
 import ray
 import torch
@@ -110,6 +110,12 @@ class RayGRPOTrainer(RayBaseTrainer):
                 for _ in range(self.n_samples_per_prompt):
                     prompt_length.append(torch.tensor([len(prompt)]))
 
+            prompts_data = prompts
+            prompts = []
+            for prompt in prompts_data:
+                for _ in range(self.n_samples_per_prompt):
+                    prompts.append(copy.deepcopy(prompt))
+
             add_vals = {}
             for add_keys in self.dataset_additional_keys:
                 if add_keys in batch.keys():
@@ -120,13 +126,9 @@ class RayGRPOTrainer(RayBaseTrainer):
                     add_vals[add_keys] = values
 
             ray.get(self.transfer_dock.clear.remote())
-            ray.get(self.transfer_dock.put_experience.remote(data_dict={'prompts': prompts},
-                                                             indexes=[i for i in range(len(prompts))]))
-
-            ray.get(
-                self.transfer_dock.put_experience.remote(data_dict=dict({'prompt_length': prompt_length}, **add_vals),
-                                                         num_responses=self.n_samples_per_prompt,
-                                                         indexes=[i for i in range(len(prompts))]))
+            ray.get(self.transfer_dock.put_experience.remote(
+                    data_dict=dict({'prompt_length': prompt_length, 'prompts': prompts}, **add_vals),
+                    num_responses=self.n_samples_per_prompt))
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences

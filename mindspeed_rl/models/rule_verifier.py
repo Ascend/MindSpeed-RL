@@ -25,6 +25,8 @@ def compute_verifier_score(batch, config, n_samples_per_prompt):
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path, trust_remote_code=True)
     tokenizer.eos_token = tokenizer.decode(tokenizer.eos_token_id, skip_special_tokens=True)
     question = batch["prompts"]
+    indexes = [i for i in range(0, question.size(0), n_samples_per_prompt)]
+    question = question[indexes]
     responses = batch["responses"]
     str_question = tokenizer.batch_decode(question, skip_special_tokens=True)
     str_responses = tokenizer.batch_decode(responses, skip_special_tokens=True)

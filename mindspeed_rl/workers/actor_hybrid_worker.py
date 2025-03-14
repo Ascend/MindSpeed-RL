@@ -169,9 +169,12 @@ class ActorHybridWorker(BaseWorker):
                                                                   use_vllm=True)
             if data_loader and index:
                 batch_data = next(iter(data_loader))
-
+                indexes = list(range(0, experience_count * self.rl_config.n_samples_per_prompt,
+                                            self.rl_config.n_samples_per_prompt))
+                prompts_data = batch_data['prompts'][indexes]
+                prompt_length_data = batch_data['prompt_length'][indexes]
                 # preprocess, remove padding
-                prompts = self.truncate_rows(batch_data['prompts'], batch_data['prompt_length'])
+                prompts = self.truncate_rows(prompts_data, prompt_length_data)
                 prompts_list = [prompt.numpy().tolist() for prompt in prompts]
 
                 # inference

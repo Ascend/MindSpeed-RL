@@ -28,6 +28,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
@@ -71,7 +72,7 @@ class RayActorGroup:
             load_checkpoint: Callable = None,
             save_checkpoint: Callable = None,
             get_args: Callable = None,
-            get_tokenizer: Callable = None,
+            tokenizer: BaseTokenizer = None,
             get_forward_backward_func: Callable = None,
             generate_config: GenerateConfig = None,
             resources: Dict[str, float] = None,
@@ -96,7 +97,7 @@ class RayActorGroup:
         load_checkpoint     : model checkpoint load function
         save_checkpoint     : model checkpoint save function
         get_args            : model args getter
-        get_tokenizer       : model tokenizer getter
+        tokenizer           : tokenizer
         get_forward_backward_func       : model forward backward function
         generate_config     : vllm config data
         resources           : user defined ray resource
@@ -116,7 +117,7 @@ class RayActorGroup:
         self.load_checkpoint = load_checkpoint
         self.save_checkpoint = save_checkpoint
         self.get_args = get_args
-        self.get_tokenizer = get_tokenizer
+        self.tokenizer = tokenizer
         self.get_forward_backward_func = get_forward_backward_func
         self.kwargs = kwargs
         self.num_npus = get_npu_deployment(rl_config, worker)
@@ -172,7 +173,7 @@ class RayActorGroup:
             load_checkpoint=self.load_checkpoint,
             save_checkpoint=self.save_checkpoint,
             get_args=self.get_args,
-            get_tokenizer=self.get_tokenizer,
+            tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func,
             **self.kwargs
         )

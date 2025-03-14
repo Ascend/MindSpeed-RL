@@ -11,27 +11,29 @@ from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reward import Reward
 from mindspeed_rl.trainer.utils.compute_utils import get_last_reward
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 
 
 @ray.remote(resources={"NPU": 0.1})
 class RewardWorker(BaseWorker):
+
     """
     RewardWorker class. This class implements the worker logic for reward model training and inference.
 
     Args:
-    megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-    rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-    generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-    model_provider: Callable Function to provide the model instance.
-    initialize_func: Callable Function to initialize the model and environment.
-    parallel_state: ModuleType Module for managing parallel states (e.g., model and data parallelism).
-    get_model: Callable = None Function to retrieve the model instance.
-    load_checkpoint: Callable = None Function to load model checkpoints.
-    get_args: Callable = None Function to retrieve runtime arguments.
-    get_tokenizer: Callable = None Function to retrieve the tokenizer.
-    get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for training.
-    **kwargs: Additional parameters for base class argument passing.
+        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
+        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
+        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
+        model_provider: Callable Function to provide the model instance.
+        initialize_func: Callable Function to initialize the model and environment.
+        parallel_state: ModuleType Module for managing parallel states (e.g., model and data parallelism).
+        get_model: Callable = None Function to retrieve the model instance.
+        load_checkpoint: Callable = None Function to load model checkpoints.
+        get_args: Callable = None Function to retrieve runtime arguments.
+       tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
+        get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for training.
+        **kwargs: Additional parameters for base class argument passing.
     """
 
     def __init__(
@@ -45,7 +47,7 @@ class RewardWorker(BaseWorker):
             get_model: Callable = None,
             load_checkpoint: Callable = None,
             get_args: Callable = None,
-            get_tokenizer: Callable = None,
+            tokenizer: BaseTokenizer = None,
             get_forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -59,7 +61,7 @@ class RewardWorker(BaseWorker):
             get_model=get_model,
             load_checkpoint=load_checkpoint,
             get_args=get_args,
-            get_tokenizer=get_tokenizer,
+            tokenizer=tokenizer,
             get_forward_backward_func=get_forward_backward_func,
             **kwargs
         )

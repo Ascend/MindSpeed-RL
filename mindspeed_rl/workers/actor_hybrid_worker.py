@@ -16,6 +16,7 @@ from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager
 from mindspeed_rl.utils.utils import num_floating_point_operations
@@ -40,7 +41,7 @@ class ActorHybridWorker(BaseWorker):
         load_checkpoint: Callable = None Function to load model checkpoints.
         save_checkpoint: Callable = None Function to save model checkpoints.
         get_args: Callable = None Function to retrieve runtime arguments.
-        get_tokenizer: Callable = None Function to retrieve the tokenizer.
+        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for training.
         distributed_data_parallel_config: Callable = None Configuration for distributed data parallelism.
         local_ddp: Callable = None Function for local distributed data parallelism.
@@ -63,7 +64,7 @@ class ActorHybridWorker(BaseWorker):
             load_checkpoint: Callable = None,
             save_checkpoint: Callable = None,
             get_args: Callable = None,
-            get_tokenizer: Callable = None,
+            tokenizer: BaseTokenizer = None,
             get_forward_backward_func: Callable = None,
             distributed_data_parallel_config: Callable = None,
             local_ddp: Callable = None,
@@ -84,7 +85,7 @@ class ActorHybridWorker(BaseWorker):
             load_checkpoint=load_checkpoint,
             save_checkpoint=save_checkpoint,
             get_args=get_args,
-            get_tokenizer=get_tokenizer,
+            tokenizer=tokenizer,
             get_forward_backward_func=get_forward_backward_func,
             **kwargs
         )
@@ -159,8 +160,7 @@ class ActorHybridWorker(BaseWorker):
         experience_count = self.megatron_config.micro_batch_size
 
         self.sharding_manager.reshard_to_infer_mode()
-        tokenizer = self.get_tokenizer()
-        pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id else tokenizer.eos_token_id
+        pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
@@ -176,7 +176,7 @@ class ActorHybridWorker(BaseWorker):
 
                 # inference
                 responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list))
-                responses = remove_padding_and_split_to_list(responses_pad_right, tokenizer.eos_token_id, pad_token_id)
+                responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]
                 # copy prompts (from 1 to n_samples_per_prompt)

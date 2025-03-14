@@ -12,6 +12,7 @@ import ray
 import torch
 from ray.util.placement_group import placement_group
 
+from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.datasets.build_dataset import get_train_valid_test_split_
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
 from mindspeed_rl.utils import seed_all
@@ -180,7 +181,7 @@ def train(config):
     from megatron.core.optimizer import get_megatron_optimizer
     from megatron.training.checkpointing import load_checkpoint, save_checkpoint
     from megatron.training.training import get_optimizer_param_scheduler
-    from megatron.training import get_args, get_tokenizer
+    from megatron.training import get_args
     from megatron.core.pipeline_parallel import get_forward_backward_func
     from megatron.core import DistributedDataParallel as LocalDDP
     from megatron.legacy.model import Float16Module
@@ -449,13 +450,15 @@ def train(config):
         'load_checkpoint': load_checkpoint,
         'save_checkpoint': save_checkpoint,
         'get_args': get_args,
-        'get_tokenizer': get_tokenizer,
         'get_forward_backward_func': get_forward_backward_func,
         'float16_module': Float16Module,
         'unwrap_model': unwrap_model,
         'local_ddp': LocalDDP,
         'distributed_data_parallel_config': DistributedDataParallelConfig,
     }
+
+    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path)
+
     actor_worker = RayActorGroup(
         worker=ActorHybridWorker,
         placement_group=pgs,
@@ -463,6 +466,7 @@ def train(config):
         rl_config=rl_config,
         generate_config=generate_config,
         model_provider=gpt_model_provider,
+        tokenizer=tokenizer,
         **megatron_module,
     ).initialize()
 
@@ -472,6 +476,7 @@ def train(config):
         megatron_config=ref_config,
         rl_config=rl_config,
         model_provider=gpt_model_provider,
+        tokenizer=tokenizer,
         **megatron_module,
     ).initialize()
 
@@ -487,6 +492,7 @@ def train(config):
             megatron_config=reward_config,
             rl_config=rl_config,
             model_provider=rm_model_provider,
+            tokenizer=tokenizer,
             **megatron_module,
         ).initialize()
 

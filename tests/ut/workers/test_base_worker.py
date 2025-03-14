@@ -78,7 +78,7 @@ class TestBaseWorker(DistributedTest):
         self.load_checkpoint = MagicMock()
         self.save_checkpoint = MagicMock()
         self.get_args = MagicMock()
-        self.get_tokenizer = MagicMock()
+        self.tokenizer = MagicMock()
         self.get_forward_backward_func = MagicMock()
 
     @patch('os.environ')
@@ -101,7 +101,7 @@ class TestBaseWorker(DistributedTest):
             load_checkpoint=self.load_checkpoint,
             save_checkpoint=self.save_checkpoint,
             get_args=self.get_args,
-            get_tokenizer=self.get_tokenizer,
+            tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func,
         )
 
@@ -137,7 +137,7 @@ class TestBaseWorker(DistributedTest):
             load_checkpoint=self.load_checkpoint,
             save_checkpoint=self.save_checkpoint,
             get_args=self.get_args,
-            get_tokenizer=self.get_tokenizer,
+            tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func
         )
         worker.setup_distributed_rank()
@@ -175,7 +175,7 @@ class TestBaseWorker(DistributedTest):
             load_checkpoint=self.load_checkpoint,
             save_checkpoint=self.save_checkpoint,
             get_args=self.get_args,
-            get_tokenizer=self.get_tokenizer,
+            tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func
         )
 
@@ -207,7 +207,7 @@ class TestBaseWorker(DistributedTest):
             load_checkpoint=self.load_checkpoint,
             save_checkpoint=self.save_checkpoint,
             get_args=self.get_args,
-            get_tokenizer=self.get_tokenizer,
+            tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func
         )
         result = worker.truncate_rows(tensor, index_tensor)

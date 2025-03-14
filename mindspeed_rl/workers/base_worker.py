@@ -11,6 +11,7 @@ import torch_npu
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 
 logger = Loggers("base_worker")
 
@@ -92,7 +93,7 @@ class BaseWorker(BaseRayWorker, ABC):
             load_checkpoint: Callable = None,
             save_checkpoint: Callable = None,
             get_args: Callable = None,
-            get_tokenizer: Callable = None,
+            tokenizer: BaseTokenizer = None,
             get_forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -111,7 +112,7 @@ class BaseWorker(BaseRayWorker, ABC):
         self._load_checkpoint = load_checkpoint
         self._save_checkpoint = save_checkpoint
         self.get_args = get_args
-        self.get_tokenizer = get_tokenizer
+        self.tokenizer = tokenizer
         self.get_forward_backward_func = get_forward_backward_func
         self.megatron_config.update(kwargs)
         self.inference_model = None
@@ -165,8 +166,7 @@ class BaseWorker(BaseRayWorker, ABC):
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
                                     experience_colums, experience_count, n_samples_per_prompt=1, tp_size=1,
                                     use_vllm=False):
-        tokenizer = self.get_tokenizer()
-        pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id else tokenizer.eos_token_id
+        pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         batch_data = {}
         # make sure that all ranks in tp/pp group enter dispatch_transfer_dock_data,

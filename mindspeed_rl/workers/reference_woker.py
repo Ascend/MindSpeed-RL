@@ -10,6 +10,7 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reference import Reference
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 
 
@@ -28,7 +29,7 @@ class ReferenceWorker(BaseWorker):
         get_model: Callable = None Function to retrieve the model instance.
         load_checkpoint: Callable = None Function to load model checkpoints.
         get_args: Callable = None Function to retrieve runtime arguments.
-        get_tokenizer: Callable = None Function to retrieve the tokenizer.
+        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for inference.
         **kwargs: Additional parameters for base class argument passing.
     """
@@ -44,7 +45,7 @@ class ReferenceWorker(BaseWorker):
             get_model: Callable = None,
             load_checkpoint: Callable = None,
             get_args: Callable = None,
-            get_tokenizer: Callable = None,
+            tokenizer: BaseTokenizer = None,
             get_forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -58,7 +59,7 @@ class ReferenceWorker(BaseWorker):
             get_model=get_model,
             load_checkpoint=load_checkpoint,
             get_args=get_args,
-            get_tokenizer=get_tokenizer,
+            tokenizer=tokenizer,
             get_forward_backward_func=get_forward_backward_func,
             **kwargs
         )

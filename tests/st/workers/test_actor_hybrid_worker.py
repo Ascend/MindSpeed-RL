@@ -9,6 +9,7 @@ import ray
 import torch
 from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
+from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.trainer.utils import GRPOTransferDock
 from mindspeed_rl.utils import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config, seed_all
@@ -49,7 +50,7 @@ def train(config):
     from megatron.core.optimizer import get_megatron_optimizer
     from megatron.training.checkpointing import load_checkpoint, save_checkpoint
     from megatron.training.training import get_optimizer_param_scheduler
-    from megatron.training import get_args, get_tokenizer
+    from megatron.training import get_args
     from megatron.core.pipeline_parallel import get_forward_backward_func
     from megatron.core import DistributedDataParallel as LocalDDP
     from megatron.legacy.model import Float16Module
@@ -266,6 +267,7 @@ def train(config):
             "RANK": '0',
         }
     }
+    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path)
 
     megatron_module = {
         'get_model': get_model,
@@ -277,7 +279,6 @@ def train(config):
         'load_checkpoint': load_checkpoint,
         'save_checkpoint': save_checkpoint,
         'get_args': get_args,
-        'get_tokenizer': get_tokenizer,
         'get_forward_backward_func': get_forward_backward_func,
         'float16_module': Float16Module,
         'unwrap_model': unwrap_model,
@@ -295,6 +296,7 @@ def train(config):
         actor_config,
         rl_config,
         generate_config,
+        tokenizer=tokenizer,
         **megatron_module
     )
 

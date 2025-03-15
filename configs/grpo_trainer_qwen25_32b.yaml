@@ -1,14 +1,13 @@
 defaults:
   - model:
-      - qwen25_7b
+      - qwen25_32b
 
 megatron_training:
-  model: qwen25_7b
+  model: qwen25_32b
   use_fused_rmsnorm: true
   use_mcore_models: true
   sequence_parallel: true
   use_flash_attn: true
-  use_mc2: true
   no_masked_softmax_fusion: true
   attention_softmax_in_fp32: true
   no_gradient_accumulation_fusion: true
@@ -17,11 +16,11 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path: /data/for_dt/weights/Qwen2.5-7B
-  global_batch_size: 1
+  tokenizer_name_or_path:
+  global_batch_size: 16
   seq_length: 512
   save_interval: 10000
-  train_iters: 1
+  train_iters: 1000
   stage: ray_grpo
   attention_dropout: 0.0
   init_method_std: 0.01
@@ -30,44 +29,41 @@ megatron_training:
   no_shared_storage: true
   variable_seq_lengths: true
   dataset_additional_keys: ['labels',]
-  data_path: /data/for_dt/datasets/pe-nlp/data
+  data_path: ./data
   split: 100,0,0
 
 actor_config:
-  model: qwen25_7b
+  model: qwen25_32b
   micro_batch_size: 1
-  tensor_model_parallel_size: 4
-  pipeline_model_parallel_size: 1
-  lr: 1e-7
+  tensor_model_parallel_size: 8
+  pipeline_model_parallel_size: 2
+  lr: 1e-6
   lr_decay_style: constant
   min_lr: 0.0
   weight_decay: 0.0
   lr_warmup_fraction: 0.0
-  clip_grad: 10000.0
-  adam_beta1: 0.9
-  adam_beta2: 0.999
   initial_loss_scale: 4096
   finetune: true
-  load: /data/for_dt/weights/Qwen2.5-7B-tp4
+  load: ./ckpt
   save: ./ckpt
   no_load_optim: true
   no_load_rng: true
 
 ref_config:
-  model: qwen25_7b
-  tensor_model_parallel_size: 2
+  model: qwen25_32b
+  tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
-  micro_batch_size: 1
-  load: /data/for_dt/weights/Qwen2.5-7B-tp2
+  micro_batch_size: 8
+  load: ./ckpt
   no_load_optim: true
   no_load_rng: true
 
 reward_config:
-  model: qwen25_7b
-  tensor_model_parallel_size: 2
+  model: qwen25_32b
+  tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
-  micro_batch_size: 1
-  load: /data/for_dt/weights/Qwen2.5-7B-tp2
+  micro_batch_size: 8
+  load: ./ckpt
   no_load_optim: true
   no_load_rng: true
 
@@ -77,50 +73,51 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
-  kl_coef: 0.05
+  kl_coef: 0.001
   missing_eos_penalty: 0.0
-  mini_batch_size: 4
-  num_samples_per_step: 1
-  max_prompt_length: 128
+  mini_batch_size: 128
+  max_prompt_length: 256
   epochs: 1
   clip_ratio: 0.2
   entropy_coeff: 0.001
   shuffle_minibatch: false
-  n_samples_per_prompt: 4
-  rule_reward: true
+  n_samples_per_prompt: 8
   colocate_actor_ref: false
   colocate_all_models: false
+  rule_reward: true
+  verifier_function: ["base_acc"]
+  verifier_weight: [1.0]
   actor_resource:
-    num_npus: 4
+    num_npus: 16
   reference_resource:
-    num_npus: 2
+    num_npus: 8
   reward_resource:
-    num_npus: 2
+    num_npus: 8
 
 generate_config:
   # tokenizer相关配置
   trust_remote_code: true
+  offload_train_optimizer: True
+  offload_train_grad: True
 
   # 推理时的并行配置
-  infer_tensor_parallel_size: 4
+  infer_tensor_parallel_size: 8
   infer_pipeline_parallel_size: 1
   infer_expert_parallel_size: 1
 
   # vllm 模型相关设置
   max_num_seqs: 16
-  max_model_len: 1024
+  max_model_len: 4096
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
-
-  offload_train_optimizer: True
-  offload_train_grad: True
 
   # 采样配置
   sampling_config:
     logprobs: 1
-    max_tokens: 128
+    max_tokens: 256
     top_p: 0.9
     top_k: 50
     min_p: 0.01
     temperature: 0.9
     detokenize: false
+

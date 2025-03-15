@@ -5,6 +5,7 @@
 import os
 from contextlib import contextmanager
 
+import gc
 import ray
 import torch
 import torch.distributed
@@ -174,6 +175,11 @@ class VLLMInferEngine(BaseInferEngine):
 
         self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine = None
         self.llm.llm_engine.model_executor.driver_worker.worker.gpu_cache = None
+
+        self.gpu_cache = None
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
     def offload_model_weights(self):
         if not self.cpu_model:

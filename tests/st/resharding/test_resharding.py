@@ -97,6 +97,7 @@ optimizer_config.clip_grad = 10000.0
 optimizer_config.adam_beta1 = 0.9
 optimizer_config.adam_beta2 = 0.999
 optimizer_config.initial_loss_scale = 4096
+optimizer_config.use_distributed_optimizer = True
 
 prompt_list = [
     "Give three tips for staying healthy.",

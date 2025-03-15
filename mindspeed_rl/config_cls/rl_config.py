@@ -63,6 +63,10 @@ class RLConfig(BaseConfig):
         self.kl_target = 100.0
         self.adv_estimator = 'group_norm'
         self.kl_penalty = 'kl'
+        self.verifier_function = ["base_acc", ]
+        self.verifier_weight = [1.0, ]
+        self.verifier_parallel = 1
+        self.verifier_timeout = 30
 
         self.shuffle_mini_batch = False
         self.n_samples_per_prompt = 1

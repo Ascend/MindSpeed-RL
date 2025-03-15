@@ -14,10 +14,10 @@ logger = Loggers("rule_reward")
 @ray.remote(num_cpus=0.1)
 class RuleReward(object):
 
-    def initialize(self, megatron_config: MegatronConfig,
-                   n_samples_per_prompt: int):
+    def initialize(self, megatron_config, rl_config):
+        self.rl_config = rl_config
         self.megatron_config = megatron_config
-        self.n_samples_per_prompt = n_samples_per_prompt
+        self.n_samples_per_prompt = rl_config.n_samples_per_prompt
 
     def init_transfer_dock(self, td):
         self.td = td
@@ -42,7 +42,6 @@ class RuleReward(object):
                 if "categories" in batch_data.keys():
                     batch_data = {key: value[use_verifier_mask] if key != 'prompts' else value[
                         use_verifier_mask[::self.n_samples_per_prompt]] for key, value in batch_data.items()}
-                token_level_rewards = compute_verifier_score(batch_data, self.megatron_config,
-                                                             self.n_samples_per_prompt)
+                token_level_rewards = compute_verifier_score(batch_data, self.megatron_config, self.rl_config)
                 output = {"rm_scores": token_level_rewards, "token_level_rewards": token_level_rewards}
                 self.td.put_experience.remote(data_dict=output, indexes=index, num_responses=self.n_samples_per_prompt)

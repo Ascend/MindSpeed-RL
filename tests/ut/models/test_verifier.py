@@ -20,7 +20,7 @@ class TestVerifier(DistributedTest):
         model_output = ['34']
 
         assert math_equal_subprocess(model_output[0], label[0]), "math_equal_subprocess failed"
-        assert format_reward(text) == [1.0], "format_reward failed"
-        assert strict_format_reward(text) == [1.0], "strict_format_verifier failed"
-        assert reasoning_steps_reward(text) == [1.0], "strict_format_verifier failed"
+        assert format_reward(None, text) == [1.0], "format_reward failed"
+        assert strict_format_reward(None, text) == [1.0], "strict_format_verifier failed"
+        assert reasoning_steps_reward(None, text) == [1.0], "strict_format_verifier failed"
 

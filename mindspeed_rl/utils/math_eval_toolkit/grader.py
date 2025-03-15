@@ -30,7 +30,6 @@ def parse_digits(num):
     try:
         return float(num)
     except ValueError as e:
-        print(f"ValueError: {e}")
         if num.endswith("%"):
             num = num[:-1]
             if num.endswith("\\"):
@@ -38,7 +37,6 @@ def parse_digits(num):
             try:
                 return float(num) / 100
             except Exception as exc:
-                print(f"Unexpected error: {exc}")
                 return None
     return None
 
@@ -101,11 +99,10 @@ def math_equal(
                         if item == prediction:
                             return True
                 except Exception as ex1:
-                    print(f"Unexpected error: {ex1}")
                     continue
             return False
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        pass
 
     if not prediction and prediction not in [0, False]:
         return False
@@ -246,11 +243,9 @@ def symbolic_equal(a, b):
             try:
                 return f(s.replace("\\\\", "\\"))
             except Exception as e:
-                print(f"Unexpected error while evaluating {s} {e}")
                 try:
                     return f(s)
                 except Exception as e1:
-                    print(f"Unexpected error while returning {s} {e1}")
                     pass
         return s
 
@@ -261,24 +256,24 @@ def symbolic_equal(a, b):
         if str(a) == str(b) or a == b:
             return True
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        pass
 
     try:
         if a.equals(b) or simplify(a - b) == 0:
             return True
-    except ValueError as e:
-        print(f"ValueError: equal {e}")
+    except Exception as e:
+        pass
 
     try:
         if (abs(a.lhs - a.rhs)).equals(abs(b.lhs - b.rhs)):
             return True
     except Exception as e:
-        print(f"Unexpected error while comparing {a} and {b}: {e}")
+        pass
     try:
         if numeric_equal(float(N(a)), float(N(b))):
             return True
     except Exception as e:
-        print(f"Unexpected error {e}")
+        pass
 
     try:
         if a.shape == b.shape:
@@ -287,7 +282,7 @@ def symbolic_equal(a, b):
             if _a.equals(_b):
                 return True
     except Exception as e:
-        print(f"Unexpected error while comparing shape of {a} and {b}: {e}")
+        pass
     return False
 
 

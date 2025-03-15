@@ -1,4 +1,6 @@
 import re
+import time
+import multiprocessing as mp
 from multiprocessing import Process, Queue
 
 import torch
@@ -8,7 +10,7 @@ from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
 
-logger = Loggers('rule_verifier')
+logger = Loggers("Rule verify")
 
 
 def _math_worker(q, prediction, reference):
@@ -21,203 +23,7 @@ def _extract_worker(q, model_output):
     q.put(result)
 
 
-def compute_verifier_score(batch, config, n_samples_per_prompt):
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path, trust_remote_code=True)
-    tokenizer.eos_token = tokenizer.decode(tokenizer.eos_token_id, skip_special_tokens=True)
-    question = batch["prompts"]
-    indexes = [i for i in range(0, question.size(0), n_samples_per_prompt)]
-    question = question[indexes]
-    responses = batch["responses"]
-    str_question = tokenizer.batch_decode(question, skip_special_tokens=True)
-    str_responses = tokenizer.batch_decode(responses, skip_special_tokens=True)
-
-    reward_index = batch["response_length"]
-
-    logger.info("=" * 50)
-    logger.info(">>>>>>>>>> User:\n")
-    logger.info(str_question[0])
-    logger.info(">>>>>>>>>> Assistant:\n")
-    logger.info(str_responses[0])
-
-    extra_data = {}
-
-    if hasattr(config, "dataset_additional_keys"):
-        for k in config.dataset_additional_keys:
-            extra_data[k] = tokenizer.batch_decode(batch[k], skip_special_tokens=True)
-            logger.info(f">>>>>>>>>> {k}")
-            logger.info(extra_data[k][0])
-
-    logger.info("=" * 50)
-
-    scores = verifier(str_responses, extra_data, config, infos=None)
-
-    scores = torch.tensor(
-        scores,
-        dtype=torch.float32,
-        device=reward_index.device
-    )
-
-    scores = scores.reshape(-1, n_samples_per_prompt)
-    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-8)
-    scores = scores.reshape(reward_index.shape)
-
-    return scores
-
-
-def verifier(responses, data, config, infos=None):
-    """
-    User-defined verifier scoring process.
-
-    Parameters:
-    ----------
-    responses(List[`str`]):
-        Actor rollout answers.
-    labels(List[`str`]):
-        Ground Truth.
-    infos(List[`str`], *optional*):
-         Additional usable information loaded from the dataset.
-
-    Return:
-        scores(List[`float`]): Final scores.
-    """
-    rule_verifier_function = {
-        "acc": preprocess_box_response_for_prompt,
-        "format": format_reward,
-        "step": reasoning_steps_reward,
-        "strict_format": strict_format_reward,
-        "base_acc": base_model_accuracy_reward
-    }
-
-    labels = data["labels"]
-    scores = [0.0] * len(labels)
-
-    #
-    verifier_function = config.verifier_function if hasattr(
-        config, "verifier_function") else ["acc"]
-    verifier_weight = config.verifier_weight if hasattr(
-        config, "verifier_weight") else [1.0]
-
-    for idx, fun_verifier in enumerate(verifier_function):
-        if fun_verifier not in rule_verifier_function:
-            continue
-        score = rule_verifier_function[fun_verifier](sequences=responses, answers=labels)
-        scores = [all_score + tmp_score * verifier_weight[idx]
-                  for all_score, tmp_score in zip(scores, score)]
-
-    return scores
-
-
-def math_equal_subprocess(prediction, reference, timeout_seconds=10):
-
-
-    q = Queue()
-    p = Process(target=_math_worker, args=(q, prediction, reference))
-    p.start()
-
-    p.join(timeout=timeout_seconds)
-
-    if p.is_alive():
-        p.terminate()
-        p.join()
-        return False
-
-    try:
-        return q.get_nowait()
-    except Exception as e:
-        return False
-
-
-def extract_answer_subprocess(model_output, timeout_seconds=10):
-
-    q = Queue()
-    p = Process(target=_extract_worker, args=(q, model_output))
-    p.start()
-
-    p.join(timeout=timeout_seconds)
-
-    if p.is_alive():
-        p.terminate()
-        p.join()
-        return ""
-
-    try:
-        return q.get_nowait()
-    except Exception as e:
-        return ""
-
-
-def preprocess_box_response_for_prompt(sequences, answers, **kwargs):
-    scores = []
-
-    for sequence, answer in zip(sequences, answers):
-        model_output = re.sub(r'^.*?<\|im_start\|>assistant', '<|im_start|>assistant', sequence, flags=re.DOTALL,
-                              count=1)
-        stop_words = ["</s>", "<|im_end|>", "<|endoftext|>"]
-        for stop_word in stop_words:
-            if stop_word in model_output:
-                model_output = model_output.split(stop_word)[0].strip()
-        ext_answer = extract_answer_subprocess(model_output=model_output)
-
-        if math_equal_subprocess(prediction=ext_answer, reference=answer):
-            box_match = 1.0
-        else:
-            box_match = -0.5
-
-        if "boxed" not in model_output:
-            box_match = -1.0
-
-        scores.append(box_match)
-
-    return scores
-
-
-def base_model_accuracy_reward(sequences, answers, **kwargs):
-    scores = []
-
-    for sequence, answer in zip(sequences, answers):
-        ext_answer = extract_answer_subprocess(model_output=sequence)
-
-        if math_equal_subprocess(prediction=ext_answer, reference=answer):
-            box_match = 1.0
-        else:
-            box_match = 0.0
-
-        scores.append(box_match)
-
-    return scores
-
-
-def format_reward(sequences, **kwargs):
-    """
-    Reward function that checks if the completion has a specific format.
-
-    Args:
-        sequences: A list of sequences, where each completion is a tuple containing a list of dictionaries.
-                     Each dictionary should have a "content" key with the text to be checked.
-
-    Returns:
-        A list of floats, where each float is 1.0 if the corresponding completion matches the required format,
-        and 0.0 otherwise.
-
-    Raises:
-        ValueError: If the input sequences are not in the expected format.
-    """
-    pattern = r"^<think>.*?</think>\s*<answer>.*?</answer>$"
-
-    if not isinstance(sequences, list):
-        raise ValueError("Input sequences must be a list.")
-
-    rewards = []
-    for completion in sequences:
-        if re.match(pattern, completion, re.DOTALL | re.MULTILINE):
-            rewards.append(1.0)
-        else:
-            rewards.append(0.0)
-
-    return rewards
-
-
-def validate_response_structure(processed_str: str) -> bool:
+def _validate_response_structure(processed_str: str) -> bool:
     """Performs comprehensive validation of response structure.
 
     Args:
@@ -265,11 +71,224 @@ def validate_response_structure(processed_str: str) -> bool:
     return validation_passed
 
 
-def strict_format_reward(sequences, **kwargs):
+def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100):
+    tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path, trust_remote_code=True)
+    question = batch["prompts"]
+    indexes = [i for i in range(0, question.size(0), rl_config.n_samples_per_prompt)]
+    question = question[indexes]
+    responses = torch.where(batch["responses"] == ignore_token, tokenizer.eos_token_id, batch["responses"])
+
+    str_question = tokenizer.batch_decode(question, skip_special_tokens=True)
+    str_responses = tokenizer.batch_decode(responses, skip_special_tokens=True)
+
+    reward_index = batch["response_length"]
+
+    logger.info("=" * 50)
+    logger.info(">>>>>>>>>> User:\n")
+    logger.info(str_question[0])
+    logger.info(">>>>>>>>>> Assistant:\n")
+    logger.info(str_responses[0])
+
+    extra_data = {}
+
+    if hasattr(megatron_config, "dataset_additional_keys"):
+        for k in megatron_config.dataset_additional_keys:
+            extra_data[k] = tokenizer.batch_decode(batch[k], skip_special_tokens=True)
+            logger.info(f">>>>>>>>>> {k}")
+            logger.info(extra_data[k][0])
+
+    logger.info("=" * 50)
+
+    scores = verifier(str_responses, extra_data, rl_config, infos=None)
+
+    scores = torch.tensor(
+        scores,
+        dtype=torch.float32,
+        device=reward_index.device
+    )
+
+    scores = scores.reshape(-1, rl_config.n_samples_per_prompt)
+    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-8)
+    scores = scores.reshape(reward_index.shape)
+
+    print(scores)
+
+    return scores
+
+
+def verifier(responses, data, config, infos=None):
+    """
+    User-defined verifier scoring process.
+
+    Parameters:
+    ----------
+    responses(List[`str`]):
+        Actor rollout answers.
+    labels(List[`str`]):
+        Ground Truth.
+    infos(List[`str`], *optional*):
+         Additional usable information loaded from the dataset.
+
+    Return:
+        scores(List[`float`]): Final scores.
+    """
+    rule_verifier_function = {
+        "acc": preprocess_box_response_for_prompt,
+        "format": format_reward,
+        "step": reasoning_steps_reward,
+        "strict_format": strict_format_reward,
+        "base_acc": base_model_accuracy_reward
+    }
+
+    labels = data["labels"]
+    scores = [0.0] * len(labels)
+
+    verifier_function = config.verifier_function
+    verifier_weight = config.verifier_weight
+
+    for idx, fun_verifier in enumerate(verifier_function):
+        if fun_verifier not in rule_verifier_function:
+            continue
+
+        if config.verifier_parallel > 1:
+            score = multiprocess_executor(
+                rule_verifier_function[fun_verifier],
+                sequences=responses,
+                answers=labels,
+                timeout_seconds=config.verifier_timeout,
+                max_num_workers=config.verifier_parallel
+                )
+        else:
+            score = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels)
+
+        scores = [all_score + tmp_score * verifier_weight[idx]
+                  for all_score, tmp_score in zip(scores, score)]
+
+    return scores
+
+
+def math_equal_subprocess(prediction, reference, timeout_seconds=10):
+    q = Queue()
+    p = Process(target=_math_worker, args=(q, prediction, reference))
+    p.start()
+
+    p.join(timeout=timeout_seconds)
+
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        return False
+
+    try:
+        return q.get_nowait()
+    except Exception as e:
+        return False
+
+
+def extract_answer_subprocess(model_output, timeout_seconds=10):
+    q = Queue()
+    p = Process(target=_extract_worker, args=(q, model_output))
+    p.start()
+
+    p.join(timeout=timeout_seconds)
+
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        return ""
+
+    try:
+        return q.get_nowait()
+    except Exception as e:
+        return ""
+
+
+def preprocess_box_response_for_prompt(queue, sequences, answers, *args, **kwargs):
+    scores = []
+
+    for sequence, answer in zip(sequences, answers):
+        model_output = re.sub(r'^.*?<\|im_start\|>assistant', '<|im_start|>assistant', sequence, flags=re.DOTALL,
+                              count=1)
+        stop_words = ["</s>", "<|im_end|>", "<|endoftext|>"]
+        for stop_word in stop_words:
+            if stop_word in model_output:
+                model_output = model_output.split(stop_word)[0].strip()
+        ext_answer = extract_answer_subprocess(model_output=model_output)
+
+        if math_equal_subprocess(prediction=ext_answer, reference=answer):
+            box_match = 1.0
+        else:
+            box_match = -0.5
+
+        if "boxed" not in model_output:
+            box_match = -1.0
+
+        scores.append(box_match)
+
+    if queue is not None:
+        queue.put(scores)
+
+    return scores
+
+
+def base_model_accuracy_reward(queue, sequences, answers, *args, **kwargs):
+    scores = []
+    for sequence, answer in zip(sequences, answers):
+        format_correct = _validate_response_structure(sequence)
+
+        ext_answer = extract_answer(sequence, data_name="math")
+        box_match = 0.0
+        if math_equal(prediction=ext_answer, reference=answer) and format_correct:
+            box_match = 1.0
+
+        scores.append(box_match)
+
+    if queue is not None:
+        queue.put(scores)
+
+    return scores
+
+
+def format_reward(queue, sequences, *args, **kwargs):
     """
     Reward function that checks if the completion has a specific format.
 
     Args:
+        queue: parallel queue
+        sequences: A list of sequences, where each completion is a tuple containing a list of dictionaries.
+                     Each dictionary should have a "content" key with the text to be checked.
+
+    Returns:
+        A list of floats, where each float is 1.0 if the corresponding completion matches the required format,
+        and 0.0 otherwise.
+
+    Raises:
+        ValueError: If the input sequences are not in the expected format.
+    """
+    pattern = r"^<think>.*?</think>\s*<answer>.*?</answer>$"
+
+    if not isinstance(sequences, list):
+        raise ValueError("Input sequences must be a list.")
+
+    scores = []
+    for completion in sequences:
+        if re.match(pattern, completion, re.DOTALL | re.MULTILINE):
+            scores.append(1.0)
+        else:
+            scores.append(0.0)
+
+    if queue is not None:
+        queue.put(scores)
+
+    return scores
+
+
+def strict_format_reward(queue, sequences, *args, **kwargs):
+    """
+    Reward function that checks if the completion has a specific format.
+
+    Args:
+        queue: parallel queue
         sequences: A list of sequences, where each completion is a tuple containing a list of dictionaries.
                      Each dictionary should have a "content" key with the text to be checked.
 
@@ -281,17 +300,21 @@ def strict_format_reward(sequences, **kwargs):
         ValueError: If the input sequences are not in the expected format.
     """
 
-    rewards = []
+    scores = []
     for completion in sequences:
         reward = -1.0
-        format_correct = validate_response_structure(completion)
+        format_correct = _validate_response_structure(completion)
         if format_correct:
             reward = 1.0
-        rewards.append(reward)
-    return rewards
+        scores.append(reward)
+
+    if queue is not None:
+        queue.put(scores)
+
+    return scores
 
 
-def reasoning_steps_reward(sequences, **kwargs):
+def reasoning_steps_reward(queue, sequences, *args, **kwargs):
     r"""Reward function that checks for clear step-by-step reasoning.
     Regex pattern:
         Step \d+: - matches "Step 1:", "Step 2:", etc.
@@ -302,5 +325,52 @@ def reasoning_steps_reward(sequences, **kwargs):
     """
     pattern = r"(Step \d+:|^\d+\.|\n-|\n\*|First,|Second,|Next,|Finally,)"
     matches = [len(re.findall(pattern, content)) for content in sequences]
+    scores = [min(1.0, count / 3) for count in matches]
 
-    return [min(1.0, count / 3) for count in matches]
+    if queue is not None:
+        queue.put(scores)
+
+    return scores
+
+
+def multiprocess_executor(worker, sequences, answers, timeout_seconds=10, max_num_workers=32):
+    if not sequences:
+        return []
+
+    # 根据数据量调整进程数，保证每个进程至少有一个任务
+    num_workers = min(len(sequences), mp.cpu_count() - 1, max_num_workers)
+    batch_size = len(sequences) // num_workers
+
+    processes = []
+    lengths = []
+    queues = []  # 每个进程一个队列，用于按顺序接收返回结果
+
+    for i in range(num_workers):
+        start_index = i * batch_size
+        end_index = (i + 1) * batch_size if i < num_workers - 1 else len(sequences)
+        batch_length = end_index - start_index
+        lengths.append(batch_length)
+        sequence_batch = sequences[start_index:end_index]
+        answer_batch = answers[start_index:end_index]
+        q = Queue()
+        queues.append(q)
+        p = Process(target=worker, args=(q, sequence_batch, answer_batch, timeout_seconds))
+        processes.append(p)
+        p.start()
+
+    final_results = []
+    for i, p in enumerate(processes):
+        p.join(timeout=timeout_seconds)
+        if p.is_alive():
+            p.terminate()
+            # 修改打印信息，和实际返回的 0.0 一致，也可按需改为[-1]
+            logger.info(f'进程 {i} 超时，返回一个大小为 {lengths[i]} 的 [0.0] 列表')
+            final_results.extend([0.0] * lengths[i])
+        else:
+            try:
+                # 从对应的队列中获取返回值
+                res = queues[i].get_nowait()
+                final_results.extend(res)
+            except Exception:
+                final_results.extend([0.0] * lengths[i])
+    return final_results

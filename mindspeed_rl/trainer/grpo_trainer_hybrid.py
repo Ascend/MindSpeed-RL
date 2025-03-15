@@ -142,7 +142,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                     if isinstance(reward_worker, RayActorGroup):
                         reward_worker.compute_rm_score(blocking=True)
                     else:
-                        ray.get(reward_worker.compute_rm_score.remote(blocking=True))
+                        ray.get(reward_worker.compute_rm_score.remote())
 
                 # compute advantages, executed on the driver process
                 compute_advantage(

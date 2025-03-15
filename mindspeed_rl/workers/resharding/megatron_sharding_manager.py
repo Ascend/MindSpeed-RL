@@ -90,6 +90,7 @@ class MegatronShardingManager():
     def reshard_to_train_mode(self):
         self.inference_engine.offload_model_weights()
         self.offload_infer_params()
+        torch.cuda.empty_cache()
         self.onload_train_params()
         if self.optimizer_offload:
             self.onload_optimizer()
@@ -100,11 +101,12 @@ class MegatronShardingManager():
     def reshard_to_infer_mode(self):
         if self.optimizer_offload:
             self.offload_optimizer()
-
+        torch.cuda.empty_cache()
         self.onload_infer_params()
         infer_params = self.vllm_weight_container.get_infer_params()
         self.offload_train_params()
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
+        torch.cuda.empty_cache()
 
     def _move_to_device(self, data, device):
         if isinstance(data, defaultdict):
@@ -118,11 +120,16 @@ class MegatronShardingManager():
             return data
 
     def offload_optimizer(self):
+        for param_group in self.optimizer.optimizer.param_groups:
+            for param in param_group['params']:
+                param.data = param.data.to("cpu", non_blocking=False)
         self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, "cpu")
 
     def onload_optimizer(self):
-        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state,
-                                                              torch.cuda.current_device())
+        for param_group in self.optimizer.optimizer.param_groups:
+            for param in param_group['params']:
+                param.data = param.data.to(torch.cuda.current_device(), non_blocking=False)
+        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, torch.cuda.current_device())
 
     def offload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers

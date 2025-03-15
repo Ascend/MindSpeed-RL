@@ -38,6 +38,10 @@ def parse_training_config(config: Dict):
                                    config.get('model'))
     rl_config = RLConfig(config.get("rl_config"))
     generate_config = GenerateConfig(config.get("generate_config"))
+
+    if generate_config.max_model_len == actor_config.seq_length:
+        generate_config.max_model_len = actor_config.seq_length + 1
+
     if generate_config.max_model_len <= actor_config.seq_length:
         raise ValueError(
             f"The sequence length must be greater than vllm max_model_len! "
@@ -401,7 +405,7 @@ def train(config):
 
     if rl_config.rule_reward:
         rule_reward = RuleReward.remote()
-        rule_reward.initialize.remote(reward_config, rl_config.n_samples_per_prompt)
+        rule_reward.initialize.remote(reward_config, rl_config)
         reward_list.append(rule_reward)
 
     train_ds, _, _ = build_train_valid_test_datasets(

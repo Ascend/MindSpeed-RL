@@ -97,6 +97,8 @@ optimizer_config.clip_grad = 10000.0
 optimizer_config.adam_beta1 = 0.9
 optimizer_config.adam_beta2 = 0.999
 optimizer_config.initial_loss_scale = 4096
+optimizer_config.bf16 = True
+optimizer_config.params_dtype = torch.bfloat16
 optimizer_config.use_distributed_optimizer = True
 
 prompt_list = [
@@ -334,7 +336,7 @@ class TestActor():
             inference_engine=self.inference_engine,
             optimizer=self.optimizer,
             optimizer_offload=True,
-            grad_offload=False,
+            grad_offload=True,
             enable_validate=False
         )
         torch.cuda.empty_cache()

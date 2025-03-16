@@ -33,7 +33,7 @@ class MemoryBuffer:
         self.numel_padded = numel_padded
         self.dtype = dtype
         # Create a memory buffer with padding for alignment (e.g., 128-bit alignment)
-        self.data = torch.zeros(self.numel_padded, dtype=self.dtype, device='cuda', requires_grad=False)
+        self.data = torch.zeros(self.numel_padded, dtype=self.dtype, device='cpu', requires_grad=False)
         self.tensor_indices = {}  # Stores the mapping of parameter names to their position in the buffer
 
     def zero(self):

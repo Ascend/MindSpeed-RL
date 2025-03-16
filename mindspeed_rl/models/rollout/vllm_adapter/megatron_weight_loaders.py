@@ -47,7 +47,7 @@ def llama_megatron_core_weight_loader(actor_weights: Dict, vllm_model: nn.Module
             continue
         if "qkv" in name:
             q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, megatron_config)
-            loaded_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
+            loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
         param = params_dict[name]
         weight_loader = getattr(param, "weight_loader", default_weight_loader)
         weight_loader(param, loaded_weight)
@@ -64,10 +64,10 @@ def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
         if "qkv" in name:
             if name.endswith('.bias'):
                 q_weight, k_weight, v_weight = qkv_split_bias(loaded_weight, infer_paralle_config, megatron_config)
-                loaded_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
+                loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
             else:
                 q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, megatron_config)
-                loaded_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
+                loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
         param = params_dict[name]
         weight_loader = getattr(param, "weight_loader", default_weight_loader)
         weight_loader(param, loaded_weight)

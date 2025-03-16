@@ -87,7 +87,7 @@ class MegatronStyleVllmWeightContainer:
         self._init_tensor_model_parallel_allgather_group()
         self._init_pipeline_model_parallel_allgather_group()
         self._init_tensor_model_parallel_split_group()
-        self.get_infer_params()
+        self._init_weight_buffers()
 
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
@@ -116,7 +116,6 @@ class MegatronStyleVllmWeightContainer:
         needs megatron weight loader to further transfer for vllm
         """
 
-        self._init_weight_buffers()
         self._update_weight_buffers_intra_pp()
         self._update_weight_buffers_inter_pp()
         params = self._get_all_params()

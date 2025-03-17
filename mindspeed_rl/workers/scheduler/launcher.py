@@ -115,7 +115,7 @@ class RayActorGroup:
         self.get_megatron_optimizer = get_megatron_optimizer
         self.get_optimizer_param_scheduler = get_optimizer_param_scheduler
         self.load_checkpoint = load_checkpoint
-        self.save_checkpoint = save_checkpoint
+        self._save_checkpoint = save_checkpoint
         self.get_args = get_args
         self.tokenizer = tokenizer
         self.get_forward_backward_func = get_forward_backward_func
@@ -171,7 +171,7 @@ class RayActorGroup:
             get_megatron_optimizer=self.get_megatron_optimizer,
             get_optimizer_param_scheduler=self.get_optimizer_param_scheduler,
             load_checkpoint=self.load_checkpoint,
-            save_checkpoint=self.save_checkpoint,
+            save_checkpoint=self._save_checkpoint,
             get_args=self.get_args,
             tokenizer=self.tokenizer,
             get_forward_backward_func=self.get_forward_backward_func,

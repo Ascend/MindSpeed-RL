@@ -20,7 +20,7 @@ megatron_training:
   tokenizer_name_or_path: /data/for_dt/weights/Qwen2.5-7B
   global_batch_size: 1
   seq_length: 512
-  save_interval: 10000
+  save_interval: 1
   train_iters: 1
   stage: ray_grpo
   attention_dropout: 0.0

@@ -29,7 +29,7 @@ megatron_training:
   no_shared_storage: true
   variable_seq_lengths: true
   dataset_additional_keys: ['labels',]
-  data_path:
+  data_path:  ./dataset/data
   split: 100,0,0
 
 actor_config:
@@ -79,7 +79,6 @@ rl_config:
   kl_coef: 0.05
   missing_eos_penalty: 0.0
   mini_batch_size: 4
-  num_samples_per_step: 1
   max_prompt_length: 256
   epochs: 1
   clip_ratio: 0.2
@@ -111,8 +110,8 @@ generate_config:
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
 
-  offload_train_optimizer: True
-  offload_train_grad: True
+  offload_train_optimizer: true
+  offload_train_grad: false
 
   # 采样配置
   sampling_config:

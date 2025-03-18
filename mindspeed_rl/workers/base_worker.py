@@ -1,6 +1,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import os
+import time
 from abc import ABC
 from types import ModuleType
 from typing import List, Callable
@@ -30,7 +31,8 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     is_pipeline_last_stage,
     get_tensor_model_parallel_group,
     get_tensor_model_parallel_rank,
-    get_tensor_model_parallel_src_rank
+    get_tensor_model_parallel_src_rank,
+    get_model_parallel_group
 )
 from mindspeed_rl.utils.compute import set_parallel_state
 from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
@@ -125,6 +127,16 @@ class BaseWorker(BaseRayWorker, ABC):
         self.td = None
         self.args = None
 
+    def all_consumed(self, experience_consumer_stage, use_vllm=False):
+        status = torch.tensor(0, device=next(self.model[0].parameters()).device)
+        if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
+                get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
+            status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
+                                  device=next(self.model[0].parameters()).device)
+        torch.distributed.all_reduce(status, group=get_model_parallel_group(self.parallel_state, use_vllm),
+                                     op=torch.distributed.ReduceOp.MAX)
+        return status
+
     def setup_distributed_rank(self):
         logger.info(f"getenv RANK         : {os.getenv('RANK')}")
         logger.info(f"getenv WORLD_SIZE   : {os.getenv('WORLD_SIZE')}")
@@ -171,8 +183,6 @@ class BaseWorker(BaseRayWorker, ABC):
         batch_data = {}
         # make sure that all ranks in tp/pp group enter dispatch_transfer_dock_data,
         # in case of rank0 get_experience before other ranks judge td.all_consumed
-        torch.distributed.barrier(group=get_tensor_model_parallel_group(self.parallel_state, use_vllm))
-        torch.distributed.barrier(group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm))
         if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
                 get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
             batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_colums,

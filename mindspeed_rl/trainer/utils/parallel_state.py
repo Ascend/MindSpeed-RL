@@ -55,3 +55,13 @@ def get_tensor_model_parallel_group(mpu, use_vllm=False):
         return vpu.get_tensor_model_parallel_group().device_group
     else:
         return mpu.get_tensor_model_parallel_group()
+
+
+def get_model_parallel_group(mpu, use_vllm=False):
+    if use_vllm:
+        from vllm.distributed import parallel_state as vpu
+        if not hasattr(vpu, "get_tensor_model_parallel_group"):
+            vpu = mpu
+        return vpu.get_model_parallel_group()
+    else:
+        return mpu.get_model_parallel_group()

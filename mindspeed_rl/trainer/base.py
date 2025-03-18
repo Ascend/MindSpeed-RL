@@ -73,9 +73,9 @@ class RayBaseTrainer(object):
 
         self.wandb = None
         self.tensorboard = None
-        if kwargs.get("use_wandb", "") and torch.distributed.get_rank() == 0:
+        if kwargs.get("use_wandb", ""):
             self.wandb = WandbLogger(kwargs)
-        if kwargs.get("use_tensorboard", "") and self.wandb is None and torch.distributed.get_rank() == 0:
+        if kwargs.get("use_tensorboard", "") and self.wandb is None:
             self.tensorboard = SummaryWriter()
 
     def experience_maker_init(self):

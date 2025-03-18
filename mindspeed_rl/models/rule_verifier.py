@@ -215,12 +215,15 @@ def preprocess_box_response_for_prompt(queue, sequences, answers, *args, **kwarg
                 model_output = model_output.split(stop_word)[0].strip()
         ext_answer = extract_answer_subprocess(model_output=model_output)
 
-        if math_equal_subprocess(prediction=ext_answer, reference=answer):
-            box_match = 1.0
-        else:
-            box_match = -0.5
+        if ext_answer:
+            if math_equal_subprocess(prediction=ext_answer, reference=answer):
+                box_match = 1.0
+            else:
+                box_match = -0.5
 
-        if "boxed" not in model_output:
+            if "boxed" not in model_output:
+                box_match = -1.0
+        else:
             box_match = -1.0
 
         scores.append(box_match)

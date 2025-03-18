@@ -95,10 +95,10 @@ class ReferenceWorker(BaseWorker):
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.megatron_config.micro_batch_size
 
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
+        while self.all_consumed(experience_consumer_stage) > 0:
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
-                                                                  experience_count, self.rl_config.n_samples_per_prompt,
-                                                                  tp_size=self.megatron_config.tensor_model_parallel_size)
+                                                                experience_count, self.rl_config.n_samples_per_prompt,
+                                                                tp_size=self.megatron_config.tensor_model_parallel_size)
             if data_loader and index:
                 output, batch = self.reference.compute_log_prob(data_loader)
 

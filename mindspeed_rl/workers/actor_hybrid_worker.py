@@ -137,7 +137,7 @@ class ActorHybridWorker(BaseWorker):
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
         experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
 
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
+        while self.all_consumed(experience_consumer_stage) > 0:
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   self.megatron_config.tensor_model_parallel_size)
@@ -149,6 +149,8 @@ class ActorHybridWorker(BaseWorker):
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
                     return metrics
+                else:
+                    return {}
 
     def save_checkpoint(self, iteration: int):
         self._save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
@@ -162,9 +164,10 @@ class ActorHybridWorker(BaseWorker):
         self.sharding_manager.reshard_to_infer_mode()
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
+        while self.all_consumed(experience_consumer_stage) > 0:
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count,
+                                                                  n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size,
                                                                   use_vllm=True)
             if data_loader and index:
@@ -207,7 +210,7 @@ class ActorHybridWorker(BaseWorker):
         experience_colums = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.megatron_config.micro_batch_size
 
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
+        while self.all_consumed(experience_consumer_stage) > 0:
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size)
@@ -276,6 +279,8 @@ class ActorHybridWorker(BaseWorker):
             infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
             megatron_config=self.megatron_config,
             sampling_config=sampling_config,
+            enable_prefix_caching=self.generate_config.enable_prefix_caching,
+            num_scheduler_steps=self.generate_config.num_scheduler_steps,
             max_num_seqs=self.generate_config.max_num_seqs,
             max_model_len=self.generate_config.max_model_len,
             dtype=self.generate_config.dtype,

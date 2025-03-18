@@ -50,6 +50,8 @@ class VLLMInferEngine(BaseInferEngine):
             infer_expert_parallel_size: int,
             megatron_config: MegatronConfig,
             sampling_config: dict,
+            enable_prefix_caching: bool = False,
+            num_scheduler_steps: int = 1,
             max_num_seqs: int = 1,
             max_model_len: int = 2048,
             dtype: str = "bfloat16",
@@ -70,6 +72,8 @@ class VLLMInferEngine(BaseInferEngine):
             infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
             infer_expert_parallel_size (int): Expert parallel size during inference.
             sampling_config (dict): Configuration for text generation sampling.
+            enable_prefix_caching (bool): Whether to enable prefix caching.
+            num_scheduler_steps (int): Num scheduler steps. Default is 1.
             max_num_seqs (int): Maximum number of sequences to process simultaneously. Default is 1.
             max_model_len (int): Maximum model length (in tokens). Default is 2048.
             dtype (str): Data type for model weights. Default is "bfloat16".
@@ -147,6 +151,8 @@ class VLLMInferEngine(BaseInferEngine):
             tensor_parallel_size=infer_tensor_parallel_size,
             load_format="dummy" if load_format == "megatron" else "auto",
             distributed_executor_backend="external_launcher",
+            enable_prefix_caching=enable_prefix_caching,
+            num_scheduler_steps=num_scheduler_steps,
             dtype=dtype,
             enforce_eager=False,
             skip_tokenizer_init=False,

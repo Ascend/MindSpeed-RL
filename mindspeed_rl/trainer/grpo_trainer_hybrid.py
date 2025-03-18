@@ -167,7 +167,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                                                               self.tokenizer_name_or_path)
 
             actor_metrics = get_batch_metrices_mean(actor_metrics)
-            if self.tensorboard is not None and torch.distributed.get_rank() == 0:
+            if self.tensorboard is not None:
                 self.tensorboard.add_scalars("Actor_Metrics", actor_metrics, iteration)
                 self.tensorboard.add_scalars("GRPO_Data_Metrics", grpo_data_metrics, iteration)
             metrics.update(value=actor_metrics)
@@ -175,7 +175,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             metrics.update("timing/all", all_timer.last)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)
-            if self.wandb is not None and torch.distributed.get_rank() == 0:
+            if self.wandb is not None:
                 self.wandb.log_metrics(metrics.metric, iteration)
             if iteration % self.save_interval == 0:
                 self.save_checkpoint(iteration)

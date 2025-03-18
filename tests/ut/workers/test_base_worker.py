@@ -150,8 +150,7 @@ class TestBaseWorker(DistributedTest):
     @patch('mindspeed_rl.workers.base_worker.BaseRayWorker.__init__')
     @patch('mindspeed_rl.workers.base_worker.get_pipeline_model_parallel_rank')
     @patch('mindspeed_rl.workers.base_worker.get_tensor_model_parallel_rank')
-    @patch('torch.distributed.barrier')
-    def test_dispatch_transfer_dock_data(self, mock_barrier, mock_get_tp, mock_get_pp, mock_BaseRayWorker,
+    def test_dispatch_transfer_dock_data(self, mock_get_tp, mock_get_pp, mock_BaseRayWorker,
                                          mock_broadcast, mock_data_load, mock_cuda, setUp):
         mock_get_tp.return_value = 1
         mock_get_pp.return_value = 1
@@ -184,7 +183,6 @@ class TestBaseWorker(DistributedTest):
         result_1, result_2 = worker.dispatch_transfer_dock_data(experience_consumer_stage, 
                                                                 experience_colums, experience_count)
                                                             
-        assert mock_barrier.call_count == 2
         assert mock_broadcast.call_count == 2
         assert result_1 == 1
 

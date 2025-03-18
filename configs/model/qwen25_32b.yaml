@@ -4,7 +4,6 @@ qwen25_32b:
   hidden_size: 5120
   ffn_hidden_size: 27648
   num_attention_heads: 40
-  seq_length: 4096
   rotary_base: 1000000
   max_position_embeddings: 32768
   make_vocab_size_divisible_by: 1
@@ -14,19 +13,7 @@ qwen25_32b:
   disable_bias_linear: true
   group_query_attention: true
   num_query_groups: 8
-  attention_dropout: 0.0
-  init_method_std: 0.01
-  hidden_dropout: 0.0
-  adam_beta1: 0.9
-  adam_beta2: 0.95
   position_embedding_type: rope
   normalization: RMSNorm
-  use_fused_rmsnorm: true
   swiglu: true
-  use_flash_attn: true
-  no_masked_softmax_fusion: true
   attention_softmax_in_fp32: true
-  no_gradient_accumulation_fusion: true
-  use_fused_swiglu: true
-  use_fused_rotary_pos_emb: true
-  bf16: true

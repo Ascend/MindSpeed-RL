@@ -65,6 +65,9 @@ class GenerateConfig(BaseConfig):
         self.offload_train_optimizer = False
         self.offload_train_grad = False
 
+        self.enable_prefix_caching = False
+        self.num_scheduler_steps = 1
+
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {
             "logprobs": 1,  # 返回的 top token 的对数概率数量

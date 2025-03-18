@@ -17,7 +17,7 @@ megatron_training:
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path:
-  global_batch_size: 16
+  global_batch_size: 4
   seq_length: 512
   save_interval: 10000
   train_iters: 1000
@@ -29,7 +29,7 @@ megatron_training:
   no_shared_storage: true
   variable_seq_lengths: true
   dataset_additional_keys: ['labels',]
-  data_path: ./data
+  data_path: ./dataset/data
   split: 100,0,0
 
 actor_config:
@@ -42,6 +42,9 @@ actor_config:
   min_lr: 0.0
   weight_decay: 0.0
   lr_warmup_fraction: 0.0
+  clip_grad: 10000.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
   initial_loss_scale: 4096
   finetune: true
   load: ./ckpt
@@ -53,7 +56,7 @@ ref_config:
   model: qwen25_32b
   tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
-  micro_batch_size: 8
+  micro_batch_size: 1
   load: ./ckpt
   no_load_optim: true
   no_load_rng: true
@@ -62,7 +65,7 @@ reward_config:
   model: qwen25_32b
   tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
-  micro_batch_size: 8
+  micro_batch_size: 1
   load: ./ckpt
   no_load_optim: true
   no_load_rng: true
@@ -73,20 +76,21 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
-  kl_coef: 0.001
+  init_kl_coef: 0.001
   missing_eos_penalty: 0.0
-  mini_batch_size: 128
+  mini_batch_size: 4
   max_prompt_length: 256
   epochs: 1
   clip_ratio: 0.2
   entropy_coeff: 0.001
   shuffle_minibatch: false
-  n_samples_per_prompt: 8
-  colocate_actor_ref: false
-  colocate_all_models: false
+  n_samples_per_prompt: 4
   rule_reward: true
   verifier_function: ["base_acc"]
   verifier_weight: [1.0]
+  verifier_parallel: 4
+  colocate_actor_ref: false
+  colocate_all_models: false
   actor_resource:
     num_npus: 16
   reference_resource:
@@ -97,8 +101,6 @@ rl_config:
 generate_config:
   # tokenizer相关配置
   trust_remote_code: true
-  offload_train_optimizer: True
-  offload_train_grad: True
 
   # 推理时的并行配置
   infer_tensor_parallel_size: 8
@@ -110,6 +112,11 @@ generate_config:
   max_model_len: 4096
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
+  enable_prefix_caching: false
+  num_scheduler_steps: 1
+
+  offload_train_optimizer: true
+  offload_train_grad: false
 
   # 采样配置
   sampling_config:
@@ -120,4 +127,3 @@ generate_config:
     min_p: 0.01
     temperature: 0.9
     detokenize: false
-

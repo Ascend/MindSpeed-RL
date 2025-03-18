@@ -260,7 +260,7 @@ class ActorHybridWorker(BaseWorker):
 
     def _build_rollout(self):
         self.actor_model_config = AutoConfig.from_pretrained(
-            self.megatron_config.tokenizer_name_or_path)
+            self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
 
         sampling_config = {"num_completions": self.rl_config.n_samples_per_prompt,
                            "best_of": self.rl_config.n_samples_per_prompt,

@@ -8,6 +8,7 @@ import time
 import random
 from typing import Dict, List
 
+import omegaconf
 import numpy as np
 import torch
 import torch_npu
@@ -177,7 +178,11 @@ def parse_args_from_config(config):
     # model configs
     # Parsing utils parameters.
     for key, value in config.items():  # config is transformed into a dict
-        if isinstance(value, bool):
+        if isinstance(value, omegaconf.listconfig.ListConfig):
+            sys.argv.append(f"--{key.replace('_', '-')}")
+            for i in value:
+                sys.argv.append(f"{i}")
+        elif isinstance(value, bool):
             if value:
                 sys.argv.append(f"--{key.replace('_', '-')}")
         elif value is None:

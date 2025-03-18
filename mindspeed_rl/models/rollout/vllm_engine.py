@@ -10,7 +10,7 @@ import ray
 import torch
 import torch.distributed
 from torch.nn.utils.rnn import pad_sequence
-from transformers import AutoTokenizer
+from transformers import AutoConfig
 
 
 def dummy_compile(*compile_args, **compile_kwargs):
@@ -22,7 +22,7 @@ def dummy_compile(*compile_args, **compile_kwargs):
 
     return decorate
 
-
+torch.jit.script = dummy_compile
 torch.compile = dummy_compile
 
 from vllm import LLM, SamplingParams
@@ -35,7 +35,7 @@ from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
     update_megatron_weight_loader,
     InferParallelConfig
 )
-from mindspeed_rl.models.rollout.vllm_adapter.vllm_model_loader import DummyMegatronModelLoader
+from mindspeed_rl.utils import get_tokenizer
 
 
 class VLLMInferEngine(BaseInferEngine):
@@ -55,6 +55,7 @@ class VLLMInferEngine(BaseInferEngine):
             dtype: str = "bfloat16",
             gpu_memory_utilization: float = 0.5,
             trust_remote_code: bool = True,
+            load_format: str = "megatron",
             **kwargs
     ):
         """
@@ -112,12 +113,15 @@ class VLLMInferEngine(BaseInferEngine):
             print(f"Error creating SamplingParams from dictionary: {e}")
             raise
 
-        self.megatron_config = megatron_config
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name_or_path,
+        self.hf_config = AutoConfig.from_pretrained(
+            tokenizer_name_or_path, 
             trust_remote_code=trust_remote_code
         )
+
+        self.tokenizer = get_tokenizer(tokenizer_name_or_path)
+        self.pad_token_id = (
+            self.tokenizer.tokenizer.pad_token_id if self.tokenizer.tokenizer.pad_token_id is not None
+            else self.tokenizer.tokenizer.eos_token_id)
 
         # Set up local rank using the helper function
         self.local_rank = get_local_rank()
@@ -133,14 +137,15 @@ class VLLMInferEngine(BaseInferEngine):
                 pipeline_model_parallel_size=infer_pipeline_parallel_size
             )
 
-        update_megatron_weight_loader()
+        if load_format == "megatron":
+            update_megatron_weight_loader()
 
         # Initialize the LLM engine
         self.llm = LLM(
             model=tokenizer_name_or_path,
             trust_remote_code=trust_remote_code,
             tensor_parallel_size=infer_tensor_parallel_size,
-            load_format=DummyMegatronModelLoader,
+            load_format="dummy" if load_format == "megatron" else "auto",
             distributed_executor_backend="external_launcher",
             dtype=dtype,
             enforce_eager=False,
@@ -150,12 +155,20 @@ class VLLMInferEngine(BaseInferEngine):
             max_model_len=max_model_len
         )
 
-        self.pad_token_id = self.tokenizer.pad_token_id
-        self.cpu_model = None
-        self.free_cache_engine()
+        self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model
+
+        self.cpu_model = {}
+        for name, params in self.model.named_parameters():
+            self.cpu_model[name] = torch.empty_like(params, device="cpu")
+        
+        if load_format == "megatron":
+            self.free_cache_engine()
+            self.offload_model_weights()
+
 
     def init_cache_engine(self):
-        self.llm.llm_engine.model_executor.driver_worker.worker._init_cache_engine()
+        if self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine is None:
+            self.llm.llm_engine.model_executor.driver_worker.worker._init_cache_engine()
 
     def free_cache_engine(self):
         ctx = self.llm.llm_engine.model_executor.driver_worker.worker.compilation_config.static_forward_context
@@ -176,28 +189,38 @@ class VLLMInferEngine(BaseInferEngine):
         self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine = None
         self.llm.llm_engine.model_executor.driver_worker.worker.gpu_cache = None
 
+        if hasattr(self.model.model.layers[0].self_attn, "attn"):
+            for i in range(self.model.model.start_layer, self.model.model.end_layer):
+                attn_impl = self.model.model.layers[i].self_attn.attn.impl
+                if hasattr(attn_impl, "key_cache"):
+                    attn_impl.key_cache = None
+                    attn_impl.value_cache = None
+
         self.gpu_cache = None
 
         gc.collect()
         torch.cuda.empty_cache()
 
     def offload_model_weights(self):
-        if not self.cpu_model:
-            self.cpu_model = {}
-            for name, params in self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model.named_parameters():
-                self.cpu_model[name] = torch.empty_like(params, device="cpu")
-                params.data = self.cpu_model[name]
-        else:
-            for name, params in self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model.named_parameters():
-                params.data = self.cpu_model[name]
+        for name, params in self.model.named_parameters():
+            params.data = self.cpu_model[name]
 
     def sync_model_weights(self, params, load_format='megatron'):
         infer_parallel_config = InferParallelConfig(self.infer_tensor_parallel_size, self.infer_pipeline_parallel_size,
                                                     self.infer_expert_parallel_size)
         load_megatron_weights(params,
-                              self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model,
+                              self.model,
                               infer_parallel_config,
-                              self.megatron_config)
+                              self.hf_config)
+        if hasattr(self.model.model.layers[0].self_attn, "mla_attn"):
+            self._process_mla()
+
+    def _process_mla(self):
+        for i in range(self.model.model.start_layer, self.model.model.end_layer):
+            mla = self.model.model.layers[i].self_attn.mla_attn.impl
+            if hasattr(mla, "w_kc"):
+                mla.w_kc = None
+                mla.w_vc = None
 
     @torch.no_grad()
     def generate_sequences(self, idx_list, **kwargs):
@@ -229,14 +252,11 @@ class VLLMInferEngine(BaseInferEngine):
                     logprob.append(logprobs_dict[token_id].logprob)
                 logprobs.append(torch.tensor(logprob))
 
-        pad_token_id = (
-            self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None
-            else self.tokenizer.eos_token_id)
         output_token_ids = pad_sequence(output_token_ids, batch_first=True,
-                                        padding_value=pad_token_id)
+                                        padding_value=self.pad_token_id)
         if len(logprobs) > 0:
             logprobs = pad_sequence(logprobs, batch_first=True,
-                                    padding_value=pad_token_id)
+                                    padding_value=self.pad_token_id)
         return output_token_ids, logprobs
 
     @contextmanager

@@ -68,7 +68,7 @@ class MegatronShardingManager():
 
         self.vllm_weight_container = MegatronStyleVllmWeightContainer(
             megatron_model=megatron_model,
-            vllm_model=self.inference_engine.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model,
+            vllm_model=self.inference_engine.model,
             model_config=model_config,
             infer_tensor_parallel_size=infer_tensor_parallel_size,
             infer_pipeline_parallel_size=infer_pipeline_parallel_size,

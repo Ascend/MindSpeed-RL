@@ -5,12 +5,14 @@
 from typing import Dict
 import torch
 import torch.nn as nn
+from transformers.configuration_utils import PretrainedConfig
 
-from vllm.model_executor.layers.linear import ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear, RowParallelLinear
+from vllm.model_executor.layers.linear import (
+    ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear, 
+    RowParallelLinear, ReplicatedLinear)
+from vllm.model_executor.layers.fused_moe.layer import FusedMoE 
 from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead, VocabParallelEmbedding
 from vllm.model_executor.models import ModelRegistry
-
-from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 
 
 class InferParallelConfig:
@@ -22,9 +24,9 @@ class InferParallelConfig:
 
 def load_megatron_weights(actor_weights: Dict, vllm_model: nn.Module,
         infer_paralle_config: InferParallelConfig,
-        megatron_config: MegatronConfig):
+        hf_config: PretrainedConfig):
     model_weight_loader = _get_model_weight_loader(vllm_model.__class__.__name__)
-    vllm_model = model_weight_loader(actor_weights, vllm_model, infer_paralle_config, megatron_config)
+    vllm_model = model_weight_loader(actor_weights, vllm_model, infer_paralle_config, hf_config)
     # NOTE(sgm) to reduce peak memory usage, we offload vllm model to cpu
     # after init, and we need this after sync model weights for in first iter.
     vllm_model = vllm_model.cuda()
@@ -33,7 +35,7 @@ def load_megatron_weights(actor_weights: Dict, vllm_model: nn.Module,
 
 def llama_megatron_core_weight_loader(actor_weights: Dict, vllm_model: nn.Module, 
         infer_paralle_config: InferParallelConfig,
-        megatron_config: MegatronConfig
+        hf_config: PretrainedConfig
 ) -> nn.Module:
     params_dict = dict(vllm_model.named_parameters())
     for name, loaded_weight in actor_weights.items():
@@ -46,16 +48,14 @@ def llama_megatron_core_weight_loader(actor_weights: Dict, vllm_model: nn.Module
         if "lm_head" in name:  # lm_head is not needed since it is tied with embedding
             continue
         if "qkv" in name:
-            q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, megatron_config)
+            q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, hf_config)
             loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
-        param = params_dict[name]
-        weight_loader = getattr(param, "weight_loader", default_weight_loader)
-        weight_loader(param, loaded_weight)
+        load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 
 
 def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
-        infer_paralle_config: InferParallelConfig, megatron_config: MegatronConfig
+        infer_paralle_config: InferParallelConfig, hf_config: PretrainedConfig
 ) -> nn.Module:
     params_dict = dict(vllm_model.named_parameters())
     for name, loaded_weight in actor_weights.items():
@@ -63,14 +63,37 @@ def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
             continue
         if "qkv" in name:
             if name.endswith('.bias'):
-                q_weight, k_weight, v_weight = qkv_split_bias(loaded_weight, infer_paralle_config, megatron_config)
+                q_weight, k_weight, v_weight = qkv_split_bias(loaded_weight, infer_paralle_config, hf_config)
                 loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
             else:
-                q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, megatron_config)
+                q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, hf_config)
                 loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
-        param = params_dict[name]
-        weight_loader = getattr(param, "weight_loader", default_weight_loader)
-        weight_loader(param, loaded_weight)
+        load_single_weight(params_dict, name, loaded_weight)
+    return vllm_model
+
+
+def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
+        infer_paralle_config: InferParallelConfig, hf_config: PretrainedConfig
+) -> nn.Module:
+    params_dict = dict(vllm_model.named_parameters())
+    for name, loaded_weight in actor_weights.items():
+        if "qkv" in name:
+            split_dim = hf_config.q_lora_rank if hf_config.q_lora_rank else \
+                (hf_config.qk_nope_head_dim + hf_config.qk_rope_head_dim) * hf_config.num_attention_heads
+            q_name = name.replace("qkv_proj", "q_a_proj" if hf_config.q_lora_rank else "q_proj")
+            kv_name = name.replace("qkv_proj", "kv_a_proj_with_mqa")
+            load_single_weight(params_dict, q_name, loaded_weight[:split_dim])
+            load_single_weight(params_dict, kv_name, loaded_weight[split_dim:])
+            continue
+        if name not in params_dict.keys():
+            raise ValueError(f"unexpected key {name} in deepseek_megatron_weight_loader")
+        if "mlp.experts.w13_weight" in name:
+            loaded_weight = loaded_weight.view(hf_config.n_routed_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous()
+            actor_weights[name] = actor_weights[name].to("cpu")
+        if "mlp.experts.w2_weight" in name:
+            loaded_weight = loaded_weight.view(hf_config.n_routed_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous()
+            actor_weights[name] = actor_weights[name].to("cpu")
+        load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 
 
@@ -83,11 +106,11 @@ def _get_model_weight_loader(arch: str):
 
 def qkv_split_weight(query_key_value,
         infer_paralle_config: InferParallelConfig,
-        megatron_config: MegatronConfig
+        hf_config: PretrainedConfig
 ):
     infer_tensor_parallel_size = infer_paralle_config.infer_tensor_parallel_size
-    nh = megatron_config.num_attention_heads // infer_tensor_parallel_size
-    ng = (megatron_config.num_query_groups if megatron_config.group_query_attention else megatron_config.num_attention_heads) // infer_tensor_parallel_size
+    nh = hf_config.num_attention_heads // infer_tensor_parallel_size
+    ng = hf_config.num_key_value_heads // infer_tensor_parallel_size
     repeats = nh // ng
     qkv_weight = query_key_value.reshape(
         ng,
@@ -102,10 +125,10 @@ def qkv_split_weight(query_key_value,
     return qw, kw, vw
 
 
-def qkv_split_bias(query_key_value, infer_paralle_config: InferParallelConfig, megatron_config: MegatronConfig):
+def qkv_split_bias(query_key_value, infer_paralle_config: InferParallelConfig, hf_config: PretrainedConfig):
     infer_tensor_parallel_size = infer_paralle_config.infer_tensor_parallel_size
-    nh = megatron_config.num_attention_heads // infer_tensor_parallel_size
-    ng = (megatron_config.num_query_groups if megatron_config.group_query_attention else megatron_config.num_attention_heads) // infer_tensor_parallel_size
+    nh = hf_config.num_attention_heads // infer_tensor_parallel_size
+    ng = hf_config.num_key_value_heads // infer_tensor_parallel_size
     repeats = nh // ng
     bias_weight = query_key_value.reshape(
         ng, 
@@ -116,6 +139,12 @@ def qkv_split_bias(query_key_value, infer_paralle_config: InferParallelConfig, m
     kw = bias_weight[:, repeats: repeats + 1, ...].reshape(-1)
     vw = bias_weight[:, repeats + 1:, ...].reshape(-1)
     return qw, kw, vw
+
+
+def load_single_weight(params_dict, name, loaded_weight):
+    param = params_dict[name]
+    weight_loader = getattr(param, "weight_loader", default_weight_loader)
+    weight_loader(param, loaded_weight)
 
 
 def update_megatron_weight_loader():
@@ -148,6 +177,7 @@ def parallel_weight_loader(self, param: torch.Tensor, loaded_weight: torch.Tenso
 MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "LlamaForCausalLM": llama_megatron_core_weight_loader,
     "Qwen2ForCausalLM": qwen_megatron_weight_loader,
+    "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
 }
 
 
@@ -157,5 +187,7 @@ LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY = {
     QKVParallelLinear: parallel_weight_loader,
     RowParallelLinear: parallel_weight_loader,
     VocabParallelEmbedding: parallel_weight_loader,
-    ParallelLMHead: parallel_weight_loader
+    ParallelLMHead: parallel_weight_loader,
+    ReplicatedLinear: parallel_weight_loader,
+    FusedMoE: parallel_weight_loader
 }

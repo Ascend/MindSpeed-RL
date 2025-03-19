@@ -96,7 +96,7 @@ def _build_train_valid_test_datasets(
         dataset_cls=None,
         parallel_state=None,
         full_shuffle_instruction_dataset=None,
-        no_shuffle=None,
+        no_shuffle=False,
         reset_position_ids=None,
         prompt_type=None,
         prompt_type_path=None,

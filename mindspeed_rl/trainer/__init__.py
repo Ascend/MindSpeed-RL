@@ -2,5 +2,6 @@
 
 from .sft_trainer import SFTTrainer
 from .grpo_trainer_hybrid import RayGRPOTrainer
+from .orm_trainer import ORMTrainer
 
-__all__ = ['SFTTrainer', 'RayGRPOTrainer']
+__all__ = ['SFTTrainer', 'ORMTrainer', 'RayGRPOTrainer']

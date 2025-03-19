@@ -559,6 +559,33 @@ class _IndexReader(object):
         )
 
 
+class BufferWriter:
+    """
+    Write the sequences in chunks rather than one by one
+    """
+
+    def __init__(self, data_file, dtype, buffer_chunk_size=10 ** 5):
+        self.data_file = data_file
+        self.dtype = dtype
+        self.buffer_threshold = buffer_chunk_size
+        self.buffer = []
+
+    def reset_buffer(self):
+        self.buffer = []
+
+    def write(self):
+        if self.buffer:
+            buffer_array = numpy.array(self.buffer, dtype=self.dtype)
+            self.data_file.write(buffer_array.tobytes(order="C"))
+            self.reset_buffer()
+
+    def add(self, lst: List):
+        self.buffer.extend(lst)
+
+        if len(self.buffer) >= self.buffer_threshold:
+            self.write()
+
+
 class IndexedDatasetBuilder(object):
     """Builder class for the IndexedDataset class
 
@@ -580,6 +607,7 @@ class IndexedDatasetBuilder(object):
         self.sequence_lengths = []
         self.document_indices = [0]
         self.sequence_modes = [] if self.multimodal else None
+        self.buffer_writer = BufferWriter(data_file=self.data_file, dtype=self.dtype)
 
     def add_item(self, tensor: torch.Tensor, mode: int = 0) -> None:
         """Add a single item to the dataset
@@ -589,6 +617,13 @@ class IndexedDatasetBuilder(object):
 
             mode (int, optional): The mode for the item. Defaults to 0.
         """
+        if isinstance(tensor, (list, List)):
+            self.buffer_writer.add(tensor)
+            self.sequence_lengths.append(len(tensor))
+            if self.multimodal:
+                self.sequence_modes.append(mode)
+            return
+
         np_array = numpy.array(tensor.numpy(), dtype=self.dtype)
         self.data_file.write(np_array.tobytes(order="C"))
         self.sequence_lengths.append(np_array.size)
@@ -647,6 +682,7 @@ class IndexedDatasetBuilder(object):
             idx_path (str): The path to the index file
         """
         self.data_file.close()
+        self.buffer_writer.write()
         with _IndexWriter(idx_path, self.dtype) as writer:
             writer.write(self.sequence_lengths, self.sequence_modes, self.document_indices)
 

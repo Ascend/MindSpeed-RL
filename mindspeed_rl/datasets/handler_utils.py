@@ -1,10 +1,9 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
-import os
 import bisect
-import json
 from dataclasses import dataclass
+from functools import partial
 from typing import List, Sequence, Dict, Any, Literal, Optional
 
 from mindspeed_rl.datasets.templates import Role
@@ -36,6 +35,7 @@ class InstructionDatasetAttr:
     folder: Optional[str] = None
     ranking: bool = False
     formatting: Literal["alpaca", "sharegpt"] = "alpaca"
+    dataset_additional_keys = ""
     """ columns """
     system: Optional[str] = None
     images: Optional[str] = None
@@ -51,65 +51,6 @@ class InstructionDatasetAttr:
 
     def set_attr(self, key: str, obj: Dict[str, Any], default: Optional[Any] = None) -> None:
         setattr(self, key, obj.get(key, default))
-
-
-def get_dataset_list(data_input, dataset_dir, interleave_probs) -> List["InstructionDatasetAttr"]:
-    """
-    Map multiple dataset attributes to List["InstructionDatasetAttr"]
-    through parameters and the data.json mapping file.
-    """
-    if data_input is not None:
-        dataset_names = [ds.split("/")[-1].strip() for ds in data_input.split(",")]
-    else:
-        dataset_names = []
-
-    try:
-        with open(os.path.join(dataset_dir, "dataset_info.json"), "r") as f:
-            dataset_info = json.load(f)
-    except Exception as err:
-        if len(dataset_names) != 0:
-            raise ValueError(
-                "Cannot open {} due to {}.".format(os.path.join(dataset_dir, "dataset_info.json"), str(err))
-            ) from err
-        dataset_info = None
-
-    if dataset_info is None:
-        raise ValueError(
-            "Cannot load {}.".format(os.path.join(dataset_dir, "dataset_info.json"))
-        )
-
-    # Multiple Dataset Interleaving Probability
-    if interleave_probs is not None:
-        interleave_probs = [float(prob.strip()) for prob in interleave_probs.split(",")]
-
-    dataset_list: List[InstructionDatasetAttr] = []
-    for name in dataset_names:
-        if name not in dataset_info:
-            raise ValueError("Undefined dataset {} in {}.".format(name, "dataset_info.json"))
-
-        if "script_url" in dataset_info[name]:
-            dataset_attr = InstructionDatasetAttr("script", dataset_name=dataset_info[name]["script_url"])
-        else:
-            dataset_attr = InstructionDatasetAttr("file", dataset_name=dataset_info[name]["file_name"])
-
-        dataset_attr.set_attr("subset", dataset_info[name])
-        dataset_attr.set_attr("folder", dataset_info[name])
-        dataset_attr.set_attr("ranking", dataset_info[name], default=False)
-        dataset_attr.set_attr("formatting", dataset_info[name], default="alpaca")
-
-        if "columns" in dataset_info[name]:
-            column_names = ["system", "images"]
-            if dataset_attr.formatting == "alpaca":
-                column_names.extend(["prompt", "query", "response", "history"])
-            else:
-                column_names.extend(["messages", "tools"])
-
-            for column_name in column_names:
-                dataset_attr.set_attr(column_name, dataset_info[name]["columns"])
-
-        dataset_list.append(dataset_attr)
-
-    return dataset_list
 
 
 def convert_token_to_id(token, tokenizer):
@@ -160,12 +101,12 @@ def check_dataset_info_map(map_keys, handler_name, column_names, raw_datasets):
 
     for key in map_keys.keys():
         if key not in column_names:
-            raise ValueError(f' {key} is unvalid, Please check map_keys')
+            raise ValueError(f' {key} is invalid, Please check map_keys')
 
     if "AlpacaStyle" in handler_name:
         for value in map_keys.values():
             if value and value not in raw_datasets.format['columns']:
-                raise ValueError(f' {value} is unvalid, Please check map_keys')
+                raise ValueError(f' {value} is invalid, Please check map_keys')
 
 
 def get_handler_dataset_attr(handler_name, dataset_additional_keys, map_keys, raw_datasets):
@@ -184,6 +125,50 @@ def get_handler_dataset_attr(handler_name, dataset_additional_keys, map_keys, ra
                 setattr(dataset_attr, column_name, target_name)
 
     return dataset_attr
+
+
+def align_dataset(dataset, dataset_attr, data_args):
+    """
+    Aligned dataset:
+        prompt: [{"role": "user", "content": "..."}] * (2T - 1)
+        response: [{"role": "assistant", "content": "..."}]
+        system: "..."
+        tools: "...",
+        images: []
+
+    after doing convert_func, the features will be:
+        features = Features.from_dict(
+            {
+                "prompt": [
+                    {"role": {"dtype": "string", "_type": "Value"}, "content": {"dtype": "string", "_type": "Value"}}
+                ],
+                "response": [
+                    {"role": {"dtype": "string", "_type": "Value"}, "content": {"dtype": "string", "_type": "Value"}}
+                ],
+                "system": [{"dtype": "string", "_type": "Value"}],
+                "tools": [{"dtype": "string", "_type": "Value"}],
+            }
+        )
+    """
+    if dataset_attr.formatting == "alpaca":
+        convert_func = partial(convert_alpaca_to_intermediate, dataset_attr=dataset_attr)
+
+    column_names = [k for k in next(iter(dataset)) if k not in dataset_attr.dataset_additional_keys]
+
+    kwargs = dict(
+        num_proc=data_args.workers,
+        load_from_cache_file=(not data_args.overwrite_cache),
+        desc="Converting format of dataset",
+    )
+
+    dataset = dataset.map(
+        convert_func,
+        remove_columns=column_names,
+        **kwargs,
+    )
+
+    dataset = dataset.filter(lambda x: len(x["prompt"]) != 0 and len(x["response"]) != 0)
+    return dataset
 
 
 def convert_alpaca_to_intermediate(sample: Dict[str, List[Any]], dataset_attr: "InstructionDatasetAttr"):

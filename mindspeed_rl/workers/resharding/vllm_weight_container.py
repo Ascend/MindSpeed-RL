@@ -78,16 +78,18 @@ class MegatronStyleVllmWeightContainer:
         self._infer_pp_size = infer_pipeline_parallel_size
         self._infer_ep_size = infer_expert_parallel_size
 
+        self._world_size = dist.get_world_size()
+
         # validate parallel configs
         self._validate_parallel_config()
 
-        self._world_size = dist.get_world_size()
         self._rank = dist.get_rank()
         self.tp_split_expert = tp_split_expert
         self._init_tensor_model_parallel_allgather_group()
         self._init_pipeline_model_parallel_allgather_group()
         self._init_tensor_model_parallel_split_group()
         self._init_weight_buffers()
+
 
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
@@ -102,13 +104,16 @@ class MegatronStyleVllmWeightContainer:
             raise ValueError(
                 "The training pipeline parallel size should be an integer multiple of the inference pipeline parallel "
                 "size.")
-        if self._tp_size < self._infer_tp_size:
-            raise ValueError(
-                "The training tensor parallel size should be greater than or equal to the inference tensor parallel "
-                "size.")
-        if self._tp_size % self._infer_tp_size != 0:
+        if self._tp_size > self._infer_tp_size and self._tp_size % self._infer_tp_size != 0:
             raise ValueError(
                 "The training tensor parallel size should be an integer multiple of the inference tensor parallel size.")
+        # For tp increase, train_tp * dp >= infer_tp, train_tp * dp % infer_tp == 0
+        if self._tp_size < self._infer_tp_size:
+            if (self._world_size // self._pp_size < self._infer_tp_size or
+                (self._world_size // self._pp_size) % self._infer_tp_size != 0):
+                raise ValueError(
+                    f"Do not support split train tp size {self._tp_size} to infer tp size {self._infer_tp_size} "
+                    f"with train dp size {(self._world_size // (self._tp_size * self._pp_size))}.")
 
     def get_infer_params(self):
         """
@@ -216,8 +221,10 @@ class MegatronStyleVllmWeightContainer:
 
         def _transfer_from_megatron_division(megatron_param, name):
             """
+            Deal with the tp_param form train_tp to infer_tp.
             """
             infer_param = self.allgather_tp_param(megatron_param, name)
+            infer_param = self.split_tp_params(infer_param, name)
             return infer_param
 
         def _global2local_layer(name, num_layer_list):
@@ -253,6 +260,13 @@ class MegatronStyleVllmWeightContainer:
         normal_layer_func = partial(_global2local_layer, num_layer_list=self._num_layer_list)
         name_pairs = sorted(list(set([(name, _replace_name_v2m(normal_layer_func(name), self.params_mapping))
                                       for name in weight_buffer.weight_names])))
+        for hf_name, megatron_name in name_pairs:
+            if megatron_name.endswith("linear_fc1.weight"):
+                fc2_name = megatron_name.replace("linear_fc1", "linear_fc2")
+                megatron_param_fc1 = dict(true_megatron_model.named_parameters())[megatron_name]
+                megatron_param_fc2 = dict(true_megatron_model.named_parameters())[fc2_name]
+                if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * megatron_param_fc2.shape[1] * 2:
+                    raise ValueError("Only implemented for Llama model which linear_fc1 contains gate and up params.")
         for hf_name, megatron_name in name_pairs:
             megatron_param = dict(true_megatron_model.named_parameters())[megatron_name]
             param = _transfer_from_megatron_division(megatron_param, megatron_name)
@@ -338,7 +352,7 @@ class MegatronStyleVllmWeightContainer:
             raise RuntimeError("Group for tensor model parallel weight is already initialized")
         if self._infer_tp_size > self._tp_size:
             _TP_GROUP = self.parallel_state.get_tensor_model_parallel_group()
-
+            
     def _default_tp_concat_fn(self, name, param, infer_params):
         """
         name: name of the parameter
@@ -365,6 +379,61 @@ class MegatronStyleVllmWeightContainer:
             infer_params = torch.cat(infer_params, dim=get_tensor_parallel_partition_dim(param))
 
         return infer_params
+
+    def split_tp_params(self, param, name):
+        """
+        name: name of the parameter
+        param: training_utils parameters
+
+        1. get full train params through allgather
+        2. split train_tp params into groups (size: infer_tp_size)
+        3. return the corresponding param from group based on infer tp rank
+        """
+        if self._infer_tp_size <= self._tp_size:
+            return param
+
+        tp_group = get_tp_group()
+
+        if is_tensor_parallel_param(param):
+            if self._tp_size > 1:
+                # allocate a new tensor with proper size
+                infer_params = [torch.empty_like(param) for _ in range(self._tp_size)]
+                torch.distributed.all_gather(infer_params, param, group=tp_group)
+            else:
+                infer_params = [param]
+            if "linear_fc1.weight" in name:
+                # if the tensor is gate and proj
+                gate_lst = []
+                up_lst = []
+                for infer_param in infer_params:
+                    gate, up = infer_param.chunk(2)
+                    gate_lst.append(gate)
+                    up_lst.append(up)
+                gate = torch.cat(gate_lst, dim=0)
+                up = torch.cat(up_lst, dim=0)
+
+                gate_splits = torch.chunk(gate, self._infer_tp_size, dim=0)
+                up_splits = torch.chunk(up, self._infer_tp_size, dim=0)
+
+                new_params_list = [
+                    torch.cat([gate_splits[i], up_splits[i]], dim=0)
+                    for i in range(self._infer_tp_size)
+                ]
+            else:
+                partition_dim = get_tensor_parallel_partition_dim(param)
+                infer_params = torch.cat(infer_params, dim=partition_dim)
+                split_params = torch.chunk(infer_params, self._infer_tp_size, dim=partition_dim)
+                new_params_list = list(split_params)
+
+            # make_list
+            param_list = new_params_list
+
+        else:
+            param_list = [param] * self._infer_tp_size
+
+        global_rank = self._rank
+        infer_tp_rank_in_group = global_rank % self._infer_tp_size
+        return param_list[infer_tp_rank_in_group]
 
     def allgather_tp_param(self, param, name):
         if self._tp_size <= self._infer_tp_size:

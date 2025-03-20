@@ -24,7 +24,6 @@ def dummy_compile(*compile_args, **compile_kwargs):
 
 torch.jit.script = dummy_compile
 torch.compile = dummy_compile
-
 from vllm import LLM, SamplingParams
 
 from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
@@ -136,9 +135,10 @@ class VLLMInferEngine(BaseInferEngine):
             os.environ['CUDA_TIMER_STREAM_KAFKA_ENABLE'] = '0'
             os.environ['MEGATRON_IMPORT_TIMERS'] = '0'
             initialize_parallel_state(
-                tensor_model_parallel_size=infer_tensor_parallel_size,
-                num_tp_per_train_tp=num_tp_per_train_tp,
-                pipeline_model_parallel_size=infer_pipeline_parallel_size
+                infer_tensor_model_parallel_size=infer_tensor_parallel_size,
+                train_tensor_model_parallel_size=train_tensor_parallel_size,
+                infer_pipeline_model_parallel_size=infer_pipeline_parallel_size,
+                train_pipeline_model_parallel_size=train_pipeline_parallel_size,
             )
 
         if load_format == "megatron":

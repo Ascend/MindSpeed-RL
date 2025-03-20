@@ -37,9 +37,10 @@ _PP = None
 def initialize_parallel_state(
     distributed_init_method: str = "env://",
     backend: str = "hccl",
-    tensor_model_parallel_size: int = 1,
-    num_tp_per_train_tp: int = 1,
-    pipeline_model_parallel_size: int = 1,
+    infer_tensor_model_parallel_size: int = 1,
+    train_tensor_model_parallel_size: int = 1,
+    infer_pipeline_model_parallel_size: int = 1,
+    train_pipeline_model_parallel_size: int = 1
 ):
     os.environ["TORCH_NCCL_AVOID_RECORD_STREAMS"] = "1"
 
@@ -56,12 +57,13 @@ def initialize_parallel_state(
     if torch.distributed.get_world_size() > 1:
         # NOTE: build a sepearate inference group with infer tp & micro dp
         initialize_model_parallel_for_vllm(
-            tensor_model_parallel_size=tensor_model_parallel_size,
-            num_tensor_model_parallel_groups_per_train_tp=num_tp_per_train_tp,
-            pipeline_model_parallel_size=pipeline_model_parallel_size,
+            infer_tensor_model_parallel_size=infer_tensor_model_parallel_size,
+            train_tensor_model_parallel_size=train_tensor_model_parallel_size,
+            infer_pipeline_model_parallel_size=infer_pipeline_model_parallel_size,
+            train_pipeline_model_parallel_size=train_pipeline_model_parallel_size
         )
     else:
-        initialize_model_parallel(tensor_model_parallel_size, pipeline_model_parallel_size, backend)
+        initialize_model_parallel(infer_tensor_model_parallel_size, infer_pipeline_model_parallel_size, backend)
 
 
 def ensure_model_parallel_initialized(
@@ -102,16 +104,17 @@ def model_parallel_is_initialized():
 
 
 def initialize_model_parallel_for_vllm(
-    tensor_model_parallel_size: int,
-    num_tensor_model_parallel_groups_per_train_tp: int = 1,
-    pipeline_model_parallel_size: int = 1,
+    infer_tensor_model_parallel_size: int,
+    train_tensor_model_parallel_size: int = 1,
+    infer_pipeline_model_parallel_size: int = 1,
+    train_pipeline_model_parallel_size: int = 1
 ) -> None:
 
     # Get world size and rank. Ensure some consistencies.
     if not torch.distributed.is_initialized():
         raise ValueError("torch.distributed is not initialized")
 
-    if not isinstance(tensor_model_parallel_size, int):
+    if not isinstance(infer_tensor_model_parallel_size, int):
         raise TypeError("tensor_model_parallel_size must be an integer")
 
     # Build the tensor model-parallel groups.
@@ -124,27 +127,79 @@ def initialize_model_parallel_for_vllm(
 
     backend = torch.distributed.get_backend()
 
-    num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
+    def get_split_tp_group_ranks():
+        '''
+        Arguments:
+            infer_tensor_model_parallel_size: number of GPUs used for infer tensor model
+                parallelism.
 
-    train_tp = num_tensor_model_parallel_groups_per_train_tp * tensor_model_parallel_size
-    if _TP is not None:
-        raise ValueError("tensor model parallel group is already initialized")
-    group_ranks = []
-    for i in range(num_tensor_model_parallel_groups // num_tensor_model_parallel_groups_per_train_tp):
-        start = train_tp * i
-        end = train_tp * (i + 1)
-        for j in range(num_tensor_model_parallel_groups_per_train_tp):
-            ranks = list(range(start + j, end, num_tensor_model_parallel_groups_per_train_tp))
+        Each group_ranks is in order of tp ascending.
+
+        Let's say we have a total of 8 GPUs denoted by g0 ... g7 and we
+        use 2 GPUs to parallelize the model tensor. The present function will
+        create 4 tensor model-parallel groups:
+            [g0, g1], [g2, g3], [g4, g5], [g6, g7]
+        Returns: list of group_lists
+            [[g0, g1], [g2, g3], [g4, g5], [g6, g7]]
+        '''
+        if ((world_size // (train_tensor_model_parallel_size * train_pipeline_model_parallel_size)) * train_tensor_model_parallel_size < infer_tensor_model_parallel_size or
+                ((world_size // (train_tensor_model_parallel_size * train_pipeline_model_parallel_size)) * train_tensor_model_parallel_size) % infer_tensor_model_parallel_size != 0):
+            raise ValueError(
+                f"Can't split train tp size {train_tensor_model_parallel_size} to infer tp size {infer_tensor_model_parallel_size} "
+                f"with train dp size {(world_size // (train_tensor_model_parallel_size * train_pipeline_model_parallel_size))}.")
+        group_ranks = []
+        for i in range(world_size // infer_tensor_model_parallel_size):
+            ranks = list(range(i * infer_tensor_model_parallel_size, (i + 1) * infer_tensor_model_parallel_size))
             group_ranks.append(ranks)
+        return group_ranks
+
+    def get_allgather_tp_group_ranks():
+        '''
+        Arguments:
+            train_tensor_model_parallel_size: number of GPUs used for train tensor model
+                parallelism.
+            infer_tensor_model_parallel_size: number of GPUs used for infer tensor model
+                parallelism.
+
+        Each group_ranks is in order of tp ascending.
+
+        Let's say we have a total of 8 GPUs denoted by g0 ... g7 and we
+        use 4 GPUs to parallelize the model tensor for train, 2 GPUs to parallelize the
+        model tensor for infer with 2 data parallel groups. The present function will
+        create 4 tensor model-parallel groups:
+            [g0, g2], [g1, g3], [g4, g6], [g5, g7]
+        Returns: list of group_lists
+            [[g0, g2], [g1, g3], [g4, g6], [g5, g7]]
+        '''
+        if train_tensor_model_parallel_size < infer_tensor_model_parallel_size or train_tensor_model_parallel_size % infer_tensor_model_parallel_size != 0:
+            raise ValueError(f"Can't gather train tp size {train_tensor_model_parallel_size} to infer tp size {infer_tensor_model_parallel_size}")
+        num_tensor_model_parallel_groups = world_size // infer_tensor_model_parallel_size
+        num_tensor_model_parallel_groups_per_train_tp = train_tensor_model_parallel_size // infer_tensor_model_parallel_size
+        group_ranks = []
+        for i in range(num_tensor_model_parallel_groups // num_tensor_model_parallel_groups_per_train_tp):
+            start = train_tensor_model_parallel_size * i
+            end = train_tensor_model_parallel_size * (i + 1)
+            for j in range(num_tensor_model_parallel_groups_per_train_tp):
+                ranks = list(range(start + j, end, num_tensor_model_parallel_groups_per_train_tp))
+                group_ranks.append(ranks)
+
+        return group_ranks
+
+    def get_tp_group_ranks():
+        if infer_tensor_model_parallel_size > train_tensor_model_parallel_size:
+            return get_split_tp_group_ranks()
+        else:
+            return get_allgather_tp_group_ranks()
+
 
     _TP = init_model_parallel_group(
-        group_ranks=group_ranks,
+        group_ranks=get_tp_group_ranks(),
         local_rank=get_world_group().local_rank,
         backend=backend,
         use_message_queue_broadcaster=True,
     )
     ps._TP = _TP
-    num_pipeline_model_parallel_groups: int = world_size // pipeline_model_parallel_size
+    num_pipeline_model_parallel_groups: int = world_size // infer_pipeline_model_parallel_size
     global _PP
     if _PP is not None:
         raise ValueError("pipeline model parallel group is already initialized")

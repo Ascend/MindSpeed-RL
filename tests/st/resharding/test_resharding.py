@@ -5,6 +5,7 @@
 import sys
 from unittest.mock import MagicMock
 from datetime import timedelta
+import argparse
 
 import torch
 import torch.nn as nn
@@ -37,16 +38,6 @@ from mindspeed_rl.utils.utils import seed_all
 
 logger = Loggers('test_resharding')
 
-MODEL_PATH = "/data/for_dt/weights/Qwen2.5-7B-mg"
-TOKENIZER_TYPE = "PretrainedFromHF"
-TOKENIZER_PATH = "/data/for_dt/weights/Qwen2.5-7B"
-TRAIN_TP = 4
-TRAIN_PP = 2
-TRAIN_EP = 1
-INFER_TP = 2
-INFER_PP = 1
-INFER_EP = 1
-
 sampling_config = {
     "num_completions": 1,
     "logprobs": 1,
@@ -60,32 +51,35 @@ sampling_config = {
     "num_beams": 1,
 }
 
-megatron_config = MegatronConfig(
-    training_config={'model': 'qwen25-7b', 'use_fused_rmsnorm': True, 'use_mcore_models': True,
-                     'sequence_parallel': True, 'use_flash_attn': True, 'use_mc2': True,
-                     'no_masked_softmax_fusion': True, 'attention_softmax_in_fp32': True,
-                     'no_gradient_accumulation_fusion': True, 'use_fused_swiglu': True,
-                     'use_fused_rotary_pos_emb': True, 'bf16': True, 'use_distributed_optimizer': True,
-                     'tokenizer_type': TOKENIZER_TYPE, 'tokenizer_name_or_path': TOKENIZER_PATH, 'global_batch_size': 2,
-                     'seq_length': 512, 'save_interval': 10000,
-                     'train_iters': 1000, 'distributed_backend': 'nccl', 'no_shared_storage': True,
-                     'variable_seq_lengths': True, 'micro_batch_size': 1, 'tensor_model_parallel_size': TRAIN_TP,
-                     'pipeline_model_parallel_size': TRAIN_PP, 'lr': '1e-7', 'lr_decay_style': 'constant',
-                     'min_lr': 0.0, 'weight_decay': 0.0, 'lr_warmup_fraction': 0.0, 'clip_grad': 10000.0,
-                     'adam_beta1': 0.9, 'adam_beta2': 0.999, 'initial_loss_scale': 4096, 'finetune': True,
-                     'load': MODEL_PATH, 'save': './ckpt', 'no_load_optim': True, 'no_load_rng': True},
-    model_config={
-        'qwen25-7b': {'use_mcore_models': True, 'num_layers': 28, 'hidden_size': 3584, 'ffn_hidden_size': 18944,
-                      'num_attention_heads': 28, 'rotary_base': 1000000, 'max_position_embeddings': 32768,
-                      'make_vocab_size_divisible_by': 1, 'padded_vocab_size': 152064,
-                      'untie_embeddings_and_output_weights': True, 'add_qkv_bias': True, 'disable_bias_linear': True,
-                      'group_query_attention': True, 'num_query_groups': 4, 'attention_dropout': 0.0,
-                      'init_method_std': '0.01', 'hidden_dropout': 0.0, 'adam_beta1': 0.9, 'adam_beta2': 0.95,
-                      'position_embedding_type': 'rope', 'normalization': 'RMSNorm', 'use_fused_rmsnorm': True,
-                      'swiglu': True, 'use_flash_attn': True, 'use_mc2': True, 'no_masked_softmax_fusion': True,
-                      'attention_softmax_in_fp32': True, 'no_gradient_accumulation_fusion': True,
-                      'use_fused_swiglu': True, 'use_fused_rotary_pos_emb': True, 'bf16': True}}
-)
+
+def make_megatron_config(args):
+    megatron_config = MegatronConfig(
+        training_config={'model': 'qwen25-7b', 'use_fused_rmsnorm': True, 'use_mcore_models': True,
+                         'sequence_parallel': True, 'use_flash_attn': True, 'use_mc2': True,
+                         'no_masked_softmax_fusion': True, 'attention_softmax_in_fp32': True,
+                         'no_gradient_accumulation_fusion': True, 'use_fused_swiglu': True,
+                         'use_fused_rotary_pos_emb': True, 'bf16': True, 'use_distributed_optimizer': True,
+                         'tokenizer_type': args.tokenizer_type, 'tokenizer_name_or_path': args.tokenizer_path, 'global_batch_size': 2,
+                         'seq_length': 512, 'save_interval': 10000,
+                         'train_iters': 1000, 'distributed_backend': 'nccl', 'no_shared_storage': True,
+                         'variable_seq_lengths': True, 'micro_batch_size': 1, 'tensor_model_parallel_size': args.train_tp,
+                         'pipeline_model_parallel_size': args.train_pp, 'lr': '1e-7', 'lr_decay_style': 'constant',
+                         'min_lr': 0.0, 'weight_decay': 0.0, 'lr_warmup_fraction': 0.0, 'clip_grad': 10000.0,
+                         'adam_beta1': 0.9, 'adam_beta2': 0.999, 'initial_loss_scale': 4096, 'finetune': True,
+                         'load': args.model_path, 'save': './ckpt', 'no_load_optim': True, 'no_load_rng': True},
+        model_config={
+            'qwen25-7b': {'use_mcore_models': True, 'num_layers': 28, 'hidden_size': 3584, 'ffn_hidden_size': 18944,
+                          'num_attention_heads': 28, 'rotary_base': 1000000, 'max_position_embeddings': 32768,
+                          'make_vocab_size_divisible_by': 1, 'padded_vocab_size': 152064,
+                          'untie_embeddings_and_output_weights': True, 'add_qkv_bias': True, 'disable_bias_linear': True,
+                          'group_query_attention': True, 'num_query_groups': 4, 'attention_dropout': 0.0,
+                          'init_method_std': '0.01', 'hidden_dropout': 0.0, 'adam_beta1': 0.9, 'adam_beta2': 0.95,
+                          'position_embedding_type': 'rope', 'normalization': 'RMSNorm', 'use_fused_rmsnorm': True,
+                          'swiglu': True, 'use_flash_attn': True, 'use_mc2': True, 'no_masked_softmax_fusion': True,
+                          'attention_softmax_in_fp32': True, 'no_gradient_accumulation_fusion': True,
+                          'use_fused_swiglu': True, 'use_fused_rotary_pos_emb': True, 'bf16': True}}
+    )
+    return megatron_config
 
 optimizer_config = OptimizerConfig()
 optimizer_config.lr = 1e-7
@@ -295,26 +289,26 @@ def _initialize_distributed():
 
 
 class TestActor():
-    def __init__(self):
+    def __init__(self, args):
+        megatron_config = make_megatron_config(args)
         initialize_megatron(config=megatron_config)
         actor_module = get_model(gpt_model_provider, None)
         if isinstance(actor_module, nn.ModuleList):
             actor_module = [actor_module[0]]
         self.model = actor_module
-        self.optimizer = get_megatron_optimizer(optimizer_config, self.model, None,
-                                                None, 1.0)
+        self.optimizer = get_megatron_optimizer(optimizer_config, self.model, None, None, 1.0)
         load_checkpoint(actor_module, self.optimizer, None)
         model_config_mock = MagicMock()
         model_config_mock.num_hidden_layers = 28
 
         self.inference_engine = VLLMInferEngine(
-            tokenizer_name_or_path=TOKENIZER_PATH,
-            train_tensor_parallel_size=TRAIN_TP,
-            train_pipeline_parallel_size=TRAIN_PP,
-            train_expert_parallel_size=TRAIN_EP,
-            infer_tensor_parallel_size=INFER_TP,
-            infer_pipeline_parallel_size=INFER_PP,
-            infer_expert_parallel_size=INFER_EP,
+            tokenizer_name_or_path=args.tokenizer_path,
+            train_tensor_parallel_size=args.train_tp,
+            train_pipeline_parallel_size=args.train_pp,
+            train_expert_parallel_size=args.train_ep,
+            infer_tensor_parallel_size=args.infer_tp,
+            infer_pipeline_parallel_size=args.infer_pp,
+            infer_expert_parallel_size=args.infer_ep,
             sampling_config=sampling_config,
             max_num_seqs=16,
             max_model_len=4096,
@@ -327,9 +321,9 @@ class TestActor():
         self.sharding_manager = MegatronShardingManager(
             megatron_model=self.model,
             model_config=model_config_mock,
-            infer_tensor_parallel_size=INFER_TP,
-            infer_pipeline_parallel_size=INFER_PP,
-            infer_expert_parallel_size=INFER_EP,
+            infer_tensor_parallel_size=args.infer_tp,
+            infer_pipeline_parallel_size=args.infer_pp,
+            infer_expert_parallel_size=args.infer_ep,
             num_layer_list=None,
             tp_split_expert=False,
             parallel_state=mpu,
@@ -340,29 +334,41 @@ class TestActor():
             enable_validate=False
         )
         torch.cuda.empty_cache()
+        self.tokenizer_path = args.tokenizer_path
 
     def generate_sequence(self, prompts):
-        # encode tokens
-        tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
-        input_ids = tokenizer(prompts, padding=True, truncation=True, return_tensors="pt")[
-            "input_ids"].tolist()
+        tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_path)
+        input_ids = tokenizer(prompts, padding=True, truncation=True, return_tensors="pt")["input_ids"].tolist()
 
-        # sharding and generate
         self.sharding_manager.reshard_to_infer_mode()
-        outputs = self.inference_engine.generate_sequences(idx_list=input_ids)[
-            0]
+        outputs = self.inference_engine.generate_sequences(idx_list=input_ids)[0]
         self.sharding_manager.reshard_to_train_mode()
         rank = torch.distributed.get_rank()
 
         for output in outputs:
             text = tokenizer.decode(
                 output,
-                skip_special_tokens=True,  # 去除填充符等特殊token
+                skip_special_tokens=True,
                 clean_up_tokenization_spaces=True
             )
             print(f"Rank:{rank},>>>response>>>:{text}")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Test Actor Configuration")
+    parser.add_argument("--model-path", type=str, default="./ckpt")
+    parser.add_argument("--tokenizer-type", type=str, default="PretrainedFromHF")
+    parser.add_argument("--tokenizer-path", type=str, default="./ckpt")
+    parser.add_argument("--train-tp", type=int, default=2)
+    parser.add_argument("--train-pp", type=int, default=2)
+    parser.add_argument("--train-ep", type=int, default=1)
+    parser.add_argument("--infer-tp", type=int, default=4)
+    parser.add_argument("--infer-pp", type=int, default=1)
+    parser.add_argument("--infer-ep", type=int, default=1)
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    test_actor = TestActor()
+    args = parse_args()
+    test_actor = TestActor(args)
     test_actor.generate_sequence(prompt_list)

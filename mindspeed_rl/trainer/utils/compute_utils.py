@@ -21,6 +21,7 @@ import torch
 import numpy as np
 
 import mindspeed_rl.utils.torch_functional as F
+from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.utils import generate_mask
 from mindspeed_rl.utils.tokenizer import get_tokenizer
 
@@ -53,11 +54,11 @@ class FixedKLController:
 
 
 def compute_gae_advantage_return(
-    token_level_rewards: torch.Tensor,
-    values: torch.Tensor,
-    eos_mask: torch.Tensor,
-    gamma: torch.Tensor,
-    lam: torch.Tensor,
+        token_level_rewards: torch.Tensor,
+        values: torch.Tensor,
+        eos_mask: torch.Tensor,
+        gamma: torch.Tensor,
+        lam: torch.Tensor,
 ):
     """
     Compute advantage
@@ -152,22 +153,23 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
             response_mask = generate_mask(batch_data["responses"], batch_data["response_length"])
             token_level_rewards = batch_data["token_level_rewards"]
 
-            output = {}
             if adv_estimator == "gae":
                 values = batch_data["values"]
                 advantages, returns = compute_gae_advantage_return(
                     token_level_rewards=token_level_rewards, values=values, eos_mask=response_mask, gamma=gamma, lam=lam
                 )
-                output["advantages"] = advantages
-                output["returns"] = returns
             elif adv_estimator == "group_norm":
                 advantages, returns = compute_group_norm_advantage_return(
                     token_level_rewards=token_level_rewards, eos_mask=response_mask
                 )
-                output["advantages"] = advantages
-                output["returns"] = returns
             else:
                 raise NotImplementedError
+            advantages = truncate_rows(advantages, batch_data['response_length'])
+            returns = truncate_rows(returns, batch_data['response_length'])
+            output = {
+                "advantages": advantages,
+                "returns": returns,
+            }
             rb.put_experience.remote(data_dict=output, indexes=index, num_responses=n_samples_per_prompt)
 
 
@@ -189,7 +191,7 @@ def get_last_reward(rm_scores, n_sample_batch: int):
 
 
 def compute_grpo_data_metrics(
-    rb, experience_count, tokenizer_name_or_path
+        rb, experience_count, tokenizer_name_or_path
 ):
     """
     Calculate various metrics for GRPO data

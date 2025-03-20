@@ -1,13 +1,11 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-from unittest.mock import MagicMock
-import pytest
 
 import torch
 
 from mindspeed_rl.utils.pad_process import (
     remove_padding_and_split_to_list,
     pad_multiple,
-    truncate_middle_and_pad,
+    truncate_middle_and_pad, truncate_rows,
 )
 
 from tests.test_tools.dist_test import DistributedTest
@@ -54,12 +52,20 @@ class TestPadProcess(DistributedTest):
         truncate_lengths = torch.tensor([[1, 4]], dtype=torch.int64)
         pad_value = 0.0
         responses = torch.tensor([2, 3, 4], dtype=torch.int64)
-        
+
         output = truncate_middle_and_pad(responses, input_tensor, truncate_lengths, pad_value)
-        
+
         expected_output = torch.tensor([
             [[0.3, 0.4, 0.5], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]
         ], dtype=torch.float32)
-        
+
         assert output.shape == expected_output.shape, "After truncating, the shape has been changed!"
         assert torch.allclose(output, expected_output), "After truncating, the result has been changed!"
+
+    def test_truncate_rows(self):
+        tensor = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+        index_tensor = torch.tensor([[2], [3], [1]])
+        expected_output = [torch.tensor([1, 2]), torch.tensor([5, 6, 7]), torch.tensor([9])]
+        result = truncate_rows(tensor, index_tensor)
+        for res, expected in zip(result, expected_output):
+            assert torch.allclose(res, expected, atol=1e-5)

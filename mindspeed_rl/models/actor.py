@@ -17,7 +17,7 @@ class Actor(BaseTrainingEngine):
         optimizer: The optimizer for updating model parameters (e.g., Adam).
         opt_param_scheduler: The scheduler for optimizer parameters (e.g., learning rate scheduler).
         beta: float = 0  The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size: int = 1  The size of the mini-batch for each training step.
+        mini_batch_size_per_dp: int = 1  The size of the mini-batch for each data parallel stage.
         epochs: int = 1   The number of training epochs.
         shuffle_mini_batch: bool = False   Whether to shuffle the mini-batch data at each epoch.
         stage: str = None   The training stage identifier (e.g., pretrain/finetune).
@@ -31,7 +31,7 @@ class Actor(BaseTrainingEngine):
             optimizer,
             opt_param_scheduler,
             beta: float = 0,
-            mini_batch_size: int = 1,
+            mini_batch_size_per_dp: int = 1,
             epochs: int = 1,
             shuffle_mini_batch: bool = False,
             stage: str = None,
@@ -44,7 +44,7 @@ class Actor(BaseTrainingEngine):
             optimizer,
             opt_param_scheduler,
             beta=beta,
-            mini_batch_size=mini_batch_size,
+            mini_batch_size_per_dp=mini_batch_size_per_dp,
             epochs=epochs,
             shuffle_mini_batch=shuffle_mini_batch,
             stage=stage,

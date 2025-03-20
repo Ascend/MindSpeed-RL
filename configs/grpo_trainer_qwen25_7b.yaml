@@ -97,6 +97,7 @@ rl_config:
 
 generate_config:
   # tokenizer相关配置
+  micro_batch_size: 1
   trust_remote_code: true
 
   # 推理时的并行配置

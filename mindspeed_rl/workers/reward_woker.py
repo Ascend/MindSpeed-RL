@@ -27,12 +27,8 @@ class RewardWorker(BaseWorker):
         generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
         model_provider: Callable Function to provide the model instance.
         initialize_func: Callable Function to initialize the model and environment.
-        parallel_state: ModuleType Module for managing parallel states (e.g., model and data parallelism).
-        get_model: Callable = None Function to retrieve the model instance.
-        load_checkpoint: Callable = None Function to load model checkpoints.
-        get_args: Callable = None Function to retrieve runtime arguments.
-       tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for training.
+        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
+        get_megatron_module: Callable = megatron_module from get_megatron_module.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -43,12 +39,8 @@ class RewardWorker(BaseWorker):
             generate_config: GenerateConfig,
             model_provider: Callable,
             initialize_func: Callable,
-            parallel_state: ModuleType,
-            get_model: Callable = None,
-            load_checkpoint: Callable = None,
-            get_args: Callable = None,
             tokenizer: BaseTokenizer = None,
-            get_forward_backward_func: Callable = None,
+            get_megatron_module: Callable = None,
             **kwargs
     ):
         super().__init__(
@@ -57,12 +49,8 @@ class RewardWorker(BaseWorker):
             generate_config,
             model_provider=model_provider,
             initialize_func=initialize_func,
-            parallel_state=parallel_state,
-            get_model=get_model,
-            load_checkpoint=load_checkpoint,
-            get_args=get_args,
             tokenizer=tokenizer,
-            get_forward_backward_func=get_forward_backward_func,
+            get_megatron_module=get_megatron_module,
             **kwargs
         )
         self.reward = None
@@ -72,7 +60,7 @@ class RewardWorker(BaseWorker):
         self.model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
 
         if self.megatron_config.load is not None or self.megatron_config.pretrained_checkpoint is not None:
-            self.megatron_config.iteration, self.megatron_config.num_floating_point_operations_so_far = self._load_checkpoint(
+            self.megatron_config.iteration, self.megatron_config.num_floating_point_operations_so_far = self.load_checkpoint(
                 self.model, None, None, strict=False)
         else:
             self.megatron_config.iteration = 0
@@ -81,11 +69,9 @@ class RewardWorker(BaseWorker):
         self.reward = Reward(
             self.model,
             beta=self.rl_config.beta,
-            mini_batch_size=self.rl_config.mini_batch_size,
-            epochs=self.rl_config.epochs,
-            shuffle_mini_batch=self.rl_config.shuffle_mini_batch,
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
+            micro_batch_size=self.megatron_config.micro_batch_size
         )
 
     def init_transfer_dock(self, td):

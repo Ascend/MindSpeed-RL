@@ -20,7 +20,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager
 from mindspeed_rl.utils.utils import num_floating_point_operations
-from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list
+from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 
 @ray.remote(resources={"NPU": 0.7})
@@ -34,19 +34,8 @@ class ActorHybridWorker(BaseWorker):
         generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
         model_provider: Callable Function to provide the model instance.
         initialize_func: Callable Function to initialize the model and environment.
-        parallel_state: ModuleType Module for managing parallel states (e.g., model and data parallelism).
-        get_model: Callable = None Function to retrieve the model instance.
-        get_megatron_optimizer: Callable = None Function to retrieve the Megatron optimizer.
-        get_optimizer_param_scheduler: Callable = None Function to retrieve the optimizer parameter scheduler.
-        load_checkpoint: Callable = None Function to load model checkpoints.
-        save_checkpoint: Callable = None Function to save model checkpoints.
-        get_args: Callable = None Function to retrieve runtime arguments.
         tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_forward_backward_func: Callable = None Function to retrieve the forward-backward function for training.
-        distributed_data_parallel_config: Callable = None Configuration for distributed data parallelism.
-        local_ddp: Callable = None Function for local distributed data parallelism.
-        unwrap_model: Callable = None Function to unwrap the model for distributed training.
-        float16_module: Callable = None Function to handle float16 precision modules.
+        get_megatron_module: Callable = megatron_module from get_megatron_module.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -57,19 +46,8 @@ class ActorHybridWorker(BaseWorker):
             generate_config: GenerateConfig,
             model_provider: Callable,
             initialize_func: Callable,
-            parallel_state: ModuleType,
-            get_model: Callable = None,
-            get_megatron_optimizer: Callable = None,
-            get_optimizer_param_scheduler: Callable = None,
-            load_checkpoint: Callable = None,
-            save_checkpoint: Callable = None,
-            get_args: Callable = None,
             tokenizer: BaseTokenizer = None,
-            get_forward_backward_func: Callable = None,
-            distributed_data_parallel_config: Callable = None,
-            local_ddp: Callable = None,
-            unwrap_model: Callable = None,
-            float16_module: Callable = None,
+            get_megatron_module: Callable = None,
             **kwargs
     ):
         super().__init__(
@@ -78,22 +56,11 @@ class ActorHybridWorker(BaseWorker):
             generate_config,
             model_provider=model_provider,
             initialize_func=initialize_func,
-            parallel_state=parallel_state,
-            get_model=get_model,
-            get_megatron_optimizer=get_megatron_optimizer,
-            get_optimizer_param_scheduler=get_optimizer_param_scheduler,
-            load_checkpoint=load_checkpoint,
-            save_checkpoint=save_checkpoint,
-            get_args=get_args,
             tokenizer=tokenizer,
-            get_forward_backward_func=get_forward_backward_func,
+            get_megatron_module=get_megatron_module,
             **kwargs
         )
 
-        self.float16_module = float16_module
-        self.unwrap_model = unwrap_model
-        self.local_ddp = local_ddp
-        self.distributed_data_parallel_config = distributed_data_parallel_config
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
 
@@ -111,13 +78,15 @@ class ActorHybridWorker(BaseWorker):
             inference_model=self.inference_model,
             sharding_manager=self.sharding_manager,
             beta=self.rl_config.beta,
-            mini_batch_size=self.rl_config.mini_batch_size // self.parallel_state.get_data_parallel_world_size(),
+            mini_batch_size_per_dp=self.rl_config.mini_batch_size
+                                   // self.parallel_state.get_data_parallel_world_size(),
             epochs=self.rl_config.epochs,
             shuffle_mini_batch=self.rl_config.shuffle_mini_batch,
             generate_config=self.generate_config,
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             clip_ratio=self.rl_config.clip_ratio,
+            micro_batch_size=self.megatron_config.micro_batch_size
         )
         self.empty_cache()
 
@@ -152,14 +121,14 @@ class ActorHybridWorker(BaseWorker):
                 else:
                     return {}
 
-    def save_checkpoint(self, iteration: int):
-        self._save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
+    def save_ckpt(self, iteration: int):
+        self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                               self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
         experience_consumer_stage = 'actor_rollout'
         experience_colums = ['prompts', 'prompt_length']
-        experience_count = self.megatron_config.micro_batch_size
+        experience_count = self.generate_config.micro_batch_size
 
         self.sharding_manager.reshard_to_infer_mode()
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
@@ -173,11 +142,11 @@ class ActorHybridWorker(BaseWorker):
             if data_loader and index:
                 batch_data = next(iter(data_loader))
                 indexes = list(range(0, experience_count * self.rl_config.n_samples_per_prompt,
-                                            self.rl_config.n_samples_per_prompt))
+                                     self.rl_config.n_samples_per_prompt))
                 prompts_data = batch_data['prompts'][indexes]
                 prompt_length_data = batch_data['prompt_length'][indexes]
                 # preprocess, remove padding
-                prompts = self.truncate_rows(prompts_data, prompt_length_data)
+                prompts = truncate_rows(prompts_data, prompt_length_data)
                 prompts_list = [prompt.numpy().tolist() for prompt in prompts]
 
                 # inference
@@ -220,7 +189,7 @@ class ActorHybridWorker(BaseWorker):
                     # only on last rank. It should be on every tp rank
                     log_probs = torch.cat(output, dim=0)  # (bs, seq_size)
                     log_probs = log_probs.to(torch.float32)
-                    log_probs = self.truncate_rows(log_probs, batch['response_length'])
+                    log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'old_log_prob': log_probs}
                     self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
 
@@ -253,7 +222,7 @@ class ActorHybridWorker(BaseWorker):
 
         # load checkpoint
         if self.megatron_config.load is not None or self.megatron_config.pretrained_checkpoint is not None:
-            self.megatron_config.iteration, self.megatron_config.num_floating_point_operations_so_far = self._load_checkpoint(
+            self.megatron_config.iteration, self.megatron_config.num_floating_point_operations_so_far = self.load_checkpoint(
                 actor_module, optimizer, opt_param_scheduler)
         else:
             self.megatron_config.iteration = 0

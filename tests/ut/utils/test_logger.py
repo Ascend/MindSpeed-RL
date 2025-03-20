@@ -22,6 +22,7 @@ class TestLogger(DistributedTest):
 
     def test_log_levels(self, caplog):
         """测试不同日志等级的输出"""
+        self.logger.logger.propagate = True
         caplog.set_level(logging.INFO)
         self.logger.debug("Debug message")
         self.logger.info("Info message")
@@ -39,6 +40,7 @@ class TestLogger(DistributedTest):
 
     def test_log_format(self, caplog):
         """测试日志格式"""
+        self.logger.logger.propagate = True
         caplog.set_level(logging.INFO)
         self.logger.info("Format test")
 

@@ -33,19 +33,17 @@ class TestActorRolloutHybrid(DistributedTest):
             inference_model=self.inference_model,
             sharding_manager=self.sharding_manager,
             beta=0.1,
-            mini_batch_size=32,
+            mini_batch_size_per_dp=32,
             epochs=3,
             shuffle_mini_batch=True,
             stage="ray_grpo",
-            generate_config=self.generate_config,
             clip_ratio=0.2,
             forward_backward_func=self.forward_backward_func
         )
 
     def test_initialization(self, setUp):
-        assert self.actor_rollout.generate_config == self.generate_config
         assert isinstance(self.actor_rollout.train_actor, Actor)
-        assert self.actor_rollout.train_actor.mini_batch_size == 32
+        assert self.actor_rollout.train_actor.mini_batch_size_per_dp == 32
         assert self.actor_rollout.train_actor.epochs == 3
         assert self.actor_rollout.train_actor.shuffle_mini_batch == True
         assert self.actor_rollout.train_actor.stage == 'ray_grpo'

@@ -7,7 +7,8 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 
 
-def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int) -> List[torch.Tensor]:
+def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int) -> List[
+    torch.Tensor]:
     output = []
     for i in range(responses.shape[0]):
         response = responses[i]
@@ -66,3 +67,22 @@ def truncate_middle_and_pad(responses, input_tensor, truncate_lengths, pad_value
         output_tensor[i, :new_len] = input_tensor[i, start_idx:end_idx]
 
     return output_tensor
+
+
+def truncate_rows(tensor, index_tensor):
+    """
+    tensor: 二维 Tensor，形状为 (mbs, seq_len)
+    index_tensor: 二维 Tensor，形状为 (mbs, 1)，表示每一行截断的位置
+    """
+    mbs, seq_len = tensor.shape
+    truncated_tensors = []
+
+    for i in range(mbs):
+        # 获取当前行的截断索引
+        trunc_idx = index_tensor[i].item()
+        # 截断当前行
+        truncated_row = tensor[i, :trunc_idx].cpu()
+        # 将截断后的行添加到列表中
+        truncated_tensors.append(truncated_row)
+
+    return truncated_tensors

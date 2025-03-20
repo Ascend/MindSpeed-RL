@@ -78,9 +78,6 @@ class RayBaseTrainer(object):
         if kwargs.get("use_tensorboard", "") and self.wandb is None:
             self.tensorboard = SummaryWriter()
 
-    def experience_maker_init(self):
-        pass
-
     def transfer_dock_init(self):
         pass
 

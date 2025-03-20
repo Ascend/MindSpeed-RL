@@ -23,7 +23,7 @@ class BaseTrainingEngine(ABC):
         optimizer: The optimizer for updating model parameters (e.g., Adam).
         opt_param_scheduler: The scheduler for optimizer parameters (e.g., learning rate scheduler).
         beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size: int = 1 The size of the mini-batch for each training step.
+        mini_batch_size_per_dp: int = 1  The size of the mini-batch for each data parallel stage.
         epochs: int = 1 The number of training epochs.
         shuffle_mini_batch: bool = False Whether to shuffle the mini-batch data at each epoch.
         stage(str): str = None The training stage identifier (e.g., ray_grpo).
@@ -40,7 +40,7 @@ class BaseTrainingEngine(ABC):
             optimizer=None,
             opt_param_scheduler=None,
             beta: float = 0,
-            mini_batch_size: int = 1,
+            mini_batch_size_per_dp: int = 1,
             epochs: int = 1,
             shuffle_mini_batch: bool = False,
             stage: str = None,
@@ -56,7 +56,7 @@ class BaseTrainingEngine(ABC):
         self.optimizer = optimizer
         self.opt_param_scheduler = opt_param_scheduler
         self.beta = beta
-        self.mini_batch_size = mini_batch_size
+        self.mini_batch_size_per_dp = mini_batch_size_per_dp
         self.epochs = epochs
         self.shuffle_mini_batch = shuffle_mini_batch
         self.stage = stage
@@ -101,8 +101,8 @@ class BaseTrainingEngine(ABC):
             data_iterator=iter(batches),
             model=self.model,
             num_microbatches=n_micro_batch,
-            seq_length=seq_len,  # unused when variable_seq_lengths
-            micro_batch_size=self.micro_batch_size,  # unused when variable_seq_lengths
+            seq_length=seq_len,
+            micro_batch_size=self.micro_batch_size,
             forward_only=forward_only,
             collect_non_loss_data=forward_only,
         )
@@ -164,7 +164,7 @@ class BaseTrainingEngine(ABC):
         for k, v in batch.items():
             if v is not None:
                 batch[k] = v.to(next(self.model[0].parameters()).device)
-        mini_batches = self._split_batches(batch, batch_size=self.mini_batch_size,
+        mini_batches = self._split_batches(batch, batch_size=self.mini_batch_size_per_dp,
                                            shuffle_mini_batch=self.shuffle_mini_batch, dim=0)
         for model_module in self.model:
             model_module.train()
@@ -177,7 +177,7 @@ class BaseTrainingEngine(ABC):
                 update_successful, grad_norm, num_zeros_in_grad = self.optimizer.step()
 
                 if update_successful:
-                    increment = self.mini_batch_size
+                    increment = self.mini_batch_size_per_dp
                     self.opt_param_scheduler.step(increment=increment)
 
                 for metric in metric_micro_batch:

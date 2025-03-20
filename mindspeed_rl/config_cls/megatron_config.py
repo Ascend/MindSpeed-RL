@@ -77,7 +77,7 @@ class MegatronConfig(BaseConfig):
     no_shuffle: Whether to shuffle the dataset (default: False)
     stage: Stage of the model (default: None)
     sequence_parallel: Whether to use sequence parallelism (default: False)
-    micro_batch_size: Micro batch size for actor rollout (default: 1)
+    micro_batch_size: Micro batch size for actor (default: 1)
     tensor_model_parallel_size: Size of tensor model parallelism (default: 1)
     pipeline_model_parallel_size: Size of pipeline model parallelism (default: 1)
     expert_model_parallel_size: Degree of expert model parallelism (default: 1)

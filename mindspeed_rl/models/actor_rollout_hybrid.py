@@ -21,7 +21,7 @@ class ActorRolloutHybrid(ABC):
         inference_model: The model used for inference/generation.
         sharding_manager: The manager for handling model sharding (e.g., for distributed training).
         beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size: int = 1 The size of the mini-batch for each training step.
+        mini_batch_size_per_dp: int = 1 The size of the mini-batch for each data parallel stage.
         epochs: int = 1 The number of training epochs.
         shuffle_mini_batch: bool = False Whether to shuffle the mini-batch data at each epoch.
         stage: str = None The training stage identifier (e.g., pretrain/finetune).
@@ -30,6 +30,7 @@ class ActorRolloutHybrid(ABC):
         forward_backward_func: Callable = None The forward-backward function for distributed training.
         **kwargs: Additional parameters for base class argument passing.
     """
+
     def __init__(
             self,
             model,
@@ -38,28 +39,28 @@ class ActorRolloutHybrid(ABC):
             inference_model,
             sharding_manager,
             beta: float = 0,
-            mini_batch_size: int = 1,
+            mini_batch_size_per_dp: int = 1,
             epochs: int = 1,
             shuffle_mini_batch: bool = False,
             stage: str = None,
-            generate_config: GenerateConfig = None,
             clip_ratio: float = 0.1,
             forward_backward_func: Callable = None,
+            micro_batch_size: int = 1,
             **kwargs
     ):
-        self.generate_config = generate_config
 
         self.train_actor = Actor(
             model,
             optimizer,
             opt_param_scheduler,
             beta=beta,
-            mini_batch_size=mini_batch_size,
+            mini_batch_size_per_dp=mini_batch_size_per_dp,
             epochs=epochs,
             shuffle_mini_batch=shuffle_mini_batch,
             clip_ratio=clip_ratio,
             stage=stage,
             forward_backward_func=forward_backward_func,
+            micro_batch_size=micro_batch_size,
             **kwargs
         )
         self.inference_actor = inference_model

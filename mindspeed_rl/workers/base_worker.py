@@ -1,25 +1,16 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import os
-import time
 from abc import ABC
 from types import ModuleType
 from typing import List, Callable
 import socket
 
 import torch
-import torch_npu
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
-
-logger = Loggers("base_worker")
-
-try:
-    from mindspeed_llm import megatron_adaptor
-except ImportError:
-    logger.warning('megatron_adaptor is failed to import.')
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
@@ -36,6 +27,8 @@ from mindspeed_rl.trainer.utils.parallel_state import (
 )
 from mindspeed_rl.utils.compute import set_parallel_state
 from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
+
+logger = Loggers("base_worker")
 
 
 class BaseRayWorker:
@@ -88,15 +81,8 @@ class BaseWorker(BaseRayWorker, ABC):
             generate_config: GenerateConfig = None,
             model_provider: Callable = None,
             initialize_func: Callable = None,
-            parallel_state: ModuleType = None,
-            get_model: Callable = None,
-            get_megatron_optimizer: Callable = None,
-            get_optimizer_param_scheduler: Callable = None,
-            load_checkpoint: Callable = None,
-            save_checkpoint: Callable = None,
-            get_args: Callable = None,
+            get_megatron_module: Callable = None,
             tokenizer: BaseTokenizer = None,
-            get_forward_backward_func: Callable = None,
             **kwargs
     ):
         super().__init__()
@@ -106,16 +92,8 @@ class BaseWorker(BaseRayWorker, ABC):
         self.generate_config = generate_config
         self.model_provider = model_provider
         self.initialize_func = initialize_func
-        self.parallel_state = parallel_state
-        set_parallel_state(self.parallel_state)
-        self.get_model = get_model
-        self.get_megatron_optimizer = get_megatron_optimizer
-        self.get_optimizer_param_scheduler = get_optimizer_param_scheduler
-        self._load_checkpoint = load_checkpoint
-        self._save_checkpoint = save_checkpoint
-        self.get_args = get_args
+        self.get_megatron_module = get_megatron_module
         self.tokenizer = tokenizer
-        self.get_forward_backward_func = get_forward_backward_func
         self.megatron_config.update(kwargs)
         self.inference_model = None
         self.sharding_manager = None
@@ -145,6 +123,11 @@ class BaseWorker(BaseRayWorker, ABC):
         logger.info(f"getenv MASTER_PORT  : {os.getenv('MASTER_PORT')}")
         logger.info(f"ray alloc NPU ID    :  {int(ray.get_runtime_context().get_accelerator_ids()['NPU'][0])}")
         self.initialize_func(config=self.megatron_config)
+        megatron_module = self.get_megatron_module()
+        for key, value in megatron_module.items():
+            setattr(self, key, value)
+
+        set_parallel_state(self.parallel_state)
         self.args = self.get_args()
         self.forward_backward_func = self.get_forward_backward_func()
 
@@ -272,22 +255,3 @@ class BaseWorker(BaseRayWorker, ABC):
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
             self.td.put_experience.remote(data_dict=output, indexes=index, num_responses=n_samples_per_prompt)
-
-    @staticmethod
-    def truncate_rows(tensor, index_tensor):
-        """
-        tensor: 二维 Tensor，形状为 (mbs, seq_len)
-        index_tensor: 二维 Tensor，形状为 (mbs, 1)，表示每一行截断的位置
-        """
-        mbs, seq_len = tensor.shape
-        truncated_tensors = []
-
-        for i in range(mbs):
-            # 获取当前行的截断索引
-            trunc_idx = index_tensor[i].item()
-            # 截断当前行
-            truncated_row = tensor[i, :trunc_idx].cpu()
-            # 将截断后的行添加到列表中
-            truncated_tensors.append(truncated_row)
-
-        return truncated_tensors

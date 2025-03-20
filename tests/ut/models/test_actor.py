@@ -27,7 +27,7 @@ class TestActor(DistributedTest):
             optimizer=self.optimizer,
             opt_param_scheduler=self.opt_param_scheduler,
             beta=0.1,
-            mini_batch_size=32,
+            mini_batch_size_per_dp=32,
             epochs=3,
             shuffle_mini_batch=True,
             stage="ray_grpo",
@@ -36,7 +36,7 @@ class TestActor(DistributedTest):
         )
 
     def test_initialization(self, setUp):
-        assert self.actor.mini_batch_size == 32
+        assert self.actor.mini_batch_size_per_dp == 32
         assert self.actor.shuffle_mini_batch == True
         assert self.actor.stage == 'ray_grpo'
         assert math.isclose(self.actor.beta, 0.1, rel_tol=1e-5)

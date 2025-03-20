@@ -99,6 +99,7 @@ rl_config:
     num_npus: 8
 
 generate_config:
+  micro_batch_size: 1
   # tokenizer相关配置
   trust_remote_code: true
 

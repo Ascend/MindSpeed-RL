@@ -403,12 +403,10 @@ def trans_experience_to_output(
         experience_i_all = [item for sublist in experience[i] for item in sublist]
         if experience_column in ["prompt_length", "response_length"]:
             padded = torch.cat(experience_i_all).reshape(-1, 1)
-        elif experience_column in ["prompts", "input_ids", "labels"]:
-            padded = pad_multiples(experience_i_all, pad_id=pad_id, multiple=multiple)
-        elif experience_column == "responses":
-            padded = pad_multiples(experience_i_all, pad_id=-100, multiple=multiple)
-        else:
+        elif experience_i_all[0].is_floating_point():
             padded = pad_multiples(experience_i_all, pad_id=0.0, multiple=multiple)
+        else:
+            padded = pad_multiples(experience_i_all, pad_id=pad_id, multiple=multiple)
 
         batch[experience_column] = padded
 

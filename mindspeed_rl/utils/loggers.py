@@ -18,8 +18,15 @@ class Loggers(object):
                  ):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logger_level)
-        th = handlers.TimedRotatingFileHandler(filename=name, when='D', backupCount=3, encoding='utf-8')
-        self.logger.addHandler(th)
+        
+        if not self.logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logger_level)
+            console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            console_handler.setFormatter(console_formatter)
+            self.logger.addHandler(console_handler)
+
+        self.logger.propagate = False
 
     def handle_msg(self, msg, level, iteration, steps):
         current_time = str(datetime.now(tz=timezone.utc)).split(".")[0]

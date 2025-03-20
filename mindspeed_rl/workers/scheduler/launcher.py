@@ -65,18 +65,11 @@ class RayActorGroup:
             rl_config: RLConfig,
             model_provider: Callable,
             initialize_func: Callable,
-            parallel_state: ModuleType,
-            get_model: Callable = None,
-            get_megatron_optimizer: Callable = None,
-            get_optimizer_param_scheduler: Callable = None,
-            load_checkpoint: Callable = None,
-            save_checkpoint: Callable = None,
-            get_args: Callable = None,
             tokenizer: BaseTokenizer = None,
-            get_forward_backward_func: Callable = None,
             generate_config: GenerateConfig = None,
             resources: Dict[str, float] = None,
             num_resources_per_node: int = None,
+            get_megatron_module: Callable = None,
             **kwargs
     ):
         """
@@ -90,15 +83,7 @@ class RayActorGroup:
         rl_config           : reinforcement learning config data
         model_provider      : model provider function
         initialize_func     : model initialization function
-        parallel_state      : parallel state of actor
-        get_model           : model getter
-        get_megatron_optimizer          : model megatron optimizer
-        get_optimizer_param_scheduler   : model optimizer
-        load_checkpoint     : model checkpoint load function
-        save_checkpoint     : model checkpoint save function
-        get_args            : model args getter
         tokenizer           : tokenizer
-        get_forward_backward_func       : model forward backward function
         generate_config     : vllm config data
         resources           : user defined ray resource
         num_resources_per_node  : number of resources per node
@@ -110,15 +95,8 @@ class RayActorGroup:
         self.generate_config = generate_config
         self.model_provider = model_provider
         self.initialize_func = initialize_func
-        self.parallel_state = parallel_state
-        self.get_model = get_model
-        self.get_megatron_optimizer = get_megatron_optimizer
-        self.get_optimizer_param_scheduler = get_optimizer_param_scheduler
-        self.load_checkpoint = load_checkpoint
-        self._save_checkpoint = save_checkpoint
-        self.get_args = get_args
         self.tokenizer = tokenizer
-        self.get_forward_backward_func = get_forward_backward_func
+        self.get_megatron_module = get_megatron_module
         self.kwargs = kwargs
         self.num_npus = get_npu_deployment(rl_config, worker)
         self.resources = resources
@@ -165,16 +143,9 @@ class RayActorGroup:
             self.rl_config,
             self.generate_config,
             model_provider=self.model_provider,
+            get_megatron_module=self.get_megatron_module,
             initialize_func=self.initialize_func,
-            parallel_state=self.parallel_state,
-            get_model=self.get_model,
-            get_megatron_optimizer=self.get_megatron_optimizer,
-            get_optimizer_param_scheduler=self.get_optimizer_param_scheduler,
-            load_checkpoint=self.load_checkpoint,
-            save_checkpoint=self._save_checkpoint,
-            get_args=self.get_args,
             tokenizer=self.tokenizer,
-            get_forward_backward_func=self.get_forward_backward_func,
             **self.kwargs
         )
 
@@ -243,7 +214,7 @@ class RayActorGroup:
     def save_checkpoint(self, iteration):
         actor_train_objs = []
         for actor in self.actor_handlers:
-            actor_train_objs.append(actor.save_checkpoint.remote(iteration))
+            actor_train_objs.append(actor.save_ckpt.remote(iteration))
         return ray.get(actor_train_objs)
 
     def initialize(self):

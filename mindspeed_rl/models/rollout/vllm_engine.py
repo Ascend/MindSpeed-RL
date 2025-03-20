@@ -21,6 +21,7 @@ def dummy_compile(*compile_args, **compile_kwargs):
         return wrapper
 
     return decorate
+    
 
 torch.jit.script = dummy_compile
 torch.compile = dummy_compile
@@ -96,8 +97,6 @@ class VLLMInferEngine(BaseInferEngine):
             trust_remote_code=trust_remote_code
         )
         # Additional initialization logic for VLLMInferEngine
-        print("Entering VLLMInferEngine::__init__")
-
         # Initialize sampling parameters from SamplingConfig
         self.sampling_config = sampling_config
         try:
@@ -113,11 +112,10 @@ class VLLMInferEngine(BaseInferEngine):
                 detokenize=sampling_config.get('detokenize', False)
             )
         except Exception as e:
-            print(f"Error creating SamplingParams from dictionary: {e}")
-            raise
+            raise ValueError(f"Error creating SamplingParams from dictionary") from e
 
         self.hf_config = AutoConfig.from_pretrained(
-            tokenizer_name_or_path, 
+            tokenizer_name_or_path,
             trust_remote_code=trust_remote_code
         )
 
@@ -144,6 +142,9 @@ class VLLMInferEngine(BaseInferEngine):
         if load_format == "megatron":
             update_megatron_weight_loader()
 
+        torch.jit.script = dummy_compile
+        torch.compile = dummy_compile
+
         # Initialize the LLM engine
         self.llm = LLM(
             model=tokenizer_name_or_path,
@@ -166,11 +167,10 @@ class VLLMInferEngine(BaseInferEngine):
         self.cpu_model = {}
         for name, params in self.model.named_parameters():
             self.cpu_model[name] = torch.empty_like(params, device="cpu")
-        
+
         if load_format == "megatron":
             self.free_cache_engine()
             self.offload_model_weights()
-
 
     def init_cache_engine(self):
         if self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine is None:
@@ -277,7 +277,6 @@ class VLLMInferEngine(BaseInferEngine):
                     setattr(self.sampling_params, key, value)
         yield
         # roll back to previous sampling params
-        # if len(old_sampling_params_args):
         for key, value in old_sampling_params_args.items():
             setattr(self.sampling_params, key, value)
 

@@ -160,6 +160,7 @@ class BaseTrainingEngine(ABC):
         """
         self.kl_ctrl = kl_ctrl
         metrics = {}
+        grad_norm_list = []
         batch = next(iter(data))
         for k, v in batch.items():
             if v is not None:
@@ -179,11 +180,13 @@ class BaseTrainingEngine(ABC):
                 if update_successful:
                     increment = self.mini_batch_size_per_dp
                     self.opt_param_scheduler.step(increment=increment)
+                grad_norm_list.append(grad_norm) 
 
                 for metric in metric_micro_batch:
                     append_to_dict(metrics, metric)  # append the metric from this micro-batch to global metrics.
 
             # add empty cache after each compute
             torch.cuda.empty_cache()
-
+        grad_norm = sum(grad_norm_list) / len(grad_norm_list)
+        metrics["grad_norm"] = grad_norm_list
         return metrics

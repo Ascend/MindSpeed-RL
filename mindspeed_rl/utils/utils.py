@@ -163,6 +163,26 @@ def get_batch_metrices_mean(metrics_list: List[Dict]) -> Dict[str, Tensor]:
     return metrics_mean
 
 
+def get_batch_metrices_mean_(metrics) -> Dict[str, Tensor]:
+    """
+    Calculate the mean of each metric across a list of metric dictionaries.
+
+    Args:
+        metrics_list: A list of dictionaries, where each dictionary contains metrics as key-value pairs.
+
+    Returns:
+        metrics_mean: A dictionary where each key is a metric name and 
+                      each value is the mean of that metric across all batches.
+    """
+    new_metrics = {}
+    for key, value in metrics.metric.items():
+        if isinstance(value, list):
+            new_metrics[key] = metrics.compute_mean(key, value)
+        else:
+            new_metrics[key] = value
+    return new_metrics
+
+
 def seed_all(seed=1234):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)

@@ -50,7 +50,7 @@ class GRPOActorLossFunc(BaseLossFunc):
 
         response_mask, old_log_prob, advantages, ref_log_prob = self._get_policy_loss_input(batch=batch)
         # compute policy loss
-        pg_loss, pg_clipfrac, ppo_kl = self._compute_grpo_policy_loss(old_log_prob=old_log_prob,
+        pg_loss, pg_clipfrac, ppo_kl, kl_loss = self._compute_grpo_policy_loss(old_log_prob=old_log_prob,
                                                                       log_prob=log_probs,
                                                                       ref_log_prob=ref_log_prob,
                                                                       advantages=advantages,
@@ -61,7 +61,8 @@ class GRPOActorLossFunc(BaseLossFunc):
         stats = {
             'actor/pg_loss': abs(pg_loss.detach().item()),
             'actor/pg_clipfrac': pg_clipfrac.detach().item(),
-            'actor/ppo_kl': ppo_kl.detach().item()
+            'actor/ppo_kl': ppo_kl.detach().item(),
+            'actor/kl_loss': kl_loss.detach().item()
         }
         return policy_loss, stats
 
@@ -106,5 +107,6 @@ class GRPOActorLossFunc(BaseLossFunc):
         ratio_kl = torch.exp(ref_approx_kl)
         kl_losses = ratio_kl - ref_approx_kl - 1
         kl_mean_loss = F.masked_mean(kl_losses, eos_mask)
+        kl_loss = kl_mean_loss * kl_ctrl.value
         pg_loss = pg_mean_loss + kl_mean_loss * kl_ctrl.value
-        return pg_loss, pg_mean_clipfrac, ppo_kl
+        return pg_loss, pg_mean_clipfrac, ppo_kl, kl_loss

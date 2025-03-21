@@ -106,6 +106,12 @@ class ActorHybridWorker(BaseWorker):
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
         experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
 
+        #get lr
+        learning_rate = None
+        for param_group in self.optimizer.param_groups:
+            learning_rate = param_group['lr']
+        ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate)) 
+
         while self.all_consumed(experience_consumer_stage) > 0:
             data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
@@ -117,9 +123,7 @@ class ActorHybridWorker(BaseWorker):
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
-                    return metrics
-                else:
-                    return {}
+                    ray.get(self.td.update_metrics.remote(value=metrics))
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,

@@ -36,7 +36,11 @@ class Loggers(object):
             fmt_msg += f"iteration: {iteration} / {steps} | "
             if isinstance(msg, dict):
                 for key in msg:
-                    fmt_msg += f"{key} : {format(msg[key], '.4f')} | "
+                    if key == "grpo/lr":
+                        lr = "{:e}".format(msg[key])
+                        fmt_msg += f"{key} : {lr} | "
+                    else:
+                        fmt_msg += f"{key} : {format(msg[key], '.4f')} | "
                 fmt_msg = fmt_msg[:-2]
             else:
                 fmt_msg = f"{fmt_msg} {str(msg)}"

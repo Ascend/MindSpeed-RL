@@ -99,7 +99,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
 
     logger.info("=" * 50)
 
-    scores = verifier(str_responses, extra_data, rl_config, infos=None)
+    scores, reward = verifier(str_responses, extra_data, rl_config, infos=None)
 
     scores = torch.tensor(
         scores,
@@ -113,7 +113,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
 
     print(scores)
 
-    return scores
+    return scores, reward
 
 
 def verifier(responses, data, config, infos=None):
@@ -146,6 +146,7 @@ def verifier(responses, data, config, infos=None):
     verifier_function = config.verifier_function
     verifier_weight = config.verifier_weight
 
+    reward = {}
     for idx, fun_verifier in enumerate(verifier_function):
         if fun_verifier not in rule_verifier_function:
             continue
@@ -161,10 +162,11 @@ def verifier(responses, data, config, infos=None):
         else:
             score = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels)
 
+        reward[f'grpo/{fun_verifier}_rewards/mean'] = score
         scores = [all_score + tmp_score * verifier_weight[idx]
                   for all_score, tmp_score in zip(scores, score)]
 
-    return scores
+    return scores, reward
 
 
 def math_equal_subprocess(prediction, reference, timeout_seconds=10):

@@ -42,6 +42,7 @@ class RuleReward(object):
                 if "categories" in batch_data.keys():
                     batch_data = {key: value[use_verifier_mask] if key != 'prompts' else value[
                         use_verifier_mask[::self.n_samples_per_prompt]] for key, value in batch_data.items()}
-                token_level_rewards = compute_verifier_score(batch_data, self.megatron_config, self.rl_config)
+                token_level_rewards, reward = compute_verifier_score(batch_data, self.megatron_config, self.rl_config)
+                ray.get(self.td.update_metrics.remote(value=reward))
                 output = {"rm_scores": token_level_rewards, "token_level_rewards": token_level_rewards}
                 self.td.put_experience.remote(data_dict=output, indexes=index, num_responses=self.n_samples_per_prompt)

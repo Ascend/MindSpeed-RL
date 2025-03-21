@@ -217,7 +217,7 @@ class GRPOTransferDock(TransferDock):
     GRPO asynchronous tasks in the Ray cluster.
     """
 
-    def __init__(self, max_len: int) -> None:
+    def __init__(self, max_len: int, metrics=None) -> None:
         """GRPOTransferDock initialize.
 
         Args:
@@ -250,7 +250,14 @@ class GRPOTransferDock(TransferDock):
             key: torch.zeros(self.max_len, dtype=torch.int32) for key in self.experience_consumers
         }
         self.consumer_sampling_signal = {key: False for key in self.experience_consumers}
+        self.metrics = metrics
         super().__init__(self.max_len, self.experience_columns)
+
+    def get_metrics(self):
+        return self.metrics
+
+    def update_metrics(self, key="", value=None):
+        self.metrics.update(key, value)
 
     def get_experience(
             self,

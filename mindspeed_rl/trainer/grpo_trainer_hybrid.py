@@ -13,7 +13,7 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import get_batch_metrices_mean
+from mindspeed_rl.utils.utils import get_batch_metrices_mean, get_batch_metrices_mean_
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -78,10 +78,11 @@ class RayGRPOTrainer(RayBaseTrainer):
         )
 
         self.transfer_dock = None
+        self.metrics = Metric()
         self.transfer_dock_init()
 
     def transfer_dock_init(self):
-        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size)
+        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.metrics)
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
         for reward in self.reward_list:
@@ -159,16 +160,17 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.actor_worker.compute_log_prob(blocking=True)
 
                 # update actor
-                actor_metrics = self.actor_worker.update(self.kl_ctrl)
+                self.actor_worker.update(self.kl_ctrl)
 
                 # collect metrics
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
                                                               self.global_batch_size,
                                                               self.tokenizer_name_or_path)
+                metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
-            actor_metrics = get_batch_metrices_mean(actor_metrics)
-            metrics.update(value=actor_metrics)
+            metrics_result = get_batch_metrices_mean_(metrics_result)
             metrics.update(value=grpo_data_metrics)
+            metrics.update(value=metrics_result)
             metrics.update("timing/all", all_timer.last)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)

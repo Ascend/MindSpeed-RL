@@ -80,5 +80,7 @@ class RLConfig(BaseConfig):
         self.wandb_project = ""
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
+        self.blocking = False
+        self.num_cpus_for_local_task = 0.1
 
         self.update(config_dict)

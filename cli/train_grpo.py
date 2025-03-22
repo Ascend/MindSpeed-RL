@@ -81,7 +81,7 @@ def train(config):
         reward_list.append(reward_worker)
 
     if rl_config.rule_reward:
-        rule_reward = RuleReward.remote()
+        rule_reward = RuleReward.options(num_cpus=rl_config.num_cpus_for_local_task).remote()
         rule_reward.initialize.remote(reward_config, rl_config)
         reward_list.append(rule_reward)
 

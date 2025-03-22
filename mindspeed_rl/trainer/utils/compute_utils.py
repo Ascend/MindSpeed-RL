@@ -123,6 +123,7 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
     return advantages, returns
 
 
+@ray.remote
 def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer_name_or_path, n_samples_per_prompt):
     """
     Compute the advantage function based on different adv_estimator

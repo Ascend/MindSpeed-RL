@@ -56,6 +56,8 @@ class RayGRPOTrainer(RayBaseTrainer):
             n_samples_per_prompt: int = 1,
             tokenizer_name_or_path: str = None,
             dataset_additional_keys: List[str] = None,
+            blocking: bool = False,
+            num_cpus_for_local_task: float = 0.1,
             **kwargs
     ):
         super().__init__(
@@ -74,6 +76,8 @@ class RayGRPOTrainer(RayBaseTrainer):
             n_samples_per_prompt=n_samples_per_prompt,
             tokenizer_name_or_path=tokenizer_name_or_path,
             dataset_additional_keys=dataset_additional_keys,
+            blocking=blocking,
+            num_cpus_for_local_task=num_cpus_for_local_task,
             **kwargs
         )
 
@@ -133,31 +137,24 @@ class RayGRPOTrainer(RayBaseTrainer):
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences
-                self.actor_worker.generate_sequences(blocking=True)
+                self.actor_worker.generate_sequences(blocking=self.blocking)
 
                 # compute reference log_prob
-                self.ref_worker.compute_log_prob(blocking=True)
+                self.ref_worker.compute_log_prob(blocking=self.blocking)
 
                 # compute rm scores.
                 for reward_worker in self.reward_list:
                     if isinstance(reward_worker, RayActorGroup):
-                        reward_worker.compute_rm_score(blocking=True)
+                        reward_worker.compute_rm_score(blocking=self.blocking)
                     else:
-                        ray.get(reward_worker.compute_rm_score.remote())
+                        self.rule_reward_compute_rm_score(reward_worker, blocking=self.blocking)
 
                 # compute advantages, executed on the driver process
-                compute_advantage(
-                    self.transfer_dock,
-                    self.gamma,
-                    self.lam,
-                    adv_estimator=self.adv_estimator,
-                    experience_count=self.micro_batch_size,
-                    tokenizer_name_or_path=self.tokenizer_name_or_path,
-                    n_samples_per_prompt=self.n_samples_per_prompt,
-                )
+                self.compute_advantage(blocking=self.blocking)
 
+                self.actor_worker.wait_all_ref_objs_run_over()
                 # compute old log_prob
-                self.actor_worker.compute_log_prob(blocking=True)
+                self.actor_worker.compute_log_prob(blocking=self.blocking)
 
                 # update actor
                 self.actor_worker.update(self.kl_ctrl)
@@ -181,6 +178,25 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.wandb.log_metrics(metrics.metric, iteration)
             if iteration % self.save_interval == 0:
                 self.save_checkpoint(iteration)
+
+    def compute_advantage(self, blocking=False):
+        compute_advantage_ref = compute_advantage.options(num_cpus=self.num_cpus_for_local_task).remote(
+            self.transfer_dock,
+            self.gamma,
+            self.lam,
+            adv_estimator=self.adv_estimator,
+            experience_count=self.micro_batch_size,
+            tokenizer_name_or_path=self.tokenizer_name_or_path,
+            n_samples_per_prompt=self.n_samples_per_prompt,
+        )
+        if blocking:
+            ray.get(compute_advantage_ref)
+
+    @staticmethod
+    def rule_reward_compute_rm_score(reward_worker, blocking=False):
+        rule_reward_compute_rm_score_ref = reward_worker.compute_rm_score.remote()
+        if blocking:
+            ray.get(rule_reward_compute_rm_score_ref)
 
     def save_checkpoint(self, iteration: int):
         self.actor_worker.save_checkpoint(iteration)

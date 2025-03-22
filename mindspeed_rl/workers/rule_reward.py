@@ -11,7 +11,7 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 logger = Loggers("rule_reward")
 
 
-@ray.remote(num_cpus=0.1)
+@ray.remote
 class RuleReward(object):
 
     def initialize(self, megatron_config, rl_config):

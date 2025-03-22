@@ -36,6 +36,8 @@ class RayBaseTrainer(object):
                  n_samples_per_prompt: int = 1,
                  tokenizer_name_or_path: str = None,
                  dataset_additional_keys: List[str] = None,
+                 blocking: bool = False,
+                 num_cpus_for_local_task: float = 0.1,
                  **kwargs):
 
         self.actor_worker = actor_worker
@@ -57,6 +59,8 @@ class RayBaseTrainer(object):
         self.n_samples_per_prompt = n_samples_per_prompt
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.dataset_additional_keys = dataset_additional_keys
+        self.blocking = blocking
+        self.num_cpus_for_local_task = num_cpus_for_local_task
         self.kwargs = kwargs
 
         # define KL control

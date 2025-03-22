@@ -11,6 +11,16 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pad_sequence
+from mindspeed_rl.utils.loggers import Loggers
+
+
+logger = Loggers("transfer_dock")
+
+
+class TimeoutException(Exception):
+    """Custom Timeout Exception"""
+    def __init__(self, message="TIMEOUT: Time Sleep Too Long"):
+        super().__init__(message)
 
 
 class TransferDock(ABC):
@@ -19,7 +29,8 @@ class TransferDock(ABC):
     providing data storage and retrieval functions.
     """
 
-    def __init__(self, max_len: int, experience_columns: Union[List[str], None]) -> None:
+    def __init__(self, max_len: int, experience_columns: Union[List[str], None],
+                 timeout: Union[int, None], timeout_interval: Union[int, None]) -> None:
         """TransferDock initialize.
 
         Args:
@@ -33,8 +44,9 @@ class TransferDock(ABC):
         self.experience_data_status = {
             key: torch.zeros(self.max_len, dtype=torch.int32) for key in self.experience_columns
         }
-        self.initialize_stop_signal = {key: False for key in self.experience_columns}
         self.index_dispatch_stop_signal = False
+        self.timeout = timeout if timeout is not None else 300 # waite over 300s to log
+        self.timeout_interval = timeout_interval if timeout_interval is not None else 5 # logger ever 5s
 
     def _put(
             self,
@@ -46,20 +58,29 @@ class TransferDock(ABC):
 
         Args:
             experience_columns: Columns to put data in.
+                ['prompts', 'attention_mask']
             experience: Data for the corresponding columns.
+                [
+                    [
+                        [tensor([1, 1, 1, 1]), tensor([2, 2, 2, 2])],
+                        [tensor([3, 3, 3, 3]), tensor(4, 4, 4, 4)]
+                    ],
+                    [
+                        [tensor([1]), tensor([2, 2])],
+                        [tensor([3, 3, 3]), tensor([4, 4, 4, 4])]
+                    ]
+                ]
             indexes: Rows to put data in.
+                [0, 2]
 
         Returns: None
 
         """
-        for single_column in experience_columns:
-            if single_column not in self.experience_data.keys():
-                self.initialize_stop_signal[single_column] = True
-                self.experience_columns.append(single_column)
-                self.experience_data[single_column] = [None for _ in range(self.max_len)]
-                self.experience_data_status[single_column] = torch.zeros(self.max_len, dtype=torch.int32)
-                self.initialize_stop_signal[single_column] = False
-
+        # If experience_columns not in TD, raise ValueError
+        for experience_column in experience_columns:
+            if experience_column not in self.experience_columns:
+                raise ValueError(f"put experience ERROR: {experience_column} not in TD experience_column {self.experience_columns}")
+        
         if indexes is not None:
             self._put_with_index(experience_columns, experience, indexes)
         else:
@@ -81,16 +102,12 @@ class TransferDock(ABC):
         Returns: None
 
         """
-        for column_idx, single_column in enumerate(experience_columns):
-            if max(indexes) >= self.max_len:
-                raise ValueError("请求index超过数据结构范围")
+        if max(indexes) >= self.max_len:
+            raise ValueError(f"Put experience index {max(indexes)} exceeds the Transfer Dock range {self.max_len}.")
 
+        for column_idx, single_column in enumerate(experience_columns):
             for i, index in enumerate(indexes):
-                while (
-                        single_column not in self.initialize_stop_signal.keys()
-                        or self.initialize_stop_signal[single_column]
-                ):
-                    time.sleep(0.1)
+                # input can rewrite experience data in TD
                 self.experience_data[single_column][index] = experience[column_idx][i]
                 self.experience_data_status[single_column][index] = 1
 
@@ -104,8 +121,14 @@ class TransferDock(ABC):
         Returns: None
 
         """
+        start_time = time.time()
         while self.index_dispatch_stop_signal:
+            elapsed_time = time.time() - start_time
+            if elapsed_time > self.timeout and elapsed_time % self.timeout_interval < 0.1: # 每隔2s打印一次
+                logger.warning(f"TIMEOUT: index_dispatch_stop_signal has slept {elapsed_time} second")
+            # put_without_index to the TD. Only one process can sample the index at a time. The others are waiting.
             time.sleep(0.1)
+        
         self.index_dispatch_stop_signal = True
         writable_indexes = (
             torch.all(
@@ -134,14 +157,25 @@ class TransferDock(ABC):
 
         Args:
             experience_columns: Columns from which to get data.
+                ['prompts', 'attention_mask']
             indexes: Rows to get data from.
+                [0, 2]
 
         Returns: Data list.
+            [
+                [
+                    [tensor([1, 1, 1, 1]), tensor([2, 2, 2, 2])],
+                    [tensor([3, 3, 3, 3]), tensor(4, 4, 4, 4)]
+                ],
+                [
+                    [tensor([1]), tensor([2, 2])],
+                    [tensor([3, 3, 3]), tensor([4, 4, 4, 4])]
+                ]
+            ]
 
         """
-        max_index = max(indexes)
-        if max_index >= self.max_len:
-            raise ValueError("请求index超过数据结构范围")
+        if max(indexes) >= self.max_len:
+            raise ValueError(f"Get experience index {max(indexes)} exceeds the Transfer Dock range {self.max_len}.")
 
         experience = []
         for single_column in experience_columns:
@@ -167,7 +201,13 @@ class TransferDock(ABC):
             data_ready = self.experience_data_status[single_column][indexes] == 1
         else:
             data_ready = sum(itemgetter(*indexes)(self.experience_data_status[single_column])) == len(indexes)
+        
+        start_time = time.time()
         while not data_ready:
+            elapsed_time = time.time() - start_time
+            if elapsed_time > self.timeout and elapsed_time % self.timeout_interval < 0.1:
+                logger.warning(f"TIMEOUT: data_ready has slept {elapsed_time} second")
+            # Wait until the data in a single column is ready.
             time.sleep(0.1)
             if len(indexes) == 1:
                 data_ready = self.experience_data_status[single_column][indexes] == 1
@@ -217,7 +257,9 @@ class GRPOTransferDock(TransferDock):
     GRPO asynchronous tasks in the Ray cluster.
     """
 
-    def __init__(self, max_len: int, metrics=None) -> None:
+    def __init__(self, max_len: int, metrics=None, addition_columns: Union[List[str], None] = None, 
+                 addition_consumers: Union[List[str], None] = None, timeout: Union[int, None] = None,
+                 timeout_interval: Union[int, None] = None) -> None:
         """GRPOTransferDock initialize.
 
         Args:
@@ -225,14 +267,19 @@ class GRPOTransferDock(TransferDock):
         """
         self.experience_columns = [
             "prompts",
+            'prompt_length',
+            'responses',
+            'response_length',
             "attention_mask",
             "labels",
             "input_ids",
             "actor_rollout",
-            "rm_score",
+            "rm_scores",
             "token_level_rewards",
             "old_log_prob",
             "ref_log_prob",
+            'advantages',
+            'returns'
         ]
         self.max_len = max_len
         self.experience_consumers = [
@@ -246,12 +293,24 @@ class GRPOTransferDock(TransferDock):
             "reward_scores",
             "grpo_metrics",
         ]
+        # Initialize to add additional experience columns
+        if addition_columns:
+            for column in addition_columns:
+                if column not in self.experience_columns:
+                    self.experience_columns.append(column)
+
+        # Initialize to add additional experience consumers
+        if addition_consumers:
+            for consumer in addition_consumers:
+                if consumer not in self.experience_consumers:
+                    self.experience_consumers.append(consumer)
+
         self.experience_consumer_status = {
             key: torch.zeros(self.max_len, dtype=torch.int32) for key in self.experience_consumers
         }
         self.consumer_sampling_signal = {key: False for key in self.experience_consumers}
         self.metrics = metrics
-        super().__init__(self.max_len, self.experience_columns)
+        super().__init__(self.max_len, self.experience_columns, timeout, timeout_interval)
 
     def get_metrics(self):
         return self.metrics
@@ -281,9 +340,24 @@ class GRPOTransferDock(TransferDock):
         Returns: Data dict and row numbers.
 
         """
+        # If consumer not in TD, raise ValueError
+        if consumer not in self.experience_consumers:
+            raise ValueError(f"get experience ERROR: {consumer} not in TD experience_consumers {self.experience_consumers}")
+
+        # If experience_columns not in TD, raise ValueError
+        for experience_column in experience_columns:
+            if experience_column not in self.experience_columns:
+                raise ValueError(f"get experience ERROR: {experience_column} not in TD experience_column {self.experience_columns}")
+        
         if indexes is None:
-            if self.max_len % experience_count != 0:
+            # If experience_count > the number of TD (self.max_len), raise ValueError
+            if experience_count > self.max_len:
                 raise ValueError(f"max_len:{self.max_len} need >= experience_count: {experience_count}")
+
+            # If max_len is not divisible by experience_count, raise ValueError
+            if self.max_len % experience_count != 0:
+                raise ValueError(f"max_len:{self.max_len} need be divisible by experience_count: {experience_count}")
+                
             indexes = self._sample_ready_index(consumer, experience_count, experience_columns)
             if not indexes:
                 return None, None
@@ -325,17 +399,13 @@ class GRPOTransferDock(TransferDock):
         Returns: Sampled row numbers.
 
         """
-        experience_column_ready = all(
-            [single_column in self.experience_data.keys() for single_column in experience_columns]
-        )
 
-        while not experience_column_ready:
-            time.sleep(0.1)
-            experience_column_ready = all(
-                [single_column in self.experience_data.keys() for single_column in experience_columns]
-            )
-
+        start_time = time.time()
         while self.consumer_sampling_signal[consumer]:
+            elapsed_time = time.time() - start_time
+            if elapsed_time > self.timeout and elapsed_time % self.timeout_interval < 0.1:
+                logger.warning(f"TIMEOUT: consumer_sampling_signal has slept {elapsed_time} second")
+            # only one process can sampele index. The others are waiting.
             time.sleep(0.1)
 
         self.consumer_sampling_signal[consumer] = True
@@ -398,11 +468,36 @@ def trans_experience_to_output(
 
     Args:
         experience: Data list.
+            [
+                [
+                    [tensor([1, 1, 1, 1]), tensor([2, 2, 2, 2])],
+                    [tensor([3, 3, 3, 3]), tensor(4, 4, 4, 4)]
+                ],
+                [
+                    [tensor([1]), tensor([2, 2])],
+                    [tensor([3, 3, 3]), tensor([4, 4, 4, 4])]
+                ]
+            ]
         experience_columns: Columns for the corresponding data.
+            ['prompts', 'attention_mask']
         pad_id: Pad token.
+            0.0
         multiple: The multiple of TP to pad.
+            1
 
     Returns: Merged and padded data dict.
+        {
+            "prompts": tensor(
+                [[1, 1, 1, 1],
+                [2, 2, 2, 2],
+                [3, 3, 3, 3],
+                [4, 4, 4, 4]]),
+            "attention_mask": tensor(
+                [[1, 0, 0, 0],
+                [2, 2, 0, 0],
+                [3, 3, 3, 0],
+                [4, 4, 4, 4]]),
+        }
 
     """
     batch = {}
@@ -425,9 +520,33 @@ def trans_input_to_experience(experience_dict: Dict[str, Union[Tensor, List[Tens
 
     Args:
         experience_dict: Data dict.
+            {
+                "prompts": tensor(
+                    [[1, 1, 1, 1],
+                    [2, 2, 2, 2],
+                    [3, 3, 3, 3],
+                    [4, 4, 4, 4]]),
+                "attention_mask": [
+                    tensor([1]),
+                    tensor([2, 2]),
+                    tensor([3, 3, 3]),
+                    tensor([4, 4, 4, 4])]
+            }
         num_responses: The number of data to put in each row.
+            2
 
     Returns: Columns and data list.
+        ['prompts', 'attention_mask']
+        [
+            [
+                [tensor([1, 1, 1, 1]), tensor([2, 2, 2, 2])],
+                [tensor([3, 3, 3, 3]), tensor(4, 4, 4, 4)]
+            ],
+            [
+                [tensor([1)], tensor([2, 2])],
+                [tensor([3, 3, 3]), tensor([4, 4, 4, 4])]
+            ]
+        ]
 
     """
     experience_columns = []

@@ -82,7 +82,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.transfer_dock_init()
 
     def transfer_dock_init(self):
-        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.metrics)
+        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.metrics, addition_columns=self.dataset_additional_keys)
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
         for reward in self.reward_list:

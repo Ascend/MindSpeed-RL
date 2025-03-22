@@ -14,8 +14,13 @@ from tests.test_tools.dist_test import DistributedTest
 def setup_teardown_transfer_dock(request):
     self = request.instance
     self.max_len = 16
+    self.timeout = 10
+    self.timeout_interval = 2
     self.default_experience_columns = ["default"]
-    self.td = TransferDock(max_len=self.max_len, experience_columns=self.default_experience_columns)
+    self.td = TransferDock(max_len=self.max_len,
+                           experience_columns=self.default_experience_columns,
+                           timeout=self.timeout,
+                           timeout_interval=self.timeout_interval)
     yield
     del self.td
 
@@ -42,19 +47,19 @@ def setup_teardown_grpo_transfer_dock_class(request):
 class TestTransferDock(DistributedTest):
     def test_init(self):
         assert self.td.max_len == self.max_len
+        assert self.td.timeout == self.timeout
+        assert self.td.timeout_interval == self.timeout_interval
         for experience_column in self.default_experience_columns:
             assert experience_column in self.td.experience_data
             assert experience_column in self.td.experience_data_status
-            assert experience_column in self.td.initialize_stop_signal
         assert not self.td.index_dispatch_stop_signal
 
     def test_put(self):
         mbs = 4
-        experience_columns = ["data1", "data2"]
+        experience_columns = ["default"]
         indexes = random.sample(range(16), mbs)
         experience = [
             [[torch.randn(1, 8)] for _ in range(mbs)],
-            [[torch.randn(1, 16)] for _ in range(mbs)],
         ]
 
         self.td._put(
@@ -112,11 +117,10 @@ class TestTransferDock(DistributedTest):
     def test_get(self):
         put_mbs = 4
         get_mbs = 2
-        experience_columns = ["data1", "data2"]
+        experience_columns = ["default"]
         put_indexes = random.sample(range(16), put_mbs)
         put_experience = [
             [[torch.randn(1, 8)] for _ in range(put_mbs)],
-            [[torch.randn(1, 16)] for _ in range(put_mbs)],
         ]
         self.td._put(
             experience_columns=experience_columns,

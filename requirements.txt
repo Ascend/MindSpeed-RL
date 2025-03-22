@@ -1,0 +1,15 @@
+codetiming
+datasets
+hydra-core
+latex2sympy2
+numpy
+omegaconf
+pybind11
+ray==2.42.1
+regex
+sympy
+tensorboard
+tensordict
+transformers==4.43.2
+word2number
+wandb

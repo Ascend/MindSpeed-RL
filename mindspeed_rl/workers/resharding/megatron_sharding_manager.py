@@ -27,14 +27,85 @@ import torch.distributed
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
 
 
-class MegatronShardingManager():
+class MegatronOffLoader:
+    def __init__(
+            self,
+            optimizer=None,
+            megatron_model=None
+    ):
+        self.optimizer = optimizer
+        self.train_model = megatron_model
+
+        self.tensor_to_cpu_states_map = dict()
+
+    def offload_grad(self):
+        for model_idx, model in enumerate(self.train_model):
+            for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                self.swap_tensors_to_host(buffer.grad_data)
+
+    def onload_grad(self):
+        for model_idx, model in enumerate(self.train_model):
+            for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                self.swap_tensors_to_device(buffer.grad_data)
+
+    def offload_optimizer(self):
+        for param_group in self.optimizer.optimizer.param_groups:
+            for param in param_group['params']:
+                param.data = param.data.to("cpu", non_blocking=False)
+        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, "cpu")
+
+    def onload_optimizer(self):
+        for param_group in self.optimizer.optimizer.param_groups:
+            for param in param_group['params']:
+                param.data = param.data.to(torch.cuda.current_device(), non_blocking=False)
+        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state,
+                                                              torch.cuda.current_device())
+
+    def _move_to_device(self, data, device):
+        if isinstance(data, defaultdict):
+            return defaultdict(data.default_factory,
+                               {key: self._move_to_device(value, device) for key, value in data.items()})
+        elif isinstance(data, dict):
+            return {key: self._move_to_device(value, device) for key, value in data.items()}
+        elif isinstance(data, torch.Tensor):
+            return data.to(device, non_blocking=False)
+        else:
+            return data
+
+    def offload_train_param(self):
+        for model_idx, model in enumerate(self.train_model):
+            for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                self.swap_tensors_to_host(buffer.param_data)
+
+    def onload_train_param(self):
+        for model_idx, model in enumerate(self.train_model):
+            for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                self.swap_tensors_to_device(buffer.param_data)
+
+    def swap_tensors_to_host(self, tensor):
+        if tensor not in self.tensor_to_cpu_states_map:
+            self.tensor_to_cpu_states_map[tensor] = torch.empty_like(tensor, device='cpu')
+        if tensor.storage().size() != 0:
+            cpu_state = self.tensor_to_cpu_states_map[tensor]
+            cpu_state.copy_(tensor, non_blocking=False)
+            tensor.storage().resize_(0)
+
+    def swap_tensors_to_device(self, tensor):
+        if tensor.storage().size() == 0:
+            cpu_state = self.tensor_to_cpu_states_map[tensor]
+            tensor.storage().resize_(cpu_state.storage().size())
+            tensor.copy_(cpu_state, non_blocking=False)
+
+
+class MegatronShardingManager:
 
     def __init__(
             self,
             inference_engine,
             optimizer,
-            optimizer_offload=True,
+            optimizer_offload=False,
             grad_offload=False,
+            train_param_offload=False,
             enable_validate=False,
             megatron_model=None,
             model_config=None,
@@ -44,6 +115,7 @@ class MegatronShardingManager():
             num_layer_list=None,
             tp_split_expert=None,
             parallel_state=None,
+            megatron_offloader=None
     ):
         """Megatron Sharding Manager initialization.
 
@@ -79,9 +151,11 @@ class MegatronShardingManager():
 
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload
+        self.train_param_offload = train_param_offload
         self.enable_validate = enable_validate
         self.use_distributed_optimizer = self.optimizer.config.use_distributed_optimizer
         self.inference_engine.offload_model_weights()
+        self.megatron_offloader = megatron_offloader
 
     def __enter__(self):
         self.reshard_to_infer_mode()
@@ -93,57 +167,30 @@ class MegatronShardingManager():
         self.inference_engine.offload_model_weights()
         self.offload_infer_params()
         torch.cuda.empty_cache()
-        if self.grad_offload:
-            self.grad_buffer_move_to_device(torch.cuda.current_device())
-        self.onload_train_params()
         if self.optimizer_offload:
-            self.onload_optimizer()
-
+            self.megatron_offloader.onload_optimizer()
+        if self.train_param_offload:
+            self.megatron_offloader.onload_train_param()
+        if self.grad_offload:
+            self.megatron_offloader.onload_grad()
         # add empty cache after each compute
         torch.cuda.empty_cache()
 
     def reshard_to_infer_mode(self):
         if self.optimizer_offload:
-            self.offload_optimizer()
+            self.megatron_offloader.offload_optimizer()
         if self.grad_offload:
-            self.grad_buffer_move_to_device('cpu')
+            self.megatron_offloader.offload_grad()
         torch.cuda.empty_cache()
+        if self.train_param_offload:
+            self.megatron_offloader.onload_train_param()
 
         self.onload_infer_params()
         infer_params = self.vllm_weight_container.get_infer_params()
-        self.offload_train_params()
+        if self.train_param_offload:
+            self.megatron_offloader.offload_train_param()
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
         torch.cuda.empty_cache()
-
-    def _move_to_device(self, data, device):
-        if isinstance(data, defaultdict):
-            return defaultdict(data.default_factory,
-                               {key: self._move_to_device(value, device) for key, value in data.items()})
-        elif isinstance(data, dict):
-            return {key: self._move_to_device(value, device) for key, value in data.items()}
-        elif isinstance(data, torch.Tensor):
-            return data.to(device, non_blocking=True)
-        else:
-            return data
-
-    def offload_optimizer(self):
-        for param_group in self.optimizer.optimizer.param_groups:
-            for param in param_group['params']:
-                param.data = param.data.to("cpu", non_blocking=True)
-        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, "cpu")
-
-    def onload_optimizer(self):
-        for param_group in self.optimizer.optimizer.param_groups:
-            for param in param_group['params']:
-                param.data = param.data.to(torch.cuda.current_device(), non_blocking=True)
-        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state,
-                                                              torch.cuda.current_device())
-
-    def grad_buffer_move_to_device(self, device):
-        for train_model in self.train_model:
-            for buffers in [train_model.buffers, train_model.expert_parallel_buffers]:
-                for buffer in buffers:
-                    buffer.grad_data = buffer.grad_data.to(device, non_blocking=True)
 
     def offload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
@@ -154,23 +201,3 @@ class MegatronShardingManager():
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
             buffer.onload()
-
-    def onload_train_params(self):
-        if self.use_distributed_optimizer:
-            for train_model in self.train_model:
-                for buffer in chain(train_model.buffers, train_model.expert_parallel_buffers):
-                    buffer.param_data = buffer.param_data.to(torch.cuda.current_device(), non_blocking=True)
-        else:
-            for train_model in self.train_model:
-                for _, param in train_model.named_parameters():
-                    self._move_to_device(param, torch.cuda.current_device())
-
-    def offload_train_params(self):
-        if self.use_distributed_optimizer:
-            for train_model in self.train_model:
-                for buffer in chain(train_model.buffers, train_model.expert_parallel_buffers):
-                    buffer.param_data = buffer.param_data.to('cpu', non_blocking=True)
-        else:
-            for train_model in self.train_model:
-                for _, param in train_model.named_parameters():
-                    self._move_to_device(param, 'cpu')

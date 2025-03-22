@@ -18,7 +18,7 @@ from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
-from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager
+from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.utils.utils import num_floating_point_operations
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
@@ -63,10 +63,18 @@ class ActorHybridWorker(BaseWorker):
 
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
+        self.megatron_offloader = None
 
     def initialize(self):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
+        self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
+        if self.generate_config.offload_train_optimizer:
+            self.megatron_offloader.offload_optimizer()
+        if self.generate_config.offload_train_grad:
+            self.megatron_offloader.offload_grad()
+        if self.generate_config.offload_train_param:
+            self.megatron_offloader.offload_train_param()
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
@@ -278,6 +286,8 @@ class ActorHybridWorker(BaseWorker):
             optimizer=self.optimizer,
             optimizer_offload=self.generate_config.offload_train_optimizer,
             grad_offload=self.generate_config.offload_train_grad,
-            enable_validate=self.rl_config.enable_sharding_validate
+            train_param_offload=self.generate_config.offload_train_param,
+            enable_validate=self.rl_config.enable_sharding_validate,
+            megatron_offloader=self.megatron_offloader
         )
         return sharding_manager

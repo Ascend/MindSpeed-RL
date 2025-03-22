@@ -30,7 +30,7 @@ from mindspeed_llm.training.arguments import parse_args_decorator
 from mindspeed_llm.training.initialize import _compile_dependencies
 
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
-from mindspeed_rl.workers import MegatronShardingManager
+from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.config_cls import MegatronConfig
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils import parse_args_from_config
@@ -317,7 +317,7 @@ class TestActor():
             trust_remote_code=True,
             megatron_config=megatron_config
         )
-
+        self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
         self.sharding_manager = MegatronShardingManager(
             megatron_model=self.model,
             model_config=model_config_mock,
@@ -331,7 +331,9 @@ class TestActor():
             optimizer=self.optimizer,
             optimizer_offload=True,
             grad_offload=True,
-            enable_validate=False
+            train_param_offload=True,
+            enable_validate=False,
+            megatron_offloader=self.megatron_offloader
         )
         torch.cuda.empty_cache()
         self.tokenizer_path = args.tokenizer_path

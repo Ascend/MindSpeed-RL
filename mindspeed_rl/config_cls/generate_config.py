@@ -66,6 +66,7 @@ class GenerateConfig(BaseConfig):
         self.gpu_memory_utilization = 0.5
         self.offload_train_optimizer = False
         self.offload_train_grad = False
+        self.offload_train_param = False
 
         self.enable_prefix_caching = False
         self.num_scheduler_steps = 1

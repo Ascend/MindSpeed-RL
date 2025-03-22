@@ -153,8 +153,8 @@ class ModelWeightBuffer:
 
     def offload(self):
         for memory_buffer in self.memory_buffers.values():
-            memory_buffer.data = memory_buffer.data.to("cpu", non_blocking=True)
+            memory_buffer.data = memory_buffer.data.to("cpu", non_blocking=False)
 
     def onload(self):
         for memory_buffer in self.memory_buffers.values():
-            memory_buffer.data = memory_buffer.data.to(torch.cuda.current_device(), non_blocking=True)
+            memory_buffer.data = memory_buffer.data.to(torch.cuda.current_device(), non_blocking=False)

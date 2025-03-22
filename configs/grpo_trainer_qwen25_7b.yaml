@@ -114,7 +114,8 @@ generate_config:
   gpu_memory_utilization: 0.6
 
   offload_train_optimizer: true
-  offload_train_grad: false
+  offload_train_grad: true
+  offload_train_param: true
 
   # 采样配置
   sampling_config:

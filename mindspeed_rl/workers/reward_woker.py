@@ -1,5 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
+import time
 from typing import Callable
 from types import ModuleType
 
@@ -78,6 +79,7 @@ class RewardWorker(BaseWorker):
         self.td = td
 
     def compute_rm_score(self):
+        start_time = time.time()
         experience_consumer_stage = 'reward_scores'
         experience_columns = ['input_ids', 'prompt_length', "responses", "response_length"]
         experience_count = self.megatron_config.micro_batch_size
@@ -97,5 +99,12 @@ class RewardWorker(BaseWorker):
                         n_sample_batch=self.rl_config.n_samples_per_prompt
                     )
                     output = {'rm_scores': rm_score, 'token_level_rewards': last_rewards}
+                    ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/reward_model", 
+                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            cumulate=True
+                        )
+                    )
                 self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
         self.empty_cache()

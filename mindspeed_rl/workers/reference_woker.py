@@ -1,5 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
+import time
 from types import ModuleType
 from typing import Callable
 
@@ -81,6 +82,7 @@ class ReferenceWorker(BaseWorker):
         self.td = td
 
     def compute_log_prob(self):
+        start_time = time.time()
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.megatron_config.micro_batch_size
@@ -98,6 +100,13 @@ class ReferenceWorker(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'ref_log_prob': log_probs}
+                    ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/reference_model", 
+                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            cumulate=True
+                        )
+                    )
                     self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
 
         self.empty_cache()

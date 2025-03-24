@@ -315,8 +315,8 @@ class GRPOTransferDock(TransferDock):
     def get_metrics(self):
         return self.metrics
 
-    def update_metrics(self, key="", value=None):
-        self.metrics.update(key, value)
+    def update_metrics(self, key="", value=None, cumulate=False):
+        self.metrics.update(key, value, cumulate=cumulate)
 
     def get_experience(
             self,
@@ -447,6 +447,7 @@ class GRPOTransferDock(TransferDock):
         self.experience_consumer_status = {
             key: torch.zeros(self.max_len, dtype=torch.int32) for key in self.experience_consumers
         }
+        self.metrics.reset()
         self._clear_experience_data_and_status()
 
     def get_consumer_status(self):

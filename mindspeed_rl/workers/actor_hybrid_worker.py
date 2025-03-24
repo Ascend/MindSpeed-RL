@@ -1,5 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
+import time
 import dataclasses
 import copy
 from types import ModuleType
@@ -109,6 +110,7 @@ class ActorHybridWorker(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None):
+        start_time = time.time()
         experience_consumer_stage = 'actor_train'
         experience_colums = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
@@ -132,12 +134,20 @@ class ActorHybridWorker(BaseWorker):
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
                     ray.get(self.td.update_metrics.remote(value=metrics))
+                    ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/update", 
+                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            cumulate=True
+                        )
+                    )
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                               self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
+        start_time = time.time()
         experience_consumer_stage = 'actor_rollout'
         experience_colums = ['prompts', 'prompt_length']
         experience_count = self.generate_config.micro_batch_size
@@ -182,6 +192,13 @@ class ActorHybridWorker(BaseWorker):
                     'input_ids': input_ids_list,
                     'response_length': responses_length
                 }
+                ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/rollout", 
+                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            cumulate=True
+                        )
+                )
                 self.collect_transfer_dock_data(outputs, index, self.rl_config.n_samples_per_prompt, use_vllm=True)
         self.sharding_manager.reshard_to_train_mode()
         self.empty_cache()

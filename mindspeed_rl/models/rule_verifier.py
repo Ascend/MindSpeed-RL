@@ -72,6 +72,7 @@ def _validate_response_structure(processed_str: str) -> bool:
 
 
 def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100):
+    start_time = time.time()
     tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path, trust_remote_code=True)
     question = batch["prompts"]
     indexes = [i for i in range(0, question.size(0), rl_config.n_samples_per_prompt)]
@@ -99,7 +100,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
 
     logger.info("=" * 50)
 
-    scores, reward = verifier(str_responses, extra_data, rl_config, infos=None)
+    scores, metrics = verifier(str_responses, extra_data, rl_config)
 
     scores = torch.tensor(
         scores,
@@ -111,12 +112,12 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
     scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-8)
     scores = scores.reshape(reward_index.shape)
 
-    print(scores)
+    metrics["timing/rule_reward"] = [round(time.time(), 4), round(start_time, 4)]
 
-    return scores, reward
+    return scores, metrics
 
 
-def verifier(responses, data, config, infos=None):
+def verifier(responses, data, config, **kwargs):
     """
     User-defined verifier scoring process.
 
@@ -141,18 +142,18 @@ def verifier(responses, data, config, infos=None):
     }
 
     labels = data["labels"]
-    scores = [0.0] * len(labels)
+    rewards = [0.0] * len(labels)
+    metrics = {}
 
     verifier_function = config.verifier_function
     verifier_weight = config.verifier_weight
 
-    reward = {}
     for idx, fun_verifier in enumerate(verifier_function):
         if fun_verifier not in rule_verifier_function:
             continue
 
         if config.verifier_parallel > 1:
-            score = multiprocess_executor(
+            scores = multiprocess_executor(
                 rule_verifier_function[fun_verifier],
                 sequences=responses,
                 answers=labels,
@@ -160,13 +161,13 @@ def verifier(responses, data, config, infos=None):
                 max_num_workers=config.verifier_parallel
                 )
         else:
-            score = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels)
+            scores = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels)
 
-        reward[f'grpo/{fun_verifier}_rewards/mean'] = score
-        scores = [all_score + tmp_score * verifier_weight[idx]
-                  for all_score, tmp_score in zip(scores, score)]
+        metrics[f'grpo/{fun_verifier}_rewards/mean'] = scores
+        rewards = [all_score + tmp_score * verifier_weight[idx]
+                  for all_score, tmp_score in zip(rewards, scores)]
 
-    return scores, reward
+    return rewards, metrics
 
 
 def math_equal_subprocess(prediction, reference, timeout_seconds=10):
@@ -307,7 +308,7 @@ def strict_format_reward(queue, sequences, *args, **kwargs):
 
     scores = []
     for completion in sequences:
-        reward = -1.0
+        reward = -0.5
         format_correct = _validate_response_structure(completion)
         if format_correct:
             reward = 1.0

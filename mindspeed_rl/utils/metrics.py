@@ -11,16 +11,25 @@ class Metric(ABC):
     def __init__(self):
         self.metric = {}
 
-    def update(self, key="", value=None):
+    def update(self, key="", value=None, cumulate=False):
         """
         只做参数更新
         key: str
         value: dict|list|tensor. when key is None, maybe value is a dict
         """
-        if isinstance(value, Dict):
-            self.metric.update(value)
+        if cumulate:
+            if key in self.metric:
+                if isinstance(self.metric[key], list):
+                    self.metric[key].extend(value)
+                else:
+                    self.metric[key] = value
+            else:
+                self.metric[key] = [*value]
         else:
-            self.metric[key] = value
+            if isinstance(value, Dict):
+                self.metric.update(value)
+            else:
+                self.metric[key] = value
 
     def compute_mean(self, key, value, axis=0):
         """

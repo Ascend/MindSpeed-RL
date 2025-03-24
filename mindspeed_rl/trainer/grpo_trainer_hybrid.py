@@ -13,7 +13,7 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import get_batch_metrices_mean, get_batch_metrices_mean_
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -84,6 +84,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.transfer_dock = None
         self.metrics = Metric()
         self.transfer_dock_init()
+        self.kwargs = kwargs
 
     def transfer_dock_init(self):
         self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.metrics, addition_columns=self.dataset_additional_keys)
@@ -165,10 +166,13 @@ class RayGRPOTrainer(RayBaseTrainer):
                                                               self.tokenizer_name_or_path)
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
-            metrics_result = get_batch_metrices_mean_(metrics_result)
+            metrics_result = metrics_post_processing(metrics_result)
+            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, all_timer.last)
+
             metrics.update(value=grpo_data_metrics)
             metrics.update(value=metrics_result)
             metrics.update("timing/all", all_timer.last)
+            metrics.update("tokens/p/s", tps)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)
             if self.tensorboard is not None:

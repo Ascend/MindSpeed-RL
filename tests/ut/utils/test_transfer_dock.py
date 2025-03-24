@@ -8,6 +8,7 @@ import torch
 
 from mindspeed_rl.trainer.utils import TransferDock, GRPOTransferDock
 from tests.test_tools.dist_test import DistributedTest
+from mindspeed_rl.utils.metrics import Metric
 
 
 @pytest.fixture(scope="function")
@@ -29,7 +30,8 @@ def setup_teardown_transfer_dock(request):
 def setup_teardown_grpo_transfer_dock_function(request):
     self = request.instance
     self.max_len = 16
-    self.td = GRPOTransferDock.remote(max_len=self.max_len)
+    metrics = Metric()
+    self.td = GRPOTransferDock.remote(max_len=self.max_len, metrics=metrics)
     yield
     ray.get(self.td.clear.remote())
 

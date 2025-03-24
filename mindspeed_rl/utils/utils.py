@@ -163,7 +163,7 @@ def get_batch_metrices_mean(metrics_list: List[Dict]) -> Dict[str, Tensor]:
     return metrics_mean
 
 
-def get_batch_metrices_mean_(metrics) -> Dict[str, Tensor]:
+def metrics_post_processing(metrics) -> Dict[str, Tensor]:
     """
     Calculate the mean of each metric across a list of metric dictionaries.
 
@@ -176,11 +176,32 @@ def get_batch_metrices_mean_(metrics) -> Dict[str, Tensor]:
     """
     new_metrics = {}
     for key, value in metrics.metric.items():
-        if isinstance(value, list):
+        if "timing" in key:
+            if isinstance(value, list):
+                new_metrics[key] = metrics.compute_max(key, value) - metrics.compute_min(key, value)
+            else:
+                new_metrics[key] = value
+
+        elif isinstance(value, list):
             new_metrics[key] = metrics.compute_mean(key, value)
         else:
             new_metrics[key] = value
     return new_metrics
+
+
+def compute_tps(kwargs, metrics_result, gbs, time):
+    
+    actor_resource = kwargs.get('actor_resource', {})
+    reference_resource = kwargs.get('reference_resource', {})
+    reward_resource = kwargs.get('reward_resource', None)
+
+    actor_npus = actor_resource.get('num_npus', 0)
+    reference_npus = reference_resource.get('num_npus', 0)
+    reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
+
+    world_size = actor_npus + reference_npus + reward_npus
+    tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs / world_size / time
+    return tps
 
 
 def seed_all(seed=1234):

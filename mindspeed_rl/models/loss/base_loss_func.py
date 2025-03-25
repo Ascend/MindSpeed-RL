@@ -44,5 +44,5 @@ class BaseLossFunc(ABC):
 
     def compute_log_probs(self, output: torch.Tensor, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         responses, logits = self._get_compute_log_probs_input(output, batch)
-        _, _, log_probs = compute_log_probs(logits, responses, per_token=True)
+        log_probs = compute_log_probs(logits, responses)
         return log_probs

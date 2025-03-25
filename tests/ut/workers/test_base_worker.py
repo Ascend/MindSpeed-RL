@@ -110,6 +110,7 @@ class TestBaseWorker(DistributedTest):
             get_megatron_module=self.get_megatron_module,
         )
         worker.parallel_state = MagicMock()
+        worker.vocab_parallel_cross_entropy = MagicMock()
         worker.get_args = MagicMock()
         worker.get_forward_backward_func = MagicMock()
         worker.setup_distributed_rank()

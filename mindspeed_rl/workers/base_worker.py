@@ -25,7 +25,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_tensor_model_parallel_src_rank,
     get_model_parallel_group
 )
-from mindspeed_rl.utils.compute import set_parallel_state
+from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
 from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
 
 logger = Loggers("base_worker")
@@ -128,6 +128,7 @@ class BaseWorker(BaseRayWorker, ABC):
             setattr(self, key, value)
 
         set_parallel_state(self.parallel_state)
+        set_vocab_parallel(self.vocab_parallel_cross_entropy)
         self.args = self.get_args()
         self.forward_backward_func = self.get_forward_backward_func()
 

@@ -45,7 +45,7 @@ VLLM_TARGET_DEVICE=empty pip install .
 ```shell
 git clone -b v0.7.3-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout f025df05f61482ac7ab7975e1bfffe2fc7f8596a
+git checkout 0713836e95fe993feefe334945b5b273e4add1f1
 pip install -e .
 ```
 

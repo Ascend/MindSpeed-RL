@@ -165,7 +165,7 @@ class VLLMInferEngine(BaseInferEngine):
             max_model_len=max_model_len
         )
 
-        self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.model
+        self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.get_model()
 
         self.cpu_model = {}
         for name, params in self.model.named_parameters():

@@ -21,3 +21,4 @@ DISTRIBUTED_ARGS="
 echo "start test_vllm_engine st"
 
 torchrun $DISTRIBUTED_ARGS  $SCRIPT_DIR/test_vllm_engine.py --distribute-backend nccl
+torchrun $DISTRIBUTED_ARGS  $SCRIPT_DIR/test_vllm_engine_multistep_decode.py --distribute-backend nccl

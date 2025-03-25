@@ -147,7 +147,8 @@ class MegatronShardingManager:
             infer_expert_parallel_size=infer_expert_parallel_size,
             num_layer_list=num_layer_list,
             tp_split_expert=tp_split_expert,
-            parallel_state=parallel_state)
+            parallel_state=parallel_state,
+            enable_validate=enable_validate)
 
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload

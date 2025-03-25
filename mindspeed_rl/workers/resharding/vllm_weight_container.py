@@ -16,6 +16,7 @@
 This file contains a Megatron style Hybrid Model that shares the weights of the actor with the inference engine.
 """
 
+import hashlib
 import re
 from functools import partial
 
@@ -26,17 +27,18 @@ import numpy as np
 from torch.distributed import new_group
 
 from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer
-
-_PP_ALLGATHER_GROUP = None
-_TP_ALLGATHER_GROUP = None
-_TP_GROUP = None
+import mindspeed_rl.workers.resharding.utils
+from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, tp_md5_validate, \
+    update_md5_by_rank, compute_md5, validate_md5, _replace_name_v2m, _build_infer_param_dict, get_tp_allgather_group, \
+    get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group
 
 
 class MegatronStyleVllmWeightContainer:
 
     def __init__(self, megatron_model, vllm_model, model_config, infer_tensor_parallel_size,
                  infer_pipeline_parallel_size,
-                 infer_expert_parallel_size, num_layer_list, tp_split_expert=False, parallel_state=None) -> None:
+                 infer_expert_parallel_size, num_layer_list, tp_split_expert=False, parallel_state=None,
+                 enable_validate=False) -> None:
         """ Megatron style vllm weight container.
 
         Arguments:
@@ -49,6 +51,7 @@ class MegatronStyleVllmWeightContainer:
             num_layer_list (str): a list of number of layers, seperated by comma; e.g., 4,4,4,4.
             tp_split_expert (bool): Controls whether expert model parameters are split across multiple GPUs.
             parallel_state (ModuleType): Megatron parallel state of the model.
+            enable_validate (bool): Whether to enable communication data validate.
         """
 
         self.vllm_model = vllm_model
@@ -83,6 +86,11 @@ class MegatronStyleVllmWeightContainer:
         # validate parallel configs
         self._validate_parallel_config()
 
+        # md5 validate
+        self.enable_validate = enable_validate
+        self.origin_params_for_md5 = None
+        self.infer_params_for_md5 = None
+        
         self._rank = dist.get_rank()
         self.tp_split_expert = tp_split_expert
         self._init_tensor_model_parallel_allgather_group()
@@ -260,6 +268,9 @@ class MegatronStyleVllmWeightContainer:
         normal_layer_func = partial(_global2local_layer, num_layer_list=self._num_layer_list)
         name_pairs = sorted(list(set([(name, _replace_name_v2m(normal_layer_func(name), self.params_mapping))
                                       for name in weight_buffer.weight_names])))
+        if self.enable_validate:
+            self.origin_params_for_md5 = hashlib.md5()
+            self.infer_params_for_md5 = [hashlib.md5() for _ in range(get_tp_allgather_world_size())]
         for hf_name, megatron_name in name_pairs:
             if megatron_name.endswith("linear_fc1.weight"):
                 fc2_name = megatron_name.replace("linear_fc1", "linear_fc2")
@@ -271,6 +282,10 @@ class MegatronStyleVllmWeightContainer:
             megatron_param = dict(true_megatron_model.named_parameters())[megatron_name]
             param = _transfer_from_megatron_division(megatron_param, megatron_name)
             weight_buffer[hf_name].copy_(param)
+        # tp md5 validate
+        if self.enable_validate:
+            tp_md5_validate(self.infer_params_for_md5, self.origin_params_for_md5,
+                            f"rank[{self._rank}] tp params allgather")
 
     def _update_weight_buffers_inter_pp(self):
         """
@@ -281,6 +296,14 @@ class MegatronStyleVllmWeightContainer:
             global_src = dist.get_global_rank(group=self._pp_group, group_rank=cur_pp_rank)
             for memory_buffer in self.weight_buffers[cur_pp_rank].memory_buffers.values():
                 dist.broadcast(tensor=memory_buffer.data, src=global_src, group=self._pp_group, async_op=False)
+            if self.enable_validate:
+                md5_tensor = compute_md5(self.weight_buffers[cur_pp_rank])
+                if self._rank == global_src:
+                    dist.broadcast(md5_tensor, group=self._pp_group, src=global_src, async_op=False)
+                else:
+                    md5_tensor_src = torch.zeros_like(md5_tensor, dtype=torch.int64, device=torch.cuda.current_device())
+                    dist.broadcast(md5_tensor_src, group=self._pp_group, src=global_src, async_op=False)
+                    validate_md5(md5_tensor_src, md5_tensor, f"rank[{self._rank}] pp resharding params")
 
     def _get_all_params(self):
         """Get all the parameters of the models in all pp ranks
@@ -308,15 +331,14 @@ class MegatronStyleVllmWeightContainer:
         if self._tp_size % self._infer_tp_size != 0:
             raise ValueError("self._tp_size must be divisible by self._infer_tp_size")
         tp_allgather_size = self._tp_size // self._infer_tp_size
-        global _TP_ALLGATHER_GROUP
-        if _TP_ALLGATHER_GROUP is not None:
+        if mindspeed_rl.workers.resharding.utils._TP_ALLGATHER_GROUP is not None:
             raise RuntimeError("Group for allgather tensor model parallel weight is already initialized")
         num_groups = self._world_size // tp_allgather_size
         for i in range(num_groups):
             ranks = range(i * tp_allgather_size, (i + 1) * tp_allgather_size)
             group = new_group(ranks=ranks)
             if self._rank in ranks:
-                _TP_ALLGATHER_GROUP = group
+                mindspeed_rl.workers.resharding.utils._TP_ALLGATHER_GROUP = group
 
     def _init_pipeline_model_parallel_allgather_group(self):
         if self._pp_size < self._infer_pp_size:
@@ -325,8 +347,7 @@ class MegatronStyleVllmWeightContainer:
             raise ValueError(
                 "Pipeline model parallel size must be a multiple of inference pipeline model parallel size")
         pp_allgather_size = self._pp_size // self._infer_pp_size
-        global _PP_ALLGATHER_GROUP
-        if _PP_ALLGATHER_GROUP is not None:
+        if mindspeed_rl.workers.resharding.utils._PP_ALLGATHER_GROUP is not None:
             raise RuntimeError("Group for allgather pipeline model parallel weight is already initialized")
         global_pp_group_ranks_list = []
         for pp_group_index in range(self._world_size // self._pp_size):
@@ -340,18 +361,17 @@ class MegatronStyleVllmWeightContainer:
             for ranks in splited_pp_group_ranks:
                 cur_group = new_group(ranks=ranks)
                 if self._rank in ranks:
-                    _PP_ALLGATHER_GROUP = cur_group
+                    mindspeed_rl.workers.resharding.utils._PP_ALLGATHER_GROUP = cur_group
 
     def _init_tensor_model_parallel_split_group(self):
         if self._tp_size >= self._infer_tp_size:
             return
         if self._infer_tp_size % self._tp_size != 0:
             raise ValueError("self._infer_tp_size must be a multiple of self._tp_size")
-        global _TP_GROUP
-        if _TP_GROUP is not None:
+        if mindspeed_rl.workers.resharding.utils._TP_GROUP is not None:
             raise RuntimeError("Group for tensor model parallel weight is already initialized")
         if self._infer_tp_size > self._tp_size:
-            _TP_GROUP = self.parallel_state.get_tensor_model_parallel_group()
+            mindspeed_rl.workers.resharding.utils._TP_GROUP = self.parallel_state.get_tensor_model_parallel_group()
             
     def _default_tp_concat_fn(self, name, param, infer_params):
         """
@@ -449,99 +469,8 @@ class MegatronStyleVllmWeightContainer:
             # allocate a new tensor with proper size
             infer_param = [torch.empty_like(param) for _ in range(tp_allgather_size)]
             torch.distributed.all_gather(infer_param, param, group=tp_allgather_group)
+            if self.enable_validate:
+                update_md5_by_rank(infer_param, param, self.origin_params_for_md5, self.infer_params_for_md5)
             infer_param = self._default_tp_concat_fn(name, param, infer_param)
 
         return infer_param
-
-
-def _replace_name_v2m(vllm_name, name_mapping):
-    """
-    Transfer state dict names from vllm to megatron.
-    This function works in the opposite direction of _replace_name.
-    """
-    for m_name, v_name in name_mapping:
-        if v_name not in vllm_name:
-            continue
-        if "layers" in vllm_name:  # deal with decoder layers
-            vllm_name = vllm_name.replace("model", "decoder")
-            vllm_name_list = vllm_name.split(".")
-            if "layer_norm_weight" in vllm_name_list or "layer_norm_bias" in vllm_name_list:
-                param_name_list = vllm_name_list[:3]
-                param_name_list.append(m_name)
-                param_name = ".".join(param_name_list)
-            else:
-                param_name_list = vllm_name_list[:3]
-                weight_or_bias = vllm_name_list[-1]
-                param_name_list.append(m_name)
-                param_name_list.append(weight_or_bias)
-                param_name = ".".join(param_name_list)
-            return param_name
-        else:
-            param_name = vllm_name.replace(v_name, m_name)
-            return param_name
-
-
-def _build_infer_param_dict(params):
-    """
-    params: List[List[Dict[str, param]]]
-        params contains a list of pp, with a list of vpp named_parameters in each vpp chunk.
-    output: Dict[str, param]
-
-    """
-    infer_param = {}
-    for param_list in params:
-        for param_dict in param_list:
-            for name, param in param_dict.items():
-                infer_param[name] = param
-
-    return infer_param
-
-
-def get_tp_group():
-    return _TP_GROUP
-
-
-def get_tp_world_size():
-    return torch.distributed.get_world_size(group=get_tp_group())
-
-
-def get_tp_rank():
-    return torch.distributed.get_rank(group=get_tp_group())
-
-
-def get_tp_allgather_group():
-    if _TP_ALLGATHER_GROUP is None:
-        raise ValueError("TP AllGather Group is not initialized")
-    return _TP_ALLGATHER_GROUP
-
-
-def get_tp_allgather_world_size():
-    return torch.distributed.get_world_size(group=get_tp_allgather_group())
-
-
-def get_tp_allgather_rank():
-    return torch.distributed.get_rank(group=get_tp_allgather_group())
-
-
-def get_pp_allgather_group():
-    if _PP_ALLGATHER_GROUP is None:
-        raise ValueError("PP AllGather Group is not initialized")
-    return _PP_ALLGATHER_GROUP
-
-
-def get_pp_allgather_world_size():
-    return torch.distributed.get_world_size(group=get_pp_allgather_group())
-
-
-def get_pp_allgather_rank():
-    return torch.distributed.get_rank(group=get_pp_allgather_group())
-
-
-def is_tensor_parallel_param(param):
-    return (hasattr(param, 'tensor_model_parallel') and param.tensor_model_parallel)
-
-
-def get_tensor_parallel_partition_dim(param):
-    if not is_tensor_parallel_param(param):
-        raise TypeError("Parameter is not tensor parallel")
-    return param.partition_dim

@@ -2,7 +2,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 import os
 import logging
-from logging import handlers
 from datetime import datetime, timezone
 
 import tensordict

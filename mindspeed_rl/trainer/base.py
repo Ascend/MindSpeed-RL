@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.utils.compute_utils import FixedKLController, AdaptiveKLController
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
@@ -34,7 +35,7 @@ class RayBaseTrainer(object):
                  global_batch_size: int = 32,
                  micro_batch_size: int = 1,
                  n_samples_per_prompt: int = 1,
-                 tokenizer_name_or_path: str = None,
+                 tokenizer: BaseTokenizer = None,
                  dataset_additional_keys: List[str] = None,
                  blocking: bool = False,
                  num_cpus_for_local_task: float = 0.1,
@@ -57,7 +58,7 @@ class RayBaseTrainer(object):
         self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         self.n_samples_per_prompt = n_samples_per_prompt
-        self.tokenizer_name_or_path = tokenizer_name_or_path
+        self.tokenizer = tokenizer
         self.dataset_additional_keys = dataset_additional_keys
         self.blocking = blocking
         self.num_cpus_for_local_task = num_cpus_for_local_task

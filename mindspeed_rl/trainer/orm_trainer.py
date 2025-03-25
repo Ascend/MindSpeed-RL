@@ -11,7 +11,6 @@ from .utils.training import (get_finetune_data_on_this_tp_rank,
                              broadcast_data, average_losses_across_data_parallel_group)
 
 
-
 logger = Loggers("ORMTrainer")
 
 
@@ -152,6 +151,7 @@ class ORMTrainer(ABC):
             if self.args.do_train and self.args.train_iters > 0:
                 iteration, num_floating_point_operations_so_far = self.train_func(*self.train_args)
 
+            logger.info('after training is done')
 
             if self.args.save and iteration != 0 and iteration % self.args.save_interval != 0:
                 self.save_checkpoint_func(

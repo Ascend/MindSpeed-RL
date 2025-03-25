@@ -27,6 +27,7 @@ torch.jit.script = dummy_compile
 torch.compile = dummy_compile
 from vllm import LLM, SamplingParams
 
+from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import initialize_parallel_state
@@ -36,6 +37,8 @@ from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
     InferParallelConfig
 )
 from mindspeed_rl.utils import get_tokenizer
+
+logger = Loggers("vllm_engine")
 
 
 class VLLMInferEngine(BaseInferEngine):
@@ -310,8 +313,8 @@ def get_local_rank() -> int:
         return int(local_rank_str)
 
     except Exception as e:
-        print(f"Warning: Failed to get local rank from ray runtime context. Error: {e}")
+        logger.warning("Warning: Failed to get local rank from ray runtime context. Error: {}".format(e))
 
     # Default to 0 (for testing or single-process scenarios)
-    print("Warning: Unable to determine local rank. Defaulting to 0.")
+    logger.warning("Warning: Unable to determine local rank. Defaulting to 0.")
     return 0

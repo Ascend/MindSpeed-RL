@@ -1,3 +1,4 @@
+# Copyright 2024 Alibaba Group Holding Limited. All Rights Reserved.
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 #
@@ -124,7 +125,7 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
 
 
 @ray.remote
-def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer_name_or_path, n_samples_per_prompt):
+def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer, n_samples_per_prompt):
     """
     Compute the advantage function based on different adv_estimator
 
@@ -134,7 +135,7 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
         lam: The lambda parameter in advantage estimation
         adv_estimator:  The type of advantage estimator, which can be "gae" or "group_norm"
         experience_count: The number of experiences to retrieve from the experience rb
-        tokenizer_name_or_path: The name or path of the pre-trained tokenizer
+        tokenizer: The pre-trained tokenizer
         n_samples_per_prompt: The number of samples per prompt
 
     Returns:
@@ -142,7 +143,6 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
     """
     experience_consumer_stage = "compute_advantage"
     experience_colums = ["responses", "token_level_rewards", "response_length"]
-    tokenizer = get_tokenizer(tokenizer_name_or_path)
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch_data, index = ray.get(
@@ -192,7 +192,7 @@ def get_last_reward(rm_scores, n_sample_batch: int):
 
 
 def compute_grpo_data_metrics(
-        rb, experience_count, tokenizer_name_or_path
+        rb, experience_count, tokenizer
 ):
     """
     Calculate various metrics for GRPO data
@@ -200,7 +200,7 @@ def compute_grpo_data_metrics(
     Args:
         rb: A data queue object
         experience_count: Number of experiences to retrieve
-        tokenizer_name_or_path: Name or path of the pre-trained tokenizer
+        tokenizer: The pre-trained tokenizer
 
     Returns:
         Dictionary containing various metric values
@@ -215,7 +215,6 @@ def compute_grpo_data_metrics(
         "prompt_length",
         "response_length",
     ]
-    tokenizer = get_tokenizer(tokenizer_name_or_path)
     pad_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(

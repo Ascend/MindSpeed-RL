@@ -78,20 +78,22 @@ def rm_train(args):
             eval_interval=args.eval_interval,
             eval_iters=args.eval_iters,
         )
-        train_dataset, valid_dataset, test_dataset = build_train_valid_test_datasets(data_prefix=args.data_path,
-                                                                                     splits_string=args.split,
-                                                                                     seq_length=args.seq_length,
-                                                                                     train_valid_test_num_samples=train_valid_test_num_samples,
-                                                                                     tokenizer=tokenizer,
-                                                                                     dataset_cls=PreferenceDataset,
-                                                                                     parallel_state=parallel_state,
-                                                                                     full_shuffle_instruction_dataset=args.full_shuffle_instruction_dataset,
-                                                                                     no_shuffle=args.no_shuffle,
-                                                                                     reset_position_ids=args.reset_position_ids,
-                                                                                     prompt_type=args.prompt_type,
-                                                                                     prompt_type_path=args.prompt_type_path,
-                                                                                     seed=args.seed
-                                                                                     )
+        train_dataset, valid_dataset, test_dataset = build_train_valid_test_datasets(
+            data_prefix=args.data_path,
+            splits_string=args.split,
+            seq_length=args.seq_length,
+            train_valid_test_num_samples=train_valid_test_num_samples,
+            tokenizer=tokenizer,
+            dataset_cls=PreferenceDataset,
+            parallel_state=parallel_state,
+            full_shuffle_instruction_dataset=args.full_shuffle_instruction_dataset,
+            no_shuffle=args.no_shuffle,
+            reset_position_ids=args.reset_position_ids,
+            prompt_type=args.prompt_type,
+            prompt_type_path=args.prompt_type_path,
+            seed=args.seed
+        )
+        logger.info('after datasets are built')
     # Build data_loder.
     train_dataloader = None
     if train_dataset is not None and len(train_dataset) > 0:

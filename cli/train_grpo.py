@@ -38,6 +38,8 @@ def train(config):
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path)
 
+    logger.info('start async initializing ray actor groups')
+
     actor_worker = RayActorGroup(
         worker=ActorHybridWorker,
         placement_group=pgs,
@@ -96,10 +98,13 @@ def train(config):
         dataset_cls=PromptDataset,
         extra_param=actor_config
     )
+    logger.info('after dataset is built')
+
     actor_worker.wait_all_ref_objs_run_over()
 
     consumed_train_samples = actor_worker.get_consumed_train_samples()
     data_loader = PromptDataLoader(actor_config, train_ds, consumed_train_samples)
+    logger.info('after dataloader is built')
 
     reference_worker.wait_all_ref_objs_run_over()
     for reward in reward_list:
@@ -110,7 +115,7 @@ def train(config):
         actor_worker,
         reference_worker,
         reward_list,
-        tokenizer_name_or_path=actor_config.tokenizer_name_or_path,
+        tokenizer=tokenizer,
         global_batch_size=actor_config.global_batch_size,
         micro_batch_size=actor_config.micro_batch_size,
         train_iters=actor_config.train_iters,
@@ -168,6 +173,7 @@ def get_colocate_placement_group(rl_config):
                    for _ in range(actor_num_npus)]
         pg = placement_group(bundles, strategy="PACK")
         ray.get(pg.ready())
+        logger.info('after colocate placement group resources are allocated')
         return pg
     else:
         return None
@@ -268,7 +274,7 @@ def rm_model_provider(pre_process, post_process):
     from megatron.training.arguments import core_transformer_config_from_args
     from mindspeed_llm.tasks.posttrain.orm.orm_model import GPTRewardModel
     args = get_args()
-    logger.info('building GPT model ...')
+    logger.info('building RM GPT model ...')
     # Experimental loading arguments from configs
     config = core_transformer_config_from_args(args)
 
@@ -462,6 +468,7 @@ def _initialize_distributed():
 def main(config):
     if not ray.is_initialized():
         # this is for local ray cluster
+        logger.info('start initializing local ray cluster')
         ray.init(runtime_env={
             'env_vars': {"RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES": "True",
                          'TOKENIZERS_PARALLELISM': 'true',

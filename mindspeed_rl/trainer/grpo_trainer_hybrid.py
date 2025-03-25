@@ -6,6 +6,7 @@ import torch
 from codetiming import Timer
 from torch.utils.data import DataLoader
 
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
 from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock
@@ -54,7 +55,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             global_batch_size: int = 32,
             micro_batch_size: int = 1,
             n_samples_per_prompt: int = 1,
-            tokenizer_name_or_path: str = None,
+            tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
             blocking: bool = False,
             num_cpus_for_local_task: float = 0.1,
@@ -74,7 +75,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
             n_samples_per_prompt=n_samples_per_prompt,
-            tokenizer_name_or_path=tokenizer_name_or_path,
+            tokenizer=tokenizer,
             dataset_additional_keys=dataset_additional_keys,
             blocking=blocking,
             num_cpus_for_local_task=num_cpus_for_local_task,
@@ -106,6 +107,11 @@ class RayGRPOTrainer(RayBaseTrainer):
         data_iters = iter(data_loader)
 
         iteration = self.actor_worker.get_iteration()
+
+        if self.blocking:
+            logger.info('sync start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+        else:
+            logger.info('async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
 
         while iteration < self.train_iters:
 
@@ -163,7 +169,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # collect metrics
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
                                                               self.global_batch_size,
-                                                              self.tokenizer_name_or_path)
+                                                              self.tokenizer)
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
             metrics_result = metrics_post_processing(metrics_result)
@@ -183,6 +189,8 @@ class RayGRPOTrainer(RayBaseTrainer):
             if iteration % self.save_interval == 0:
                 self.save_checkpoint(iteration)
 
+        logger.info('after grpo training is done')
+
     def compute_advantage(self, blocking=False):
         compute_advantage_ref = compute_advantage.options(num_cpus=self.num_cpus_for_local_task).remote(
             self.transfer_dock,
@@ -190,7 +198,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             self.lam,
             adv_estimator=self.adv_estimator,
             experience_count=self.micro_batch_size,
-            tokenizer_name_or_path=self.tokenizer_name_or_path,
+            tokenizer=self.tokenizer,
             n_samples_per_prompt=self.n_samples_per_prompt,
         )
         if blocking:

@@ -128,8 +128,8 @@ def chat_task(inference_engine, query):
     ]
     outputs = inference_engine.chat(conversation)
     res = process_outputs(outputs)
-    logger.info(res)
-    print(res)
+    logger.info('query: {}'.format(query))
+    logger.info('responses: {}'.format(res))
 
 
 def generate_task(inference_engine, query):
@@ -138,8 +138,8 @@ def generate_task(inference_engine, query):
         sampling_params=inference_engine.sampling_params,
     )
     res = process_outputs(outputs)
-    logger.info(res)
-    print(res)
+    logger.info('query: {}'.format(query))
+    logger.info('responses: {}'.format(res))
 
 
 def replace_state_dict_name(state_dict, arch=None):

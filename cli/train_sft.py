@@ -1,3 +1,5 @@
+# Copyright 2020 The HuggingFace Inc. team. All rights reserved.
+# Copyright (c) 2023; NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2024, HUAWEI CORPORATION.  All rights reserved.
 import sys
 from datetime import timedelta
@@ -48,13 +50,13 @@ def sft_train(args):
 
     model, optimizer, opt_param_scheduler = setup_model_and_optimizer(
         gpt_model_provider, ModelType.encoder_or_decoder)
-    logger.info('after model, optimizer, and learning rate '
-                   'scheduler are built')
+    logger.info('after model, optimizer and learning rate scheduler are built')
 
     model_arch_config = get_model_config(model[0])
 
     # build tokenizer
     tokenizer = get_tokenizer(args.tokenizer_name_or_path)
+    logger.info('after tokenizer is built')
 
     # build dataset
     train_valid_test_num_samples = get_train_valid_test_num_samples(
@@ -64,19 +66,22 @@ def sft_train(args):
         eval_interval=args.eval_interval,
         eval_iters=args.eval_iters,
     )
-    train_dataset, valid_dataset, test_dataset = build_train_valid_test_datasets(data_prefix=args.data_path,
-                                                                                 splits_string=args.split,
-                                                                                 seq_length=args.seq_length + args.num_nextn_predict_layers,
-                                                                                 train_valid_test_num_samples=train_valid_test_num_samples,
-                                                                                 dataset_cls=InstructionDataset,
-                                                                                 tokenizer=tokenizer,
-                                                                                 parallel_state=parallel_state,
-                                                                                 full_shuffle_instruction_dataset=args.full_shuffle_instruction_dataset,
-                                                                                 no_shuffle=args.no_shuffle,
-                                                                                 reset_position_ids=args.reset_position_ids,
-                                                                                 prompt_type=args.prompt_type,
-                                                                                 prompt_type_path=args.prompt_type_path,
-                                                                                 seed=args.seed)
+    train_dataset, valid_dataset, test_dataset = build_train_valid_test_datasets(
+        data_prefix=args.data_path,
+        splits_string=args.split,
+        seq_length=args.seq_length + args.num_nextn_predict_layers,
+        train_valid_test_num_samples=train_valid_test_num_samples,
+        dataset_cls=InstructionDataset,
+        tokenizer=tokenizer,
+        parallel_state=parallel_state,
+        full_shuffle_instruction_dataset=args.full_shuffle_instruction_dataset,
+        no_shuffle=args.no_shuffle,
+        reset_position_ids=args.reset_position_ids,
+        prompt_type=args.prompt_type,
+        prompt_type_path=args.prompt_type_path,
+        seed=args.seed
+    )
+    logger.info('after datasets are built')
 
     # Backward compatibility, assume fixed batch size.
     if args.iteration > 0 and args.consumed_train_samples == 0:
@@ -108,17 +113,17 @@ def sft_train(args):
     valid_dataloader = None
     if valid_dataset is not None and len(valid_dataset) > 0:
         valid_dataloader = InstructionDataLoader(
-        dataset=valid_dataset,
-        parallel_state=parallel_state,
-        tokenizer=tokenizer,
-        num_workers=args.num_workers,
-        tokenizer_padding_side=args.tokenizer_padding_side,
-        pad_to_multiple_of=args.pad_to_multiple_of if args.variable_seq_lengths else args.seq_length + args.num_nextn_predict_layers,
-        variable_seq_lengths=args.variable_seq_lengths,
-        num_nextn_predict_layers=args.num_nextn_predict_layers,
-        micro_batch_size=args.micro_batch_size,
-        comsumed_samples=args.consumed_valid_samples,
-        seed=args.seed
+            dataset=valid_dataset,
+            parallel_state=parallel_state,
+            tokenizer=tokenizer,
+            num_workers=args.num_workers,
+            tokenizer_padding_side=args.tokenizer_padding_side,
+            pad_to_multiple_of=args.pad_to_multiple_of if args.variable_seq_lengths else args.seq_length + args.num_nextn_predict_layers,
+            variable_seq_lengths=args.variable_seq_lengths,
+            num_nextn_predict_layers=args.num_nextn_predict_layers,
+            micro_batch_size=args.micro_batch_size,
+            comsumed_samples=args.consumed_valid_samples,
+            seed=args.seed
         )
 
     test_dataloader = None

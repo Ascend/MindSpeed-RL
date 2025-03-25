@@ -1,3 +1,4 @@
+# Copyright (c) 2023; NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2024, HUAWEI CORPORATION.  All rights reserved.
 import os
 from functools import partial
@@ -191,6 +192,8 @@ class SFTTrainer(ABC):
             if self.args.do_train and self.args.train_iters > 0:
                 iteration, num_floating_point_operations_so_far = self.train_func(
                     *self.train_args)
+
+            logger.info('after training is done')
 
             if self.args.save and iteration != 0 and iteration % self.args.save_interval != 0:
                 self.save_checkpoint_func(

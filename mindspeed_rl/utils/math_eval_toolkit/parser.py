@@ -1,9 +1,14 @@
+# Copyright 2024 Alibaba Group Holding Limited. All Rights Reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 from typing import TypeVar, Iterable, List, Union, Any, Dict
 import re
 import regex
 
 from word2number import w2n
+
+from mindspeed_rl.utils.loggers import Loggers
+
+logger = Loggers("parser")
 
 
 def _fix_fracs(string):
@@ -489,7 +494,7 @@ def extract_answer(pred_str, data_name, use_last_number=True):
             pred = pred[:-1]
         pred = strip_string(pred, skip_unit=data_name in ["carp_en", "minerva_math"])
     except Exception as e:
-        print(f"A Error happened when extract answer:\n{pred}\n", e)
+        logger.error("An Error happened when extract answer:\n{}\n {}".format(pred, e))
 
     return pred
 

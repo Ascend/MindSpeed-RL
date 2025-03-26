@@ -128,7 +128,7 @@ class ActorHybridWorker(BaseWorker):
             if batch_data and index:
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
                 self.empty_cache()
-                self.args.consumed_train_samples += self.megatron_config.global_batch_size
+                self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:

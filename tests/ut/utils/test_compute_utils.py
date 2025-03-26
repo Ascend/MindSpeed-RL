@@ -27,7 +27,7 @@ class TestFixedKLController(DistributedTest):
     @pytest.fixture
     def setUp(self):
         from mindspeed_rl.trainer.utils.compute_utils import FixedKLController
-        self.controller = FixedKLController(kl_coef=0.5)
+        self.controller = FixedKLController(init_kl_coef=0.5)
 
     def test_update_with_valid_input(self, setUp):
         current_kl = 10

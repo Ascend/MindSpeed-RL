@@ -23,7 +23,7 @@ class RuleReward(object):
     def compute_rm_score(self):
         experience_consumer_stage = 'rule_reward'
         experience_columns = ['prompts', 'responses', 'response_length', *self.megatron_config.dataset_additional_keys]
-        experience_count = self.rl_config.experience_count_rule_reward // self.rl_config.rule_reward_num_process
+        experience_count = self.rl_config.experience_count_rule_reward
         tokenizer = AutoTokenizer.from_pretrained(self.megatron_config.tokenizer_name_or_path, trust_remote_code=True)
         pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id else tokenizer.eos_token_id
         while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):

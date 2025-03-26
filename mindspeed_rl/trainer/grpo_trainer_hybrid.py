@@ -32,8 +32,8 @@ class RayGRPOTrainer(RayBaseTrainer):
         kl_horizon: int = 1000 The time horizon for KL divergence control (used in adaptive methods).
         kl_target: float = 100.0 The target value for KL divergence (used in adaptive methods).
         init_kl_coef: float = 0.01 The initial coefficient for KL divergence penalty.
-        global_batch_size: int = 32 The global batch size for training.
-        micro_batch_size: int = 1 The micro batch size for gradient accumulation.
+        global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
+        experience_count: int = 1 The batch size of prompts per pipeline stage in each data fetch operation from the TransferDock (TD).
         n_samples_per_prompt: int = 1 The number of samples generated per prompt.
         tokenizer_name_or_path: str = None The name or path of the tokenizer to use.
         dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
@@ -52,7 +52,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             kl_horizon: int = 1000,
             kl_target: float = 100.0,
             init_kl_coef: float = 0.01,
-            global_batch_size: int = 32,
+            global_batch_size: int = 1,
             experience_count: int = 1,
             n_samples_per_prompt: int = 1,
             tokenizer: BaseTokenizer = None,

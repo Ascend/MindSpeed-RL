@@ -124,7 +124,6 @@ def train(config):
         reward_list,
         tokenizer=tokenizer,
         global_batch_size=actor_config.global_batch_size,
-        micro_batch_size=actor_config.micro_batch_size,
         train_iters=actor_config.train_iters,
         save_interval=actor_config.save_interval,
         dataset_additional_keys=actor_config.dataset_additional_keys,

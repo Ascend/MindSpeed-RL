@@ -47,8 +47,8 @@ class AdaptiveKLController:
 class FixedKLController:
     """Fixed KL trainer."""
 
-    def __init__(self, kl_coef):
-        self.value = kl_coef
+    def __init__(self, init_kl_coef):
+        self.value = init_kl_coef
 
     def update(self, current_kl, n_steps):
         pass

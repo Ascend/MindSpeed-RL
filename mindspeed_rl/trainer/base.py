@@ -65,7 +65,7 @@ class RayBaseTrainer(object):
 
         # define KL control
         if kl_ctrl_type == 'fixed':
-            self.kl_ctrl = FixedKLController(kl_coef=self.init_kl_coef)
+            self.kl_ctrl = FixedKLController(init_kl_coef=self.init_kl_coef)
         elif kl_ctrl_type == 'adaptive':
             if self.kl_horizon <= 0:
                 raise ValueError(f'horizon must be larger than 0. Got {self.kl_horizon}')

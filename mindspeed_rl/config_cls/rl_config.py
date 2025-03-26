@@ -29,7 +29,7 @@ class RLConfig(BaseConfig):
     adv_estimator: Method for estimating advantages (e.g., 'group_norm', 'gae') (default: 'group_norm')
     kl_penalty: Type of KL penalty to apply (e.g., 'kl', 'reverse_kl') (default: 'kl')
 
-    experience_count: experience count every forward step for all (default: 1)
+    experience_count: The batch size of prompts per pipeline stage in each data fetch operation from the TransferDock (TD). (default: 1)
     experience_count_actor: experience count every forward step for actor (default: same as experience_count_all)
     experience_count_reward: experience count every forward step for reward (default: same as experience_count_all)
     experience_count_ref: experience count every forward step for reference (default: same as experience_count_all)

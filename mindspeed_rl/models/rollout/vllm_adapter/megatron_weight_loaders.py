@@ -88,11 +88,9 @@ def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
         if name not in params_dict.keys():
             raise ValueError(f"unexpected key {name} in deepseek_megatron_weight_loader")
         if "mlp.experts.w13_weight" in name:
-            loaded_weight = loaded_weight.view(hf_config.n_routed_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous()
-            actor_weights[name] = actor_weights[name].to("cpu")
+            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
         if "mlp.experts.w2_weight" in name:
-            loaded_weight = loaded_weight.view(hf_config.n_routed_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous()
-            actor_weights[name] = actor_weights[name].to("cpu")
+            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 

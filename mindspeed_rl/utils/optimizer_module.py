@@ -100,6 +100,9 @@ class OptimizerConfig:
     overlap_param_gather: bool = False
     """If true, overlap param all-gather with forward compute in distributed optimizer."""
 
+    reuse_fp32_param: bool = False
+    """If true, the distributed optimizer frees up FP32 param copies."""
+
     ################
     # Miscellaneous
     ################

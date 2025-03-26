@@ -51,6 +51,12 @@ class MemoryBuffer:
         buffer_tensor = buffer_tensor.view(shape)
         return buffer_tensor
 
+    def copy_by_name(self, param_name: str, param):
+        """Copy buffer_tensor"""
+        buffer_tensor = self.get_by_name(param_name)
+        buffer_tensor = buffer_tensor.view(param.shape)
+        buffer_tensor.copy_(param)
+
     def get_by_name(self, param_name: str):
         """
         Retrieve the original tensor view from the buffer based on the param_name.
@@ -83,7 +89,16 @@ def get_weight_buffer_meta_from_module(module: nn.Module, valid_names=None) -> D
     for name, param in sorted(module.named_parameters()):
         if valid_names and name not in valid_names:
             continue
-        weight_buffer_meta[name] = {'shape': param.shape, 'dtype': param.dtype}
+        if 'kv_a_proj_with_mqa' in name:
+            q_param = dict(module.named_parameters()).get(
+                name.replace('kv_a_proj_with_mqa', 'q_a_proj'))
+            qkv_param_shape = torch.cat([q_param, param], dim=0).shape
+            qkv_name = name.replace('kv_a_proj_with_mqa', 'qkv_proj')
+            weight_buffer_meta[qkv_name] = {'shape': qkv_param_shape, 'dtype': param.dtype}
+        elif 'q_a_proj' in name:
+            continue
+        else:
+            weight_buffer_meta[name] = {'shape': param.shape, 'dtype': param.dtype}
     return weight_buffer_meta
 
 
@@ -140,8 +155,8 @@ class ModelWeightBuffer:
     """
     def __init__(self, model: nn.Module, weight_names: List):
         self.model = model
-        self.weight_names = weight_names
         self.weight_buffer_meta = get_weight_buffer_meta_from_module(self.model, weight_names)
+        self.weight_names = list(self.weight_buffer_meta.keys())
         self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)
 
     def __getitem__(self, weight_name: str) -> torch.Tensor:
@@ -150,6 +165,10 @@ class ModelWeightBuffer:
     def get_weight_by_name(self, weight_name: str) -> torch.Tensor:
         dtype = self.weight_buffer_meta[weight_name]['dtype']
         return self.memory_buffers[dtype].get_by_name(weight_name)
+
+    def copy_by_name(self, weight_name: str, param):
+        dtype = self.weight_buffer_meta[weight_name]['dtype']
+        self.memory_buffers[dtype].copy_by_name(weight_name, param)
 
     def offload(self):
         for memory_buffer in self.memory_buffers.values():

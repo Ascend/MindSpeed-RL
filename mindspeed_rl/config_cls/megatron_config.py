@@ -20,22 +20,32 @@ class MegatronConfig(BaseConfig):
 
     models_parameters:
     use_mcore_models: Whether to use MCore models (default: False)
+    spec: Specify the <module_location function_name> pair (default: None)
     sequence_parallel: Whether to use sequence parallelism (default: False)
     use_mc2: Whether to use MC2 (default: False)
     use_flash_attn: Whether to use flash attention (default: False)
     use_rotary_position_embeddings: Whether to use rotary position embeddings (default: False)
     use_fused_rmsnorm: Whether to use fused RMSNorm (default: False)
     use_fused_swiglu: Whether to use fused Swiglu (default: False)
+    shape_order: Input shape order used by Flash attention (default: 'SBH')
+    no_bias_dropout_fusion: Disable bias and dropout fusion (default: False)
     rope_scaling_type: Type of rope scaling used (default: None)
     rope_scaling_factor: Scaling factor for rope (default: 1.0)
     low_freq_factor: Low frequency factor (default: None)
     high_freq_factor: High frequency factor (default: None)
     original_max_position_embeddings: Original maximum position embeddings (default: None)
     max_position_embeddings: Maximum position embeddings (default: None)
+    rope_scaling_beta_fast: Yarn rope: rope beta fast (default: 32)
+    rope_scaling_beta_slow: Yarn rope: rope beta slow (default: 1)
+    rope_scaling_mscale: Yarn rope: rope mscale (default: 1.0)
+    rope_scaling_mscale_all_dim: Yarn rope: rope mscale all dim (default: 0.0)
+    rope_scaling_original_max_position_embeddings: Yarn rope: rope original max position embeddings (default: None)
     num_layers: Number of layers in the model (default: None)
     hidden_size: Size of the hidden layers (default: None)
     ffn_hidden_size: Size of the feed-forward layers (default: None)
     num_attention_heads: Number of attention heads (default: None)
+    kv_channels: Projection weights dimension in multi-head attention. This is set to args.hidden_size //
+         args.num_attention_heads if not provided (default: None)
     group_query_attention: Whether to use group query attention (default: False)
     num_query_groups: Number of query groups (default: 1)
     make_vocab_size_divisible_by: Divisibility constraint for vocab size (default: 128)
@@ -55,6 +65,33 @@ class MegatronConfig(BaseConfig):
     no_gradient_accumulation_fusion: Whether to disable gradient accumulation fusion (default: False)
     bf16: Whether to use BF16 precision (default: False)
     untie_embeddings_and_output_weights: Untie embeddings and output weights (default: False)
+
+    multi_head_latent_attention: Use Multi-head Latent Attention(MLA) (default: False)
+    qk_rope_head_dim: The qk head dim for rope (default: None)
+    qk_nope_head_dim: The qk head dim for only self-attn (default: None)
+    q_lora_rank: The low rank of q (default: None)
+    kv_lora_rank: The low rank of k and v (default: None)
+    v_head_dim: The head dim of v (default: None)
+    qk_layernorm: Whether to layer normalize the q and k attention embeddings (default: False)
+
+    moe_grouped_gemm: Use moe grouped gemm (default: False)
+    moe_permutation_async_comm: overlap moe permutation all gather communications (default: False)
+    use_fused_moe_token_permute_and_unpermute: Use fused moe permute and unpermute (default: False)
+    moe_token_dispatcher_type: The dispatcher type for moe token dispatching (default: None)
+    seq_aux: Compute aux loss in seq_aux (default: False)
+    first_k_dense_replace: First k layer as dense layer (default: None)
+    moe_layer_freq: The occurrence frequency of the moe layer (default: None)
+    moe_router_topk: Number of experts to route to for each token (default: 2)
+    num_experts: Number of Experts in MoE (None means no MoE) (default: None)
+    n_shared_experts: This value is the number of shared experts (default: None)
+    moe_intermediate_size: The ffn hidden size of MoE layer (default: None)
+    moe_router_load_balancing_type: Determines the load balancing strategy for the router (default: aux_loss)
+    n_group: Number of groups for routed experts (default: None)
+    topk_group: Choose topK group experts in group_limited_greedy_topK method (default: None)
+    routed_scaling_factor: The routed scaling factor (default: None)
+    norm_topk_prob: Normalize the topk weight (default: False)
+    moe_router_score_function: Score function for MoE TopK routing. Can be 'softmax' or 'sigmoid' (default: softmax)
+    moe_router_enable_expert_bias: TopK routing with dynamic expert bias in the aux-loss-free load balancing strategy (default: False)
 
     training_parameters:
     global_batch_size: Global batch size for training (default: None)
@@ -124,10 +161,13 @@ class MegatronConfig(BaseConfig):
     overlap_grad_reduce: If set, overlap DDP grad reduce (default: False)
     accumulate_allreduce_grads_in_fp32: Gradient accumulation and all-reduce in fp32 (default: False)
     pretrained_checkpoint: Directory containing a pretrained model checkp oint for finetuning (default: None)
-    moe_router_topk: Number of experts to route to for each token (default: 2)
-    num_experts: Number of Experts in MoE (None means no MoE) (default: None)
-    kv_channels: Projection weights dimension in multi-head attention. This is set to args.hidden_size //
-         args.num_attention_heads if not provided (default: None)
+    reuse_fp32_param: The distributed training optimizer frees up param copies of FP32 to save memory (default: False)
+    recompute_granularity: Checkpoint activations to allow for training (default: None)
+    recompute_method: Checkpoint activations methods, support 'uniform' and 'block' (default: None)
+    recompute_num_layers: 1) uniform: the number of Transformer layers in each uniformly divided recompute unit,
+                          2) block: the number of individual Transformer layers to recompute within each pipeline stage
+                          (default: None)
+    
     num_layer_list: a list of number of layers, seperated by comma; e.g., 4,4,4,4 (default: None)
     dataset_additional_keys: Additional keys need to be add from dataset (default: [])
 
@@ -141,25 +181,63 @@ class MegatronConfig(BaseConfig):
         '''
         # Default values can still be defined if no config is provided
         self.use_mcore_models = False
+        self.spec = None
         self.sequence_parallel = False
         self.use_mc2 = False
         self.use_flash_attn = False
         self.use_rotary_position_embeddings = False
         self.use_fused_rmsnorm = False
         self.use_fused_swiglu = False
+        self.shape_order = 'SBH'
+        self.no_bias_dropout_fusion = False
+
         self.rope_scaling_type = None
         self.rope_scaling_factor = 1.0
         self.low_freq_factor = None
         self.high_freq_factor = None
         self.original_max_position_embeddings = None
         self.max_position_embeddings = None
+        self.rope_scaling_beta_fast = 32
+        self.rope_scaling_beta_slow = 1
+        self.rope_scaling_mscale = 1.0
+        self.rope_scaling_mscale_all_dim = 0.0
+        self.rope_scaling_original_max_position_embeddings = None
+
         self.num_layers = None
         self.hidden_size = None
         self.ffn_hidden_size = None
         self.num_attention_heads = None
+        self.kv_channels = None
         self.group_query_attention = False
         self.num_query_groups = 1
         self.untie_embeddings_and_output_weights = False
+
+        self.multi_head_latent_attention = False
+        self.qk_rope_head_dim = None
+        self.qk_nope_head_dim = None
+        self.q_lora_rank = None
+        self.kv_lora_rank = None
+        self.v_head_dim = None
+        self.qk_layernorm = False
+
+        self.moe_grouped_gemm = False
+        self.moe_permutation_async_comm = False
+        self.use_fused_moe_token_permute_and_unpermute = False
+        self.moe_token_dispatcher_type = None
+        self.seq_aux = False
+        self.first_k_dense_replace = None
+        self.moe_layer_freq = None
+        self.moe_router_topk = 2
+        self.num_experts = None
+        self.n_shared_experts = None
+        self.moe_intermediate_size = None
+        self.moe_router_load_balancing_type = 'aux_loss'
+        self.n_group = None
+        self.topk_group = None
+        self.routed_scaling_factor = None
+        self.norm_topk_prob = False
+        self.moe_router_score_function = 'softmax'
+        self.moe_router_enable_expert_bias = False
 
         self.make_vocab_size_divisible_by = 128
         self.padded_vocab_size = None
@@ -244,10 +322,10 @@ class MegatronConfig(BaseConfig):
         self.overlap_grad_reduce = False
         self.accumulate_allreduce_grads_in_fp32 = False
         self.pretrained_checkpoint = None
-
-        self.moe_router_topk = 2
-        self.num_experts = None
-        self.kv_channels = None
+        self.reuse_fp32_param = False
+        self.recompute_granularity = None
+        self.recompute_method = None
+        self.recompute_num_layers = None
         self.num_layer_list = None
         self.dataset_additional_keys = []
 

@@ -98,7 +98,6 @@ class MegatronStyleVllmWeightContainer:
         self._init_tensor_model_parallel_split_group()
         self._init_weight_buffers()
 
-
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
             raise ValueError("infer_pp_size != 1 not supported yet")
@@ -218,6 +217,16 @@ class MegatronStyleVllmWeightContainer:
             ("mlp.linear_fc2", "mlp.down_proj"),
             ("decoder.final_layernorm", "model.norm"),
             ("output_layer", "lm_head"),
+            ("self_attention.linear_qb", "self_attn.q_b_proj"),
+            ("self_attention.linear_kvb", "self_attn.kv_b_proj"),
+            ("mlp.router.expert_bias", "mlp.gate.e_score_correction_bias"),
+            ("mlp.router", "mlp.gate"),
+            ("mlp.shared_experts.linear_fc1", "mlp.shared_experts.gate_up_proj"),
+            ("mlp.shared_experts.linear_fc2", "mlp.shared_experts.down_proj"),
+            ("mlp.experts.weight1", "mlp.experts.w13_weight"),
+            ("mlp.experts.weight2", "mlp.experts.w2_weight"),
+            ("self_attention.q_layernorm", "self_attn.q_a_layernorm"),
+            ("self_attention.k_layernorm", "self_attn.kv_a_layernorm"),
         ]
         self.weight_names_per_pp = self._get_weight_names_per_pp()
         self.weight_buffers = build_model_weight_buffer(self.vllm_model, self.weight_names_per_pp)
@@ -278,10 +287,13 @@ class MegatronStyleVllmWeightContainer:
                 megatron_param_fc2 = dict(true_megatron_model.named_parameters())[fc2_name]
                 if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * megatron_param_fc2.shape[1] * 2:
                     raise ValueError("Only implemented for Llama model which linear_fc1 contains gate and up params.")
+        megatron_params_dict = dict(true_megatron_model.named_buffers())
+        megatron_params_dict.update(true_megatron_model.named_parameters())
         for hf_name, megatron_name in name_pairs:
-            megatron_param = dict(true_megatron_model.named_parameters())[megatron_name]
+            megatron_param = megatron_params_dict[megatron_name]
             param = _transfer_from_megatron_division(megatron_param, megatron_name)
-            weight_buffer[hf_name].copy_(param)
+            weight_buffer.copy_by_name(hf_name, param)
+
         # tp md5 validate
         if self.enable_validate:
             tp_md5_validate(self.infer_params_for_md5, self.origin_params_for_md5,

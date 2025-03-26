@@ -106,7 +106,10 @@ def main():
         weights_path = os.path.join(args.load, f"iter_0000001/mp_rank_{tp_rank:02}/model_optim_rng.pt")
         
         actor_weights = torch.load(weights_path)['model']
-        actor_weights = replace_state_dict_name(actor_weights, arch=inference_engine.model.__class__.__name__)
+        actor_weights = replace_state_dict_name(
+            actor_weights, 
+            vllm_dict=inference_engine.model.state_dict(),
+            arch=inference_engine.model.__class__.__name__)
         logger.info("sync_model_weights")
         inference_engine.sync_model_weights(actor_weights)
 
@@ -142,7 +145,7 @@ def generate_task(inference_engine, query):
     logger.info('responses: {}'.format(res))
 
 
-def replace_state_dict_name(state_dict, arch=None):
+def replace_state_dict_name(state_dict, vllm_dict, arch=None):
     params_mapping = [
         # (megatron core gpt model name, vllm model name)
         ("embedding.word_embeddings", "model.embed_tokens"),
@@ -176,6 +179,15 @@ def replace_state_dict_name(state_dict, arch=None):
             name = _replace_name_m2v_deepseek(name, params_mapping)
         else:
             name = _replace_name_m2v(name, params_mapping)
+
+        # the router bias in raw weight in fp32
+        if "e_score_correction_bias" in name:
+            loaded_weight = loaded_weight.to(vllm_dict[name].dtype)
+
+        # to adapter 'copy_' in megatron weight loader to save memory
+        if "mlp.experts" in name:
+            loaded_weight = loaded_weight.view(vllm_dict[name].shape)
+
         new_state_dict[name] = loaded_weight
     return new_state_dict
 

@@ -27,7 +27,8 @@ def _replace_name_v2m(vllm_name, name_mapping):
                 param_name_list = vllm_name_list[:3]
                 weight_or_bias = vllm_name_list[-1]
                 param_name_list.append(m_name)
-                param_name_list.append(weight_or_bias)
+                if weight_or_bias in ['weight', 'bias']:
+                    param_name_list.append(weight_or_bias)
                 param_name = ".".join(param_name_list)
             return param_name
         else:

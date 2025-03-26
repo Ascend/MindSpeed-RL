@@ -28,5 +28,5 @@ INFER_ARGS="
 
 torchrun $DISTRIBUTED_ARGS cli/infer_vllm.py \
     $INFER_ARGS \
-    --query "Write an essay about the importance of higher education."
+    --query "Write an essay about the importance of higher education." \
     --distributed-backend nccl

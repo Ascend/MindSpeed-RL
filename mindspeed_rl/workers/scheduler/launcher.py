@@ -18,7 +18,10 @@ launch remote worker task:
         ).remote(...)                                               --> launch remote task
 """
 
-from typing import Type, Dict, Callable
+from types import ModuleType
+from typing import Type, Dict, Callable, Tuple, List, Optional
+from dataclasses import dataclass
+import acl
 
 import ray
 from ray.util.placement_group import PlacementGroup
@@ -51,8 +54,102 @@ def get_rl_resource_by_worker_type(rl_config: RLConfig, worker: Type[BaseWorker]
 def get_npu_deployment(rl_config: RLConfig, worker: Type[BaseWorker]):
     resource = get_rl_resource_by_worker_type(rl_config, worker)
     if resource is None:
-        return 1
+        return 0
     return resource.num_npus
+
+
+def get_device_information(num_npus: int) \
+        -> Tuple[int, int]:
+    try:
+        num_devices_per_node, ret = acl.rt.get_device_count()
+        if ret != 0:
+            num_devices_per_node = 8
+    except Exception:
+        num_devices_per_node = 8
+
+    if num_devices_per_node > num_npus:
+        num_devices_per_node = num_npus
+
+    return (num_devices_per_node,
+            (num_npus + num_devices_per_node - 1) // num_devices_per_node)
+
+
+def construct_placement_groups(num_npus, num_devices_per_node, num_nodes) \
+        -> List[PlacementGroup]:
+    """
+    构造ray placement group
+
+    构造原则：
+        1 基于节点连续分配资源
+        2 共置情形，相同rank索引使用相同placement group索引
+        3 STRICT_PACK部署策略，强制一个placement group部署在同一节点上
+        4 默认运行环境CPU有192核，NPU卡数量为8/16，允许NPU:CPU为1:8
+    """
+    placement_groups = []
+    # default cpu 192 cores, npu 8/16
+    default_cpu_per_npu = 8
+    for index in range(num_nodes):
+        if (num_npus % num_devices_per_node != 0 and
+                index == num_nodes - 1):
+            bundles = [{"NPU": 1, "CPU": default_cpu_per_npu}
+                       for _ in range(num_npus % num_devices_per_node)]
+        else:
+            bundles = [{"NPU": 1, "CPU": default_cpu_per_npu}
+                       for _ in range(num_devices_per_node)]
+
+        placement_group = ray.util.placement_group(bundles, strategy="STRICT_PACK")
+        ray.get(placement_group.ready())
+        placement_groups.append(placement_group)
+
+    return placement_groups
+
+
+def validate_colocate_config(rl_config):
+    """
+    校验共置配置
+
+    校验规则：
+        1 如果设置colocate_actor_ref
+          必须ActorHybridWorker和ReferenceWorker的num_npus相等
+        2 如果设置colocate_all_models
+          必须ActorHybridWorker和ReferenceWorker和RewardWorker的num_npus相等
+
+    检验结果失败：
+        程序不再继续执行
+    """
+    actor_num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
+    ref_num_npus = get_npu_deployment(rl_config, ReferenceWorker)
+    reward_num_npus = get_npu_deployment(rl_config, RewardWorker)
+
+    if rl_config.colocate_actor_ref:
+        if actor_num_npus != ref_num_npus:
+            raise ValueError(f"num_npus must be the same when colocate actor and ref model.")
+
+    # if colocate all models, must set num_npus the same value
+    if rl_config.colocate_all_models:
+        if actor_num_npus != ref_num_npus or actor_num_npus != reward_num_npus:
+            raise ValueError(f"num_npus must be the same when colocate all models.")
+
+
+def get_colocate_placement_group(rl_config) -> Optional[PlacementGroup]:
+    validate_colocate_config(rl_config)
+    # if colocate models, use the same placement group bundle index
+    if rl_config.colocate_all_models or rl_config.colocate_actor_ref:
+        num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
+        num_devices_per_node, num_nodes = get_device_information(num_npus)
+        return construct_placement_groups(num_npus, num_devices_per_node, num_nodes)
+
+    return None
+
+
+@dataclass
+class ActorHandlerParams:
+    placement_group: PlacementGroup
+    world_size: int
+    rank_index: int
+    bundle_index: int
+    master_addr: str
+    master_port: int
 
 
 class RayActorGroup:
@@ -102,6 +199,8 @@ class RayActorGroup:
         self.num_resources_per_node = num_resources_per_node
         self.actor_handlers = []
         self.temp_actor_ref_objs = []
+        self.num_devices_per_node, self.num_nodes = (
+            get_device_information(self.num_npus))
         self.initialize_actor_handlers(placement_group)
 
     def initialize_actor_handlers(self, placement_group):
@@ -115,26 +214,22 @@ class RayActorGroup:
     def get_placement_group(self, placement_group: PlacementGroup = None) -> PlacementGroup:
         if placement_group is not None:
             return placement_group
+        return construct_placement_groups(self.num_npus, self.num_devices_per_node, self.num_nodes)
 
-        bundles = [{"NPU": 1, "CPU": 1} for _ in range(self.num_npus)]
-        placement_group = ray.util.placement_group(bundles, strategy="PACK")
-        ray.get(placement_group.ready())
-        return placement_group
-
-    def create_actor_handlers(self, placement_group, world_size, rank_index, master_addr, master_port) \
+    def create_actor_handlers(self, param: ActorHandlerParams) \
             -> ray.actor.ActorHandle:
         runtime_env = {
             "env_vars": {
-                "MASTER_ADDR": master_addr if master_addr else "localhost",
-                "MASTER_PORT": str(master_port) if master_port else "",
-                "WORLD_SIZE": str(world_size),
-                "RANK": str(rank_index),
+                "MASTER_ADDR": param.master_addr if param.master_addr else "localhost",
+                "MASTER_PORT": str(param.master_port) if param.master_port else "",
+                "WORLD_SIZE": str(param.world_size),
+                "RANK": str(param.rank_index),
             }
         }
         return self.worker.options(
             scheduling_strategy=PlacementGroupSchedulingStrategy(
-                placement_group=placement_group,
-                placement_group_bundle_index=rank_index
+                placement_group=param.placement_group,
+                placement_group_bundle_index=param.bundle_index
             ),
             runtime_env=runtime_env
         ).remote(
@@ -150,15 +245,25 @@ class RayActorGroup:
 
     def build_master_actor(self, placement_group, world_size) -> ray.actor.ActorHandle:
         actor_handle = self.create_actor_handlers(
-            placement_group, world_size, 0, None, None)
+            ActorHandlerParams(placement_group[0], world_size, 0, 0, None, None))
         self.actor_handlers.append(actor_handle)
         return actor_handle
 
     def build_worker_actor(self, master_handler, placement_group, world_size) -> None:
         master_addr, master_port = ray.get(master_handler.get_master_addr_port.remote())
-        for rank in range(1, world_size):
+        # set first node device
+        for rank in range(1, self.num_devices_per_node):
             self.actor_handlers.append(self.create_actor_handlers(
-                placement_group, world_size, rank, master_addr, master_port))
+                ActorHandlerParams(placement_group[0], world_size, rank,
+                                   rank, master_addr, master_port)))
+        # set other node device
+        rank_index = self.num_devices_per_node - 1
+        for node_index in range(1, self.num_nodes):
+            for bundle_index in range(0, self.num_devices_per_node):
+                rank_index += 1
+                self.actor_handlers.append(self.create_actor_handlers(
+                    ActorHandlerParams(placement_group[node_index], world_size, rank_index,
+                                       bundle_index, master_addr, master_port)))
 
     def execute_async_command(self, method_name: str, *args, **kwargs):
         ray_objs = []

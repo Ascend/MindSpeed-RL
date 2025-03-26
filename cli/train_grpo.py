@@ -10,7 +10,7 @@ import sys
 import hydra
 import ray
 import torch
-from ray.util.placement_group import placement_group
+from ray.util.placement_group import placement_group, PlacementGroup
 
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
@@ -28,7 +28,7 @@ def train(config):
     from mindspeed_rl.datasets.dataloader import PromptDataLoader
     from mindspeed_rl.workers.rule_reward import RuleReward
     from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
-    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
+    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup, get_colocate_placement_group
     from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
     from mindspeed_rl.workers.reference_woker import ReferenceWorker
     from mindspeed_rl.workers.reward_woker import RewardWorker
@@ -154,27 +154,6 @@ def parse_training_config(config: Dict):
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
 
     return actor_config, ref_config, reward_config, rl_config, generate_config
-
-
-def get_colocate_placement_group(rl_config):
-    from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-    from mindspeed_rl.workers.reference_woker import ReferenceWorker
-    from mindspeed_rl.workers.scheduler.launcher import get_npu_deployment
-    if rl_config.colocate_actor_ref or rl_config.colocate_all_models:
-        actor_num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
-        ref_num_npus = get_npu_deployment(rl_config, ReferenceWorker)
-        if actor_num_npus != ref_num_npus:
-            raise ValueError(f"num_npus must be the same when colocate actor and ref model.")
-
-        cpu_nums = 3 if rl_config.colocate_all_models else 2
-        bundles = [{"NPU": 1, "CPU": cpu_nums}
-                   for _ in range(actor_num_npus)]
-        pg = placement_group(bundles, strategy="PACK")
-        ray.get(pg.ready())
-        logger.info('after colocate placement group resources are allocated')
-        return pg
-    else:
-        return None
 
 
 def get_megatron_module():

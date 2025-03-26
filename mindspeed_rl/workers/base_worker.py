@@ -6,6 +6,7 @@ from typing import List, Callable
 import socket
 
 import torch
+import torch_npu
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers
@@ -31,9 +32,11 @@ logger = Loggers("base_worker")
 
 class BaseRayWorker:
     def __init__(self):
-        self._world_size = os.environ.get("WORLD_SIZE", 1)
-        self._rank = os.environ.get("RANK", 0)
+        self._world_size = int(os.environ.get("WORLD_SIZE", 1))
+        self._rank = int(os.environ.get("RANK", 0))
         self._local_rank = int(ray.get_runtime_context().get_accelerator_ids()["NPU"][0])
+        torch.npu.set_device(self._local_rank)
+        current_device = torch.npu.current_device()
         if os.environ.get("MASTER_ADDR", 0) == "localhost":
             self._master_addr = self._get_current_node_ip()
             self._master_port = self._get_free_port()
@@ -43,7 +46,7 @@ class BaseRayWorker:
             self._master_addr = os.environ.get("MASTER_ADDR")
             self._master_port = os.environ.get("MASTER_PORT")
         os.environ["LOCAL_RANK"] = str(self._local_rank)
-        logger.info(f"worker init begin, rank: {self._rank}, world_size: {self._world_size}, "
+        logger.info(f"worker init begin, current device id: {current_device}, rank: {self._rank}, world_size: {self._world_size}, "
                     f"local rank: {self._local_rank}, "
                     f"master_addr: {self._master_addr}, master_port: {self._master_port}")
 

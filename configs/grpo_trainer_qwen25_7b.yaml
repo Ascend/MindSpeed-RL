@@ -28,6 +28,7 @@ megatron_training:
   distributed_backend: nccl
   no_shared_storage: true
   variable_seq_lengths: true
+  norm_epsilon: 1e-6
   dataset_additional_keys: ['labels',]
   data_path:  ./dataset/data
   split: 100,0,0

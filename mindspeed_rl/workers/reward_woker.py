@@ -2,7 +2,6 @@
 
 import time
 from typing import Callable
-from types import ModuleType
 
 import ray
 import torch
@@ -18,7 +17,6 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 
 @ray.remote(resources={"NPU": 0.1})
 class RewardWorker(BaseWorker):
-
     """
     RewardWorker class. This class implements the worker logic for reward model training and inference.
 
@@ -81,15 +79,16 @@ class RewardWorker(BaseWorker):
     def compute_rm_score(self):
         start_time = time.time()
         experience_consumer_stage = 'reward_scores'
-        experience_columns = ['input_ids', 'prompt_length', "responses", "response_length"]
-        experience_count = self.megatron_config.micro_batch_size
+        experience_columns = ['input_ids', 'prompt_length', "responses", "response_length",
+                              *self.megatron_config.dataset_additional_keys]
+        experience_count = self.rl_config.experience_count_reward // self.parallel_state.get_data_parallel_world_size()
 
         while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
-            data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
-                                                                  experience_count, self.rl_config.n_samples_per_prompt,
-                                                                  tp_size=self.megatron_config.tensor_model_parallel_size)
-            if data_loader and index:
-                output, batch = self.reward.compute_rm_score(data_loader)
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
+                                                                 experience_count, self.rl_config.n_samples_per_prompt,
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size)
+            if batch_data and index:
+                output, batch = self.reward.compute_rm_score(batch_data)
                 if self.parallel_state.is_pipeline_last_stage():
                     rm_score = torch.cat(output, dim=0).squeeze(-1)  # (bs, seq_size)
                     rm_score = rm_score.gather(dim=1, index=batch['prompt_length'] + batch['response_length'] - 1).to(

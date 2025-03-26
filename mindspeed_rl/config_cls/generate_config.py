@@ -12,7 +12,7 @@ class GenerateConfig(BaseConfig):
 
     :param config_dict: Dictionary containing the configuration parameters.
                         If None, default values will be used for all attributes.
-    micro_batch_size: Micro batch size for rollout (default: 1)
+    data_parallel_size: data parallel size for rollout (default: None)
     tokenizer_name_or_path: Path or name of the tokenizer. Default is "/path/to/tokenizer".
     trust_remote_code: Whether to trust remote code (e.g., for custom tokenizers). Default is True.
 
@@ -38,7 +38,7 @@ class GenerateConfig(BaseConfig):
     """
 
     def __init__(self, config_dict):
-        self.micro_batch_size = 1
+        self.data_parallel_size = None
         # 设置 tokenizer 的名称或路径，默认指向一个示例路径，可根据实际情况修改
         self.tokenizer_name_or_path = "/path/to/tokenizer"
         # 是否信任远程代码，例如用于自定义 tokenizer，默认为 True

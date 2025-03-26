@@ -34,6 +34,7 @@ class BaseTrainingEngine(ABC):
         forward_backward_func: Callable = None The forward-backward function for distributed training.
         **kwargs: Additional keyword arguments.
     """
+
     def __init__(
             self,
             model,
@@ -69,18 +70,15 @@ class BaseTrainingEngine(ABC):
     @staticmethod
     def _split_batches(batch: Dict, batch_size: int, shuffle_mini_batch: bool, dim: int = 0) -> List[Dict]:
         batches = []
-        null_batch_dict = {}
-        for kwarg, tensors in batch.items():
-            if isinstance(tensors, torch.Tensor):
-                for index, tensor in enumerate(torch.split(tensors, batch_size, dim)):
-                    if index >= len(batches):
-                        batches.append({})
-                    batches[index][kwarg] = tensor
-            else:
-                null_batch_dict[kwarg] = None
-        [batch_dict.update(null_batch_dict) for batch_dict in batches]
+        for key, tensors in batch.items():
+            for index, tensor in enumerate(torch.split(tensors, batch_size, dim)):
+                if index >= len(batches):
+                    batches.append({})
+                batches[index][key] = tensor
 
-        return random.shuffle(batches) if shuffle_mini_batch else batches
+        if shuffle_mini_batch:
+            random.shuffle(batches)
+        return batches
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):
         batches = self._split_batches(batch, batch_size=self.micro_batch_size,
@@ -135,13 +133,12 @@ class BaseTrainingEngine(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def forward(self, data: DataLoader) -> torch.Tensor:
+    def forward(self, data: Dict) -> torch.Tensor:
         """
         模型前向计算
         :param data: 前向计算数据
         :return: 模型前向计算结果。
         """
-        data = next(iter(data))
         for k, v in data.items():
             if v is not None:
                 data[k] = v.to(next(self.model[0].parameters()).device)
@@ -151,7 +148,7 @@ class BaseTrainingEngine(ABC):
             output = self._forward_backward_batch(data, forward_only=True)
             return self.post_process_forward_backward_output(output=output, batch=data)
 
-    def update(self, data: DataLoader, kl_ctrl=None) -> Dict:
+    def update(self, data: Dict, kl_ctrl=None) -> Dict:
         """
         模型反向更新
         :param data: 反向更新数据
@@ -161,11 +158,10 @@ class BaseTrainingEngine(ABC):
         self.kl_ctrl = kl_ctrl
         metrics = {}
         grad_norm_list = []
-        batch = next(iter(data))
-        for k, v in batch.items():
+        for k, v in data.items():
             if v is not None:
-                batch[k] = v.to(next(self.model[0].parameters()).device)
-        mini_batches = self._split_batches(batch, batch_size=self.mini_batch_size_per_dp,
+                data[k] = v.to(next(self.model[0].parameters()).device)
+        mini_batches = self._split_batches(data, batch_size=self.mini_batch_size_per_dp,
                                            shuffle_mini_batch=self.shuffle_mini_batch, dim=0)
         for model_module in self.model:
             model_module.train()

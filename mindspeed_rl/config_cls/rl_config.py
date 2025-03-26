@@ -28,6 +28,13 @@ class RLConfig(BaseConfig):
     kl_target: Target value for KL divergence (used in adaptive methods) (default: 100.0)
     adv_estimator: Method for estimating advantages (e.g., 'group_norm', 'gae') (default: 'group_norm')
     kl_penalty: Type of KL penalty to apply (e.g., 'kl', 'reverse_kl') (default: 'kl')
+
+    experience_count: experience count every forward step for all (default: 1)
+    experience_count_actor: experience count every forward step for actor (default: same as experience_count_all)
+    experience_count_reward: experience count every forward step for reward (default: same as experience_count_all)
+    experience_count_ref: experience count every forward step for reference (default: same as experience_count_all)
+    experience_count_rule_reward: experience count every forward step for rule reward (default: same as experience_count_all)
+
     shuffle_mini_batch: Whether to shuffle minibatch (default: False)
     n_samples_per_prompt: Number of samples per prompt (default: 1)
     enable_sharding_validate: Whether to enable sharding validation (default: False)
@@ -68,6 +75,12 @@ class RLConfig(BaseConfig):
         self.verifier_parallel = 1
         self.verifier_timeout = 30
 
+        self.experience_count = 1
+        self.experience_count_actor = None
+        self.experience_count_reward = None
+        self.experience_count_ref = None
+        self.experience_count_rule_reward = None
+
         self.shuffle_mini_batch = False
         self.n_samples_per_prompt = 1
         self.enable_sharding_validate = False
@@ -81,6 +94,6 @@ class RLConfig(BaseConfig):
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
         self.blocking = False
-        self.num_cpus_for_local_task = 0.1
+        self.num_cpus_for_local_task = 1
 
         self.update(config_dict)

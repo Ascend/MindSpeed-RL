@@ -53,7 +53,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             kl_target: float = 100.0,
             init_kl_coef: float = 0.01,
             global_batch_size: int = 32,
-            micro_batch_size: int = 1,
+            experience_count: int = 1,
             n_samples_per_prompt: int = 1,
             tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
@@ -73,7 +73,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             adv_estimator=adv_estimator,
             init_kl_coef=init_kl_coef,
             global_batch_size=global_batch_size,
-            micro_batch_size=micro_batch_size,
+            experience_count=experience_count,
             n_samples_per_prompt=n_samples_per_prompt,
             tokenizer=tokenizer,
             dataset_additional_keys=dataset_additional_keys,
@@ -163,6 +163,11 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # compute old log_prob
                 self.actor_worker.compute_log_prob(blocking=self.blocking)
 
+                self.ref_worker.wait_all_ref_objs_run_over()
+                for reward in self.reward_list:
+                    if hasattr(reward, 'wait_all_ref_objs_run_over'):
+                        reward.wait_all_ref_objs_run_over()
+
                 # update actor
                 self.actor_worker.update(self.kl_ctrl)
 
@@ -197,7 +202,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             self.gamma,
             self.lam,
             adv_estimator=self.adv_estimator,
-            experience_count=self.micro_batch_size,
+            experience_count=self.experience_count,
             tokenizer=self.tokenizer,
             n_samples_per_prompt=self.n_samples_per_prompt,
         )

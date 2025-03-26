@@ -4,9 +4,7 @@ from abc import ABC
 from typing import Dict, List, Callable
 
 from torch import Tensor
-from torch.utils.data import DataLoader
 
-from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.actor import Actor
 
 
@@ -70,8 +68,8 @@ class ActorRolloutHybrid(ABC):
         responses = self.inference_actor.generate_sequences(prompts_list)[0]
         return responses
 
-    def compute_log_prob(self, data: DataLoader) -> Tensor:
+    def compute_log_prob(self, data: Dict) -> Tensor:
         return self.train_actor.compute_log_prob(data)
 
-    def update_actor(self, data: DataLoader, kl_ctrl=None) -> Dict[str, Tensor]:
+    def update_actor(self, data: Dict, kl_ctrl=None) -> Dict[str, Tensor]:
         return self.train_actor.update_actor(data, kl_ctrl)

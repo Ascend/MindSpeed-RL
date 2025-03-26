@@ -4,7 +4,6 @@ from typing import Dict, Callable
 
 import torch
 from torch import Tensor
-from torch.utils.data import DataLoader
 
 from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
 
@@ -67,8 +66,8 @@ class Actor(BaseTrainingEngine):
                                              batch: Dict[str, torch.Tensor]) -> (Tensor, Dict):
         return output, batch
 
-    def compute_log_prob(self, data: DataLoader) -> (Tensor, Dict):
+    def compute_log_prob(self, data: Dict) -> (Tensor, Dict):
         return super().forward(data)
 
-    def update_actor(self, data: DataLoader, kl_ctrl=None) -> Dict[str, torch.Tensor]:
+    def update_actor(self, data: Dict, kl_ctrl=None) -> Dict[str, torch.Tensor]:
         return super().update(data, kl_ctrl)

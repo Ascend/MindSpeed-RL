@@ -2,7 +2,6 @@
 
 import os
 from abc import ABC
-from types import ModuleType
 from typing import List, Callable
 import socket
 
@@ -26,7 +25,6 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_model_parallel_group
 )
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
-from mindspeed_rl.datasets.dict_dataset import trans_batch_to_data_loader
 
 logger = Loggers("base_worker")
 
@@ -246,10 +244,8 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data[key].cuda(), get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
             )
-        data_loader = trans_batch_to_data_loader(batch_data,
-                                                 experience_count * n_samples_per_prompt)  # experience_count
         index = index.cpu().numpy().tolist()
-        return data_loader, index
+        return batch_data, index
 
     def collect_transfer_dock_data(self, output, index, n_samples_per_prompt=1, use_vllm=False):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,

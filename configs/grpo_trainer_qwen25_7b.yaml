@@ -72,6 +72,7 @@ reward_config:
 
 rl_config:
   blocking: false
+  experience_count: 2
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm

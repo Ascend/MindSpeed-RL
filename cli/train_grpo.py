@@ -12,6 +12,7 @@ import ray
 import torch
 from ray.util.placement_group import placement_group
 
+from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
@@ -50,6 +51,7 @@ def train(config):
         tokenizer=tokenizer,
         initialize_func=initialize_megatron,
         get_megatron_module=get_megatron_module,
+        global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
     ).initialize()
 
     reference_worker = RayActorGroup(
@@ -61,6 +63,7 @@ def train(config):
         tokenizer=tokenizer,
         initialize_func=initialize_megatron,
         get_megatron_module=get_megatron_module,
+        global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
     ).initialize()
 
     if not rl_config.colocate_all_models:
@@ -77,7 +80,8 @@ def train(config):
             model_provider=rm_model_provider,
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
-            get_megatron_module=get_megatron_module
+            get_megatron_module=get_megatron_module,
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 
         reward_list.append(reward_worker)
@@ -121,7 +125,7 @@ def train(config):
         train_iters=actor_config.train_iters,
         save_interval=actor_config.save_interval,
         dataset_additional_keys=actor_config.dataset_additional_keys,
-        **rl_config.__dict__
+        **rl_config.dict()
     )
 
     trainer.fit(data_loader)
@@ -147,13 +151,7 @@ def parse_training_config(config: Dict):
     rl_config = RLConfig(config.get("rl_config"))
     generate_config = GenerateConfig(config.get("generate_config"))
 
-    if generate_config.max_model_len == actor_config.seq_length:
-        generate_config.max_model_len = actor_config.seq_length + 1
-
-    if generate_config.max_model_len <= actor_config.seq_length:
-        raise ValueError(
-            f"The sequence length must be greater than vllm max_model_len! "
-            f"sequence length={actor_config.seq_length},max_model_len={generate_config.max_model_len}")
+    validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
 
     return actor_config, ref_config, reward_config, rl_config, generate_config
 

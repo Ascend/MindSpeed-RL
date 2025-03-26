@@ -3,7 +3,6 @@
 import time
 import dataclasses
 import copy
-from types import ModuleType
 from typing import Callable
 
 import ray
@@ -114,7 +113,7 @@ class ActorHybridWorker(BaseWorker):
         experience_consumer_stage = 'actor_train'
         experience_colums = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
-        experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
+        experience_count = self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt // self.parallel_state.get_data_parallel_world_size()
 
         #get lr
         learning_rate = None
@@ -123,11 +122,11 @@ class ActorHybridWorker(BaseWorker):
         ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate)) 
 
         while self.all_consumed(experience_consumer_stage) > 0:
-            data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   self.megatron_config.tensor_model_parallel_size)
-            if data_loader and index:
-                metrics = self.actor_hybrid.update_actor(data_loader, kl_ctrl)
+            if batch_data and index:
+                metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
                 self.empty_cache()
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
@@ -144,25 +143,27 @@ class ActorHybridWorker(BaseWorker):
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
-                              self.num_floating_point_operations_so_far)
+                             self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
         start_time = time.time()
         experience_consumer_stage = 'actor_rollout'
         experience_colums = ['prompts', 'prompt_length']
-        experience_count = self.generate_config.micro_batch_size
+        experience_count = self.rl_config.experience_count_actor // self.generate_config.data_parallel_size
 
         self.sharding_manager.reshard_to_infer_mode()
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         while self.all_consumed(experience_consumer_stage) > 0:
-            data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
-                                                                  experience_count,
-                                                                  n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
-                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
-                                                                  use_vllm=True)
-            if data_loader and index:
-                batch_data = next(iter(data_loader))
+            batch_data, index = self.dispatch_transfer_dock_data(
+                experience_consumer_stage,
+                experience_colums,
+                experience_count,
+                n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
+                tp_size=self.megatron_config.tensor_model_parallel_size,
+                use_vllm=True
+            )
+            if batch_data and index:
                 indexes = list(range(0, experience_count * self.rl_config.n_samples_per_prompt,
                                      self.rl_config.n_samples_per_prompt))
                 prompts_data = batch_data['prompts'][indexes]
@@ -206,14 +207,14 @@ class ActorHybridWorker(BaseWorker):
     def compute_log_prob(self):
         experience_consumer_stage = 'actor_log_prob'
         experience_colums = ['input_ids', 'responses', 'response_length', 'prompt_length']
-        experience_count = self.megatron_config.micro_batch_size
+        experience_count = self.rl_config.experience_count_actor // self.parallel_state.get_data_parallel_world_size()
 
         while self.all_consumed(experience_consumer_stage) > 0:
-            data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size)
-            if data_loader and index:
-                output, batch = self.actor_hybrid.compute_log_prob(data_loader)
+            if batch_data and index:
+                output, batch = self.actor_hybrid.compute_log_prob(batch_data)
                 if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     # only on last rank. It should be on every tp rank
                     log_probs = torch.cat(output, dim=0)  # (bs, seq_size)

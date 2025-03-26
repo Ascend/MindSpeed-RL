@@ -68,6 +68,8 @@ class MegatronConfig(BaseConfig):
     save_interval: Interval for saving models (default: None)
     no_load_optim: Whether to skip loading optimizer (default: None)
     no_load_rng: Whether to skip loading RNG state (default: None)
+    no_save_optim: Whether to skip saving optimizer (default: None)
+    no_save_rng: Whether to skip saving RNG state (default: None)
     bf16: Whether to use BF16 (default: False)
     use_distributed_optimizer: Use distributed optimizer (default: False)
     is_instruction_dataset: Whether the dataset is instruction-based (default: False)
@@ -187,6 +189,8 @@ class MegatronConfig(BaseConfig):
         self.save_interval = None
         self.no_load_optim = None
         self.no_load_rng = None
+        self.no_save_optim = None
+        self.no_save_rng = None
         self.is_instruction_dataset = False
         self.is_pairwise_dataset = False
         self.variable_seq_lengths = False

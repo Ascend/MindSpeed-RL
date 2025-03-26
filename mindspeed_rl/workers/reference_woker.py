@@ -1,7 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import time
-from types import ModuleType
 from typing import Callable
 
 import ray
@@ -85,14 +84,14 @@ class ReferenceWorker(BaseWorker):
         start_time = time.time()
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
-        experience_count = self.megatron_config.micro_batch_size
+        experience_count = self.rl_config.experience_count_ref // self.parallel_state.get_data_parallel_world_size()
 
         while self.all_consumed(experience_consumer_stage) > 0:
-            data_loader, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size)
-            if data_loader and index:
-                output, batch = self.reference.compute_log_prob(data_loader)
+            if batch_data and index:
+                output, batch = self.reference.compute_log_prob(batch_data)
 
                 if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     # only on last rank. It should be on every tp rank
@@ -102,8 +101,8 @@ class ReferenceWorker(BaseWorker):
                     output = {'ref_log_prob': log_probs}
                     ray.get(
                         self.td.update_metrics.remote(
-                            "timing/reference_model", 
-                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            "timing/reference_model",
+                            value=[round(time.time(), 4), round(start_time, 4)],
                             cumulate=True
                         )
                     )

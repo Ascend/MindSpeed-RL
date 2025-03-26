@@ -4,7 +4,6 @@ from typing import Dict, Tuple, Callable
 
 import torch
 from torch import Tensor
-from torch.utils.data import DataLoader
 
 from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
 
@@ -43,5 +42,5 @@ class Reward(BaseTrainingEngine):
         torch.Tensor, Dict[str, torch.Tensor]]:
         return output, batch
 
-    def compute_rm_score(self, data: DataLoader) -> Tensor:
+    def compute_rm_score(self, data: Dict) -> Tensor:
         return super().forward(data)

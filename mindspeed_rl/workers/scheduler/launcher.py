@@ -18,7 +18,6 @@ launch remote worker task:
         ).remote(...)                                               --> launch remote task
 """
 
-from types import ModuleType
 from typing import Type, Dict, Callable
 
 import ray
@@ -180,8 +179,7 @@ class RayActorGroup:
             ray.get(actor.init_transfer_dock.remote(transfer_dock))
 
     def wait_all_ref_objs_run_over(self):
-        for ref_obj in self.temp_actor_ref_objs:
-            ray.get(ref_obj)
+        ray.get(self.temp_actor_ref_objs)
         self.temp_actor_ref_objs.clear()
 
     def get_iteration(self):

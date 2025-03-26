@@ -72,6 +72,8 @@ reward_config:
   no_load_rng: true
 
 rl_config:
+  blocking: false
+  experience_count: 1
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm

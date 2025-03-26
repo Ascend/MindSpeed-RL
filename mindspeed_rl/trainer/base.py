@@ -1,7 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 from typing import List, Union
-import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -33,7 +32,7 @@ class RayBaseTrainer(object):
                  kl_target: float = 100.0,
                  init_kl_coef: float = 0.001,
                  global_batch_size: int = 32,
-                 micro_batch_size: int = 1,
+                 experience_count: int = 1,
                  n_samples_per_prompt: int = 1,
                  tokenizer: BaseTokenizer = None,
                  dataset_additional_keys: List[str] = None,
@@ -56,7 +55,7 @@ class RayBaseTrainer(object):
         self.kl_target = kl_target
         self.init_kl_coef = init_kl_coef
         self.global_batch_size = global_batch_size
-        self.micro_batch_size = micro_batch_size
+        self.experience_count = experience_count
         self.n_samples_per_prompt = n_samples_per_prompt
         self.tokenizer = tokenizer
         self.dataset_additional_keys = dataset_additional_keys

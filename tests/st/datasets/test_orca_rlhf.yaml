@@ -1,0 +1,8 @@
+input: /data/for_dt/datasets/orca_rlhf/orca_rlhf.jsonl
+map-keys: { "prompt": "question", "query": "", "system": "system" }
+output-prefix: /data/for_dt/datasets/orca_rlhf/test
+handler_name: AlpacaStylePairwiseHandler
+workers: 8
+tokenizer-name-or-path: /data/models/llama2-7b
+tokenizer-type: HuggingFaceTokenizer
+prompt-type: empty

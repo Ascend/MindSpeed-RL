@@ -1,4 +1,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+import os
+
+
 def validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config):
     # 校验序列长度与模型最大长度
     if generate_config.max_model_len < actor_config.seq_length:
@@ -171,3 +174,23 @@ def validate_rl_args(actor_config, ref_config, reward_config, rl_config, generat
         raise ValueError(
             f"Verifier function and weight length mismatch: "
             f"{len(rl_config.verifier_function)} vs {len(rl_config.verifier_weight)}")
+
+
+def validate_data_handler_config(config):
+    support_prompt_type_handler = [
+        "AlpacaStyleInstructionHandler",
+        "AlpacaStylePairwiseHandler",
+        "AlpacaStyleProcessRewardHandler",
+        "R1AlpacaStyleInstructionHandler",
+    ]
+    if config.prompt_type is not None and config.handler_name not in support_prompt_type_handler:
+        raise ValueError(f'If specify prompt_type , handler name must be in:\n{support_prompt_type_handler}.')
+
+    if (config.merge_group_keys is not None) and (not os.path.isdir(config.input)):
+        raise ValueError(f"{config.input} is not a directory or does not exist")
+
+    if not os.path.isdir(os.path.dirname(config.output_prefix)):
+        raise ValueError(f"{os.path.dirname(config.output_prefix)} is not a directory or does not exist")
+
+    if not config.pack and config.neat_pack:
+        raise ValueError("Require set `pack` True when `neat-pack` is True.")

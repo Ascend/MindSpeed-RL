@@ -1,0 +1,12 @@
+input: /data/for_dt/datasets/math_shepherd/train-00000-of-00002.parquet
+tokenizer_type: HuggingFaceTokenizer
+tokenizer_not_use_fast: True
+tokenizer_name_or_path: /data/models/Qwen2.5-7B-Instruct
+output_prefix: /data/for_dt/datasets/math-shepherd
+workers: 4
+prompt_type: qwen
+log_interval: 1000
+handler_name: AlpacaStyleProcessRewardHandler
+seq_length: 4096
+placeholder_token: ки
+reward_tokens: [ "+","-" ]

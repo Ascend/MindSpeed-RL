@@ -1,0 +1,11 @@
+input: /data/for_dt/datasets/pe-nlp/train-00000-of-00001.parquet
+tokenizer_name_or_path: /data/models/Qwen2.5-7B-Instruct
+output_prefix: /data/for_dt/datasets/pe-nlp/data
+handler_name: AlpacaStyleInstructionHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 8
+log_interval: 1000
+prompt_type: qwen
+map_keys: { "prompt": "question", "query": "", "response": "ground_truth_answer", "system": "" }
+pack: True
+seq_length: 4096

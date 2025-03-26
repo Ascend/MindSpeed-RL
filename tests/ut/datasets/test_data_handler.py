@@ -1,17 +1,27 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+import os.path
+import tempfile
 import types
 
 import datasets
 from datasets import load_dataset
 
-from mindspeed_rl.datasets.data_handler import build_dataset
+from mindspeed_rl import get_tokenizer
+from mindspeed_rl.datasets.data_handler import build_dataset, get_dataset_handler, AlpacaStylePairwiseHandler
 from mindspeed_rl.datasets.handler_utils import InstructionDatasetAttr, get_handler_dataset_attr, align_dataset, \
     convert_alpaca_to_intermediate
+from mindspeed_rl.datasets.preprocess_data import build_splitter
 
 from tests.test_tools.dist_test import DistributedTest
 
+current_file = os.path.abspath(__file__)
+project_path = os.path.dirname(current_file)
+
 DATA_ORCA_RLHF_JSONL = '/data/for_dt/datasets/orca_rlhf/orca_rlhf.jsonl'
+DATA_ORCA_RLHF_PREFIX = '/data/for_dt/datasets/orca_rlhf/test'
+DATA_PE_NLP = "/data/for_dt/datasets/pe-nlp/train-00000-of-00001.parquet"
+PROMPT_TEMPLATE_FILE = os.path.join(project_path, "../../../configs/templates.json")
 
 
 class TestHandler(DistributedTest):
@@ -127,7 +137,119 @@ class TestHandler(DistributedTest):
         }
         args = types.SimpleNamespace(**args)
         try:
-            raw_dataset = build_dataset(args)
+            build_dataset(args)
         except Exception as e:
             assert isinstance(e, ValueError)
             assert "wrong_value is invalid, Please check map_key" in str(e)
+
+    def test_non_pack_serialize_to_disk(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        temp_path = temp_dir.name
+
+        args = {
+            "input": DATA_PE_NLP,
+            "workers": 1,
+            "streaming": False,
+            "handler_name": "AlpacaStyleInstructionHandler",
+            "hf_datasets_params": None,
+            "cache_dir": None,
+            "dataset_additional_keys": [],
+            "map_keys": {"prompt": "question", "query": "", "response": "ground_truth_answer", "system": ""},
+            "overwrite_cache": True,
+            "output_prefix": os.path.join(temp_path, "test"),
+            "split_sentences": False,
+            "seq_length": 4096,
+            "prompt_type": "llama2",
+            "prompt_type_path": PROMPT_TEMPLATE_FILE,
+            "pack": False,
+            "append_eod": True,
+            "log_interval": 1000,
+        }
+        args = types.SimpleNamespace(**args)
+        raw_dataset = build_dataset(args)
+        tokenizer = get_tokenizer("/data/models/llama2-7b")
+        splitter = build_splitter(args)
+        handler = get_dataset_handler(args, raw_dataset, tokenizer, splitter)
+        handler.serialize_to_disk()
+
+        listdir = os.listdir(temp_path)
+        for file_name in listdir:
+            if os.path.isfile(os.path.join(temp_path, file_name)):
+                assert file_name.startswith("test_pack")
+                assert file_name.endswith(".idx") or file_name.endswith(".bin")
+
+        temp_dir.cleanup()
+
+    def test_get_dataset_handler(self):
+        args = {
+            "input": DATA_ORCA_RLHF_JSONL,
+            "workers": 1,
+            "streaming": False,
+            "handler_name": "AlpacaStylePairwiseHandler",
+            "hf_datasets_params": None,
+            "cache_dir": None,
+            "dataset_additional_keys": [],
+            "map_keys": {"prompt": "question", "query": "", "system": "system"},
+            "overwrite_cache": True,
+            "output_prefix": DATA_ORCA_RLHF_PREFIX,
+            "split_sentences": False,
+            "seq_length": 4096,
+            "prompt_type": "llama2",
+            "prompt_type_path": PROMPT_TEMPLATE_FILE,
+        }
+        args = types.SimpleNamespace(**args)
+        raw_dataset = build_dataset(args)
+        tokenizer = get_tokenizer("/data/models/llama2-7b")
+        splitter = build_splitter(args)
+        handler = get_dataset_handler(args, raw_dataset, tokenizer, splitter)
+
+        assert isinstance(handler, AlpacaStylePairwiseHandler)
+
+    def test_pack_serialize_to_disk(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        temp_path = temp_dir.name
+
+        args = {
+            "input": DATA_PE_NLP,
+            "workers": 1,
+            "streaming": False,
+            "handler_name": "AlpacaStyleInstructionHandler",
+            "hf_datasets_params": None,
+            "cache_dir": None,
+            "dataset_additional_keys": [],
+            "map_keys": {"prompt": "question", "query": "", "response": "ground_truth_answer", "system": ""},
+            "overwrite_cache": True,
+            "output_prefix": os.path.join(temp_path, "test"),
+            "split_sentences": False,
+            "seq_length": 4096,
+            "prompt_type": "llama2",
+            "prompt_type_path": PROMPT_TEMPLATE_FILE,
+            "pack": True,
+            "append_eod": True,
+            "log_interval": 1000,
+        }
+        args = types.SimpleNamespace(**args)
+        raw_dataset = build_dataset(args)
+        tokenizer = get_tokenizer("/data/models/llama2-7b")
+        splitter = build_splitter(args)
+        handler = get_dataset_handler(args, raw_dataset, tokenizer, splitter)
+        handler.serialize_to_disk()
+
+        listdir = os.listdir(temp_path)
+        for file_name in listdir:
+            if os.path.isfile(os.path.join(temp_path, file_name)):
+                assert file_name.startswith("test_pack")
+                assert file_name.endswith(".idx") or file_name.endswith(".bin")
+
+        temp_dir.cleanup()
+
+    def test_get_invalid_handler(self):
+        args = {
+            "handler_name": "InvalidHandler",
+        }
+        args = types.SimpleNamespace(**args)
+        try:
+            get_dataset_handler(args, None, None, None)
+        except Exception as e:
+            assert isinstance(e, ValueError)
+            assert "InvalidHandler is not supported." in str(e)

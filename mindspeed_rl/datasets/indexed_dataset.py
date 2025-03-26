@@ -1,5 +1,6 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 
 import os
 import shutil
@@ -681,8 +682,8 @@ class IndexedDatasetBuilder(object):
         Args:
             idx_path (str): The path to the index file
         """
-        self.data_file.close()
         self.buffer_writer.write()
+        self.data_file.close()
         with _IndexWriter(idx_path, self.dtype) as writer:
             writer.write(self.sequence_lengths, self.sequence_modes, self.document_indices)
 

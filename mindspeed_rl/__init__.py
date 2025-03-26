@@ -4,7 +4,8 @@
 from .config_cls import MegatronConfig, GenerateConfig, RLConfig
 from .datasets import (
     InstructionDataLoader, InstructionDataset, build_train_valid_test_datasets,
-    PromptDataLoader, PromptDataset, get_train_valid_test_num_samples
+    PromptDataLoader, PromptDataset, get_train_valid_test_num_samples, get_dataset_handler,
+    build_dataset
 )
 from .models import (
     LossFuncFactory, GRPOActorLossFunc, ReferenceLossFunc, RewardLossFunc,
@@ -33,5 +34,5 @@ __all__ = [
     'seed_all', 'synchronize_time', 'parse_args_from_config',
     'extract_answer', 'choice_answer_clean', 'math_equal',
     'ReferenceWorker', 'RewardWorker', 'ActorHybridWorker', 'RayActorGroup',
-    'MegatronShardingManager', 'RuleReward'
+    'MegatronShardingManager', 'RuleReward', 'get_dataset_handler', 'build_dataset'
 ]

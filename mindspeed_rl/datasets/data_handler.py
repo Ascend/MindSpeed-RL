@@ -58,8 +58,8 @@ class BaseDatasetHandler(object):
         if self.args.split_sentences:
             level = "sentence"
 
-        logger.info("Vocab size: %s", self.tokenizer.vocab_size)
-        logger.info("Output prefix: %s", self.args.output_prefix)
+        logger.info(f"Vocab size: {self.tokenizer.vocab_size}")
+        logger.info(f"Output prefix: {self.args.output_prefix}")
         for key in self.args.json_keys:
             output_bin_files[key] = f"{self.args.output_prefix}_{key}_{level}.bin"
             output_idx_files[key] = f"{self.args.output_prefix}_{key}_{level}.idx"
@@ -69,7 +69,7 @@ class BaseDatasetHandler(object):
         self.output_idx_files = output_idx_files
         startup_end = time.time()
         proc_start = time.time()
-        logger.info("Time to startup:%s", startup_end - startup_start)
+        logger.info(f"Time to startup:{startup_end - startup_start}")
 
         valid_num = 0
         key_data_dict = {key: [] for key in self.args.json_keys}
@@ -104,7 +104,7 @@ class BaseDatasetHandler(object):
             if k % self.args.log_interval == 0:
                 current = time.time()
                 elapsed = current - proc_start
-                logger.info("Processed %s documents (%s docs/s).", k, self.args.log_interval / elapsed)
+                logger.info(f"Processed {k} documents ({self.args.log_interval / elapsed} docs/s).")
 
             pad_length = self.args.seq_length - len(packed_data_dict['input_ids'])
             if hasattr(self.tokenizer, "pad_token_id"):
@@ -139,8 +139,8 @@ class BaseDatasetHandler(object):
         if self.args.split_sentences:
             level = "sentence"
 
-        logger.info("Vocab size: %s", self.tokenizer.vocab_size)
-        logger.info("Output prefix: %s", self.args.output_prefix)
+        logger.info(f"Vocab size: {self.tokenizer.vocab_size}")
+        logger.info(f"Output prefix: {self.args.output_prefix}")
         for key in self.args.json_keys:
             output_bin_files[key] = f"{self.args.output_prefix}_{key}_{level}.bin"
             output_idx_files[key] = f"{self.args.output_prefix}_{key}_{level}.idx"
@@ -150,7 +150,7 @@ class BaseDatasetHandler(object):
         startup_end = time.time()
         proc_start = time.time()
         total_bytes_processed = 0
-        logger.info("Time to startup:%s", startup_end - startup_start)
+        logger.info(f"Time to startup:{startup_end - startup_start}")
 
         skip_num = 0
         for i, doc in enumerate(self.tokenized_dataset.iter(batch_size=iteration_batch_size), start=1):
@@ -188,9 +188,9 @@ class BaseDatasetHandler(object):
                 current = time.time()
                 elapsed = current - proc_start
                 mbs = total_bytes_processed / elapsed / 1024 / 1024
-                logger.info("Processed %s documents (%s docs/s, %s MB/s).", batch_id, batch_id / elapsed, mbs)
+                logger.info(f"Processed {batch_id} documents ({batch_id / elapsed} docs/s, {mbs} MB/s).")
 
-        logger.info("Skip %s sample exceeded seq-length(%s)", skip_num / len(self.args.json_keys), self.args.seq_length)
+        logger.info(f"Skip {skip_num / len(self.args.json_keys)} sample exceeded seq-length({self.args.seq_length})")
         for key in self.args.json_keys:
             builders[key].finalize(output_idx_files[key])
 
@@ -313,6 +313,82 @@ class AlpacaStylePairwiseHandler(BaseDatasetHandler):
         return concatenated_ids
 
 
+class AlpacaStyleInstructionHandler(BaseDatasetHandler):
+    """
+    Handle LlamaFactory supported dataset format
+    a Llama-factory Alpaca instruction dataset handler
+    """
+
+    def __init__(self, args, raw_datasets, tokenizer, splitter):
+        super().__init__(args, raw_datasets, tokenizer, splitter)
+        self.prompter = None
+        self.train_on_inputs = False
+        self.args.json_keys = ["input_ids", "attention_mask", "labels"]
+        # use 'packed' string to mark that this is a packed dataset
+        self.args.output_prefix = self.args.output_prefix + "_packed"
+        self.ignored_label = -100
+        self.is_multi_turn = True
+        self.llama_factory_template = get_model_template(args.prompt_type.strip(), args.prompt_type_path.strip())
+
+    def _format_msg(self, sample):
+        return sample
+
+    def _tokenize_prompt(
+            self,
+            example,
+            template,
+            tokenizer,
+    ) -> Dict[str, List[List[int]]]:
+        model_inputs = {"input_ids": [], "attention_mask": [], "labels": []}
+        input_ids, labels = [], []
+        if len(example["prompt"]) % 2 != 1 or len(example["response"]) != 1:
+            # this message is invalid
+            messages = [{'role': 'user', 'content': ''}, {'role': 'assistant', 'content': ''}]
+        else:
+            messages = example["prompt"] + example["response"]
+
+        for source_ids, target_ids in self.llama_factory_template.encode_multiturn(
+                tokenizer, messages, example["system"][0], example["tools"][0]
+        ):
+            if self.train_on_inputs:
+                source_mask = source_ids
+            elif len(input_ids) != 0 and template.efficient_eos:
+                source_mask = [tokenizer.eos_token_id] + [self.ignored_label] * (len(source_ids) - 1)
+            else:
+                source_mask = [self.ignored_label] * len(source_ids)
+
+            input_ids += source_ids + target_ids
+            labels += source_mask + target_ids
+
+        if template.efficient_eos:
+            input_ids += [tokenizer.eos_token_id]
+            labels += [tokenizer.eos_token_id]
+
+        total_length = len(input_ids)
+
+        model_inputs["input_ids"] = input_ids
+
+        if input_ids[0] == 0:
+            model_inputs["attention_mask"] = [1] * total_length
+        else:
+            model_inputs["attention_mask"] = [input_ids[0] // input_ids[0]] * total_length
+        model_inputs["labels"] = labels
+        return model_inputs
+
+    def _filter(self, sample):
+        messages = self._format_msg(sample)
+        tokenized_full_prompt = self._tokenize_prompt(messages, self.llama_factory_template, self.tokenizer.tokenizer)
+
+        if self.args.append_eod:
+            tokenized_full_prompt["input_ids"].append(self.tokenizer.eod)
+            tokenized_full_prompt["attention_mask"].append(1)
+            tokenized_full_prompt["labels"].append(self.tokenizer.eod)
+
+        for key in self.args.json_keys:
+            tokenized_full_prompt[key] = [tokenized_full_prompt[key]]
+        return tokenized_full_prompt
+
+
 class R1AlpacaStyleInstructionHandler(BaseDatasetHandler):
     """
     Handle LlamaFactory supported dataset format
@@ -388,7 +464,7 @@ def _get_handler_cls(handler_name=None):
     handler_cls = getattr(current_module, handler_name, None)
     if handler_cls is None:
         raise ValueError(f"{handler_name} is not supported.")
-    logger.info("dataset will use %s to handle dataset", handler_cls.__name__)
+    logger.info(f"dataset will use {handler_cls.__name__} to handle dataset")
     return handler_cls
 
 
@@ -441,12 +517,7 @@ def _has_py_script(input_name):
 
 
 def build_dataset(args):
-    """loading dataset by huggingface"""
     raw_datasets = None
-    if args.hf_datasets_params:
-        with open(args.hf_datasets_params, 'r') as fin:
-            param_dict = json.load(fin)
-        return load_dataset(**param_dict)
     cache_dir = args.cache_dir
     split_flag = "train"
     load_from_local = os.path.exists(args.input)
@@ -468,8 +539,8 @@ def build_dataset(args):
             ext, data_format = _get_data_format(data_files)
             filtered_data_files = list(filter(lambda x: x.split('.')[-1] == ext, data_files))
             if filtered_data_files:
-                logger.info("loading data from local file, format: %s,"
-                            " file num: %s", data_format, len(data_files))
+                logger.info(f"loading data from local file, format: {data_format},"
+                            f" file num: {len(data_files)}")
                 raw_datasets = load_dataset(
                     data_format,
                     split=split_flag,

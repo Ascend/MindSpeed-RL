@@ -33,7 +33,9 @@ class TestPromptDataset(DistributedTest):
             documents=documents,
             extra_param=dummy_config,
         )
-        dataloader = PromptDataLoader(dummy_config, dataset, 0)
+        dataloader = PromptDataLoader(dataset, 0, dummy_config.global_batch_size,
+                                      dummy_config.num_workers, dummy_config.seed,
+                                      dummy_config.dataset_additional_keys)
 
         for item in dataloader:
             assert item['prompts'][0][0] == 151644

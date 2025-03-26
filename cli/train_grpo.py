@@ -107,7 +107,10 @@ def train(config):
     actor_worker.wait_all_ref_objs_run_over()
 
     consumed_train_samples = actor_worker.get_consumed_train_samples()
-    data_loader = PromptDataLoader(actor_config, train_ds, consumed_train_samples)
+    data_loader = PromptDataLoader(
+        train_ds, consumed_train_samples, actor_config.global_batch_size,
+        actor_config.num_workers, actor_config.seed, actor_config.dataset_additional_keys
+    )
     logger.info('after dataloader is built')
 
     reference_worker.wait_all_ref_objs_run_over()

@@ -189,18 +189,18 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
     return new_metrics
 
 
-def compute_tps(kwargs, metrics_result, gbs, time):
+def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     
-    actor_resource = kwargs.get('actor_resource', {})
-    reference_resource = kwargs.get('reference_resource', {})
-    reward_resource = kwargs.get('reward_resource', None)
+    actor_resource = compute_kwargs.get('actor_resource', {})
+    reference_resource = compute_kwargs.get('reference_resource', {})
+    reward_resource = compute_kwargs.get('reward_resource', None)
 
     actor_npus = actor_resource.get('num_npus', 0)
     reference_npus = reference_resource.get('num_npus', 0)
     reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
 
     world_size = actor_npus + reference_npus + reward_npus
-    tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs / world_size / time
+    tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs * n_samples / world_size / time_all
     return tps
 
 

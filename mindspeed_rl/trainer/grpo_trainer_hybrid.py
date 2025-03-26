@@ -178,7 +178,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
             metrics_result = metrics_post_processing(metrics_result)
-            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, all_timer.last)
+            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, all_timer.last)
 
             metrics.update(value=grpo_data_metrics)
             metrics.update(value=metrics_result)

@@ -1,0 +1,14 @@
+input: ./dataset/pe-nlp/train-00000-of-00001.parquet
+tokenizer_name_or_path: /data/models/Deepseek-V3-Base
+output_prefix: ./dataset/data
+handler_name: R1AlpacaStyleInstructionHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 8
+log_interval: 1000
+prompt_type: deepseek3_r1
+dataset_additional_keys: [labels]
+map_keys: 
+  prompt: question
+  query: ""
+  response: ground_truth_answer
+  system: ""

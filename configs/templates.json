@@ -80,7 +80,7 @@
     "name": "qwen_r1",
     "format_user": {
       "slots": [
-        "<|im_start|>user\nA conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think><answer> answer here </answer>Put your final answer within \\\\boxed{}. {{content}}<|im_end|>\n<|im_start|>assistant\n"
+        "<|im_start|>user\nA conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think><answer> answer here </answer>. Put your final answer within \\boxed{}.\n{{content}}<|im_end|>\n<|im_start|>assistant\n"
       ]
     },
     "format_system": {

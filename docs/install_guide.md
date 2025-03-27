@@ -1,6 +1,6 @@
 ## 安装指导
 
-请参考首页[按照教程](../README.md)选择下载对应依赖版本。
+请参考首页[安装指南](../README.md)选择下载对应依赖版本。
 
 ### 驱动固件安装
 
@@ -67,7 +67,10 @@ cp -r megatron ../MindSpeed-RL/
 cd ..
 
 git clone https://gitee.com/ascend/MindSpeed-LLM.git
-cp -r MindSpeed-LLM/mindspeed-llm ./MindSpeed-RL/
+cd MindSpeed-LLM
+git checkout 421ef7bcb83fb31844a1efb688cde71705c0526e
+cp -r mindspeed-llm ../MindSpeed-RL/
+cd ..
 
 cd ./MindSpeed-RL
 pip install -r requirements.txt 

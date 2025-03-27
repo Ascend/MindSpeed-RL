@@ -4,8 +4,6 @@
 
 MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [昇腾芯片](https://www.hiascend.com/) 生态合作伙伴提供端到端的RL训推解决方案，支持超大昇腾集群训推共卡/分离部署、多模型异步流水调度、训推异构切分通信等核心加速能力
 
----
-
 ## NEWS !!! 📣📣📣
 
 🚀🚀🚀**DeepSeek-R1** 系列功能逐步上线！！🚀🚀🚀
@@ -13,6 +11,8 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
 - **[DeepSeek-R1-ZERO Qwen-7B](./docs/solutions/r1_zero_qwen25_7b.md)** 😊
 
 - **[DeepSeek-R1-ZERO Qwen-32B](./docs/solutions/r1_zero_qwen25_32b.md)** 😊
+
+---
 
 ## 安装教程
 
@@ -68,12 +68,12 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
 
 ## 使用教程
 
-### 训练方案
+### 训练算法
 
 <table>
   <thead>
     <tr>
-      <th>训练方案</th>
+      <th>训练算法</th>
       <th>训练指南</th>
       <th>支持模型</th>
       <th>发布状态</th>
@@ -82,7 +82,7 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   <tbody>
     <tr>
       <td>指令微调</td>
-      <td> <a href="./docs/supervised_finetune.md"> Doc</a> </td>
+      <td> <a href="./docs/algorithms/supervised_finetune.md">Doc</a></td>
       <td  rowspan="1">
         <a href="examples/sft/sft_qwen25_7b.sh">Qwen2.5-7B</a> <br>
         <a href="examples/sft/sft_qwen25_32b.sh">Qwen2.5-32B</a> <br>
@@ -91,7 +91,7 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
     <tr>
       <td>结果奖励</td>
-      <td> <a href="./docs/orm.md">Doc</a> </td>
+      <td> <a href="docs/algorithms/orm.md">Doc</a> </td>
       <td  rowspan="1">
         <a href="examples/rm/orm_trainer_qwen25_7b.sh">Qwen2.5-7B</a> <br>
         <a href="examples/rm/orm_trainer_qwen25_32b.sh">Qwen2.5-32B</a> <br>
@@ -100,8 +100,8 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
     <tr>
       <td> GRPO</td>
-      <td> Doc </td>
-      <td  rowspan="1">Qwen2.5-7B</td>
+      <td> <a href="docs/algorithms/grpo.md">Doc</a> </td>
+      <td  rowspan="1"> <a href="examples/grpo/grpo_trainer_qwen25_7b.sh">Qwen2.5-7B</a> </td>
       <td> Preview</td>
     </tr>
   </tbody>
@@ -115,7 +115,7 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     <tr>
       <th>核心特性</th>
       <th>特性指南</th>
-      <th>适用方案</th>
+      <th>适用算法</th>
       <th>适用模型</th>
       <th>发布状态</th>
     </tr>
@@ -123,18 +123,24 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   <tbody>
     <tr>
       <td>训推共卡</td>
-      <td>  Doc </td>
+      <td>  <a href="docs/features/hybrid_actor.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">Qwen2.5-7B</td>
+      <td  rowspan="1">
+        Qwen2.5-7B <br>
+        Qwen2.5-32B <br>
+      </td>
       <td> Preview</td>
     </tr>
   </tbody>
   <tbody>
     <tr>
       <td>多模型异步流水</td>
-      <td>  Doc </td>
+      <td>  <a href="docs/features/transfer_dock.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">Qwen2.5-7B</td>
+      <td  rowspan="1">
+        Qwen2.5-7B <br>
+        Qwen2.5-32B <br>
+      </td>
       <td> Preview</td>
     </tr>
   </tbody>

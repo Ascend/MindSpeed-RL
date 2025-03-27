@@ -14,4 +14,4 @@ else
     config=$1
 fi
 
-python "$PROJECT_PATH"/preprocess_data.py $config
+python "$PROJECT_PATH"/cli/preprocess_data.py $config

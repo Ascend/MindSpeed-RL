@@ -20,4 +20,4 @@ DISTRIBUTED_ARGS="
 "
 
 torchrun $DISTRIBUTED_ARGS "$PROJECT_PATH"/cli/train_sft.py --config-dir="$PROJECT_PATH"/tests/st/configs \
---config-name=test_sft_trainer_qwen25_7b | tee sft_pack_qwen25_7b.log
+--config-name=test_sft_trainer_qwen25_7b

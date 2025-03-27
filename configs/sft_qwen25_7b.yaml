@@ -49,7 +49,7 @@ sft:
   # data_args:
   data_path: ./alpaca/data
   split: 100,0,0
-  no_shuffle: true
+  no_shuffle: false
 
   # ckpt_args:
   no_load_optim: true

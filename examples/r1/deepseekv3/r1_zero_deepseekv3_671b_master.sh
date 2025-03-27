@@ -1,5 +1,5 @@
 
-DEFAULT_YAML="grpo_trainer_deepseekv3_671b"
+DEFAULT_YAML="r1_zero_deepseekv3_671b"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
 

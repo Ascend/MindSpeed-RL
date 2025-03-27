@@ -76,11 +76,11 @@ bash examples/ckpt/ckpt_convert_qwen25_hf2mcore_orm.sh
 
 ### 单机
 
-参考[配置](#配置)，根据真实环境填写路径。进入项目目录后通过 [examples/rm/orm_trainer_qwen25_7b.sh](../examples/rm/orm_trainer_qwen25_7b.sh) 启动7B模型训练（单机）
+参考[配置](#配置)章节，根据真实环境填写路径。进入项目目录后通过 [examples/rm/orm_trainer_qwen25_7b.sh](../../examples/rm/orm_trainer_qwen25_7b.sh) 启动7B模型训练（单机）
 
 ### 多机
 
-参考[配置](#配置)，根据真实环境填写路径。 进入项目目录后通过 [examples/rm/orm_trainer_qwen25_32b.sh](../examples/rm/orm_trainer_qwen25_32b.sh) 启动32B模型训练（多机）
+参考[配置](#配置)章节，根据真实环境填写路径。 进入项目目录后通过 [examples/rm/orm_trainer_qwen25_32b.sh](../../examples/rm/orm_trainer_qwen25_32b.sh) 启动32B模型训练（多机）
 在运行脚本前需要根据真实环境配置脚本中的环境变量
 
 - MASTER_ADDR 主节点的IP
@@ -94,7 +94,7 @@ bash examples/ckpt/ckpt_convert_qwen25_hf2mcore_orm.sh
 
 ### 配置
 
-脚本使用的是configs下的orm_trainer_qwen25_7b.yaml，orm_trainer_qwen25_32b.yaml配置文件
+脚本使用的是configs目录下的orm_trainer_qwen25_7b.yaml，orm_trainer_qwen25_32b.yaml配置文件
 
 在文件内需要根据真实环境配置
 - tokenizer_name_or_path 需配置为 tokenizer对应路径

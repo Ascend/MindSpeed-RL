@@ -33,6 +33,7 @@ reward:
   clip_grad: 1.0
   adam_beta1: 0.9
   adam_beta2: 0.95
+  load_checkpoint_loosely: true
   initial_loss_scale: 4096
   is_pairwise_dataset: true
   norm_epsilon: 1e-6

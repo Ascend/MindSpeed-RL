@@ -61,6 +61,15 @@ ref_config:
   no_load_optim: true
   no_load_rng: true
 
+reward_config:
+  model: qwen25_32b
+  tensor_model_parallel_size: 8
+  pipeline_model_parallel_size: 1
+  micro_batch_size: 1
+  load: ./ckpt
+  no_load_optim: true
+  no_load_rng: true
+
 rl_config:
   blocking: false
   experience_count: 64

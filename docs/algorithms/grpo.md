@@ -1,7 +1,7 @@
 # 后训练方法 Ray GRPO
 
 ## 简介
-[Group Relative Policy Optimization (GRPO) ](https://arxiv.org/pdf/2402.03300)是 DeepseekMath中提出的训练方法，它移除了 PPO 中对 Critic 模型的依赖，而是通过计算同一prompt多次重复采样输出的相对奖励来估计优势函数，这一创新大大减少了显存占用，提高了算法在强化学习任务中的效率。
+[Group Relative Policy Optimization (GRPO) ](https://arxiv.org/pdf/2402.03300)是 Deepseek-Math中提出的训练方法，它移除了 PPO 中对 Critic 模型的依赖，而是通过计算同一prompt多次重复采样输出的相对奖励来估计优势函数，这一创新大大减少了显存占用，提高了算法在强化学习任务中的效率。
 
 在 GRPO 方法中包含了三个关键模型：Actor，Reference，Reward。其中 Actor 和 Reference 模型是通过SFT后得到的策略模型，而 Reward 模型则是通过训练构建的奖励评估模型。GRPO 的核心训练目标是优化 Actor 模型的策略，使其在执行强化学习任务时能够产生更优的动作序列，更符合任务目标的预期。
 
@@ -97,7 +97,7 @@ bash examples/grpo/grpo_trainer_qwen25_7b.sh
 
 ### 多机
 
-以[ DeepSeekR1-ZERO-32B 复现](./r1_zero_qwen25_32b.md) 为例，多机启动步骤如下：
+以[ DeepSeekR1-ZERO-Qwen2.5-32B 复现](../solutions/r1_zero_qwen25_32b.md) 为例，多机启动步骤如下：
 
 与基于ray的其他强化训练一样，我们多机需要先在主节点初始化ray：
 
@@ -203,7 +203,7 @@ bash examples/r1/qwen25/r1_zero_qwen25_32b_worker.sh
 日志配置参数也在 rl_config 中进行配置，当前支持 wandb/tensorboard 日志输出：
 
 tensorboard开关（若use_tensorboard和use_wandb同时为True，则tensorboard不生效）:
-* `use_tensorboard: 配置为 True 时打开 tensorboard；     
+* `use_tensorboard`: 配置为 True 时打开 tensorboard；     
 
 wandb开关:
 * `use_wandb`: 配置为 True 时打开 wandb；            
@@ -238,6 +238,6 @@ vllm 模型参数 可以参照[vllm官网参数介绍](https://docs.vllm.ai/en/l
 ## 复现效果
 当前已成功复现DeepSeekR1-ZERO训练流程以及训练效果，详细的复现流程以及效果图展示在以下文档：
 
-[DeepSeekR1-ZERO-7B](./r1_zero_qwen25_7b.md)
+[DeepSeekR1-ZERO-Qwen2.5-7B](../solutions/r1_zero_qwen25_7b.md)
 
-[DeepSeekR1-ZERO-32B](./r1_zero_qwen25_32b.md)
+[DeepSeekR1-ZERO-Qwen2.5-32B](../solutions/r1_zero_qwen25_32b.md)

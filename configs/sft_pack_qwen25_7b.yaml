@@ -50,7 +50,7 @@ sft:
   data_path: ./dataset/data
   reset_position_ids: true
   split: 100,0,0
-  no_shuffle: true
+  no_shuffle: false
 
   # ckpt_args:
   no_load_optim: true

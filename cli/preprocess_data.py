@@ -80,7 +80,7 @@ def preprocess(config):
                 os.remove(idx_file.replace('.idx', '.bin'))
 
 
-@hydra.main(config_path="configs/datasets", config_name=config_name)
+@hydra.main(config_path="../configs/datasets", config_name=config_name)
 def main(config):
     preprocess(config)
 

@@ -20,4 +20,4 @@ DISTRIBUTED_ARGS="
 "
 
 torchrun $DISTRIBUTED_ARGS "$PROJECT_PATH"/cli/train_orm.py --config-dir="$PROJECT_PATH"/tests/st/configs \
---config-name=test_orm_trainer_qwen25_7b | tee orm_trainer_qwen25_7b.log
+--config-name=test_orm_trainer_qwen25_7b

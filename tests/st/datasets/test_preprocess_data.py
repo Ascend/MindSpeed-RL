@@ -2,7 +2,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 import hydra
 
-from preprocess_data import preprocess
+from cli.preprocess_data import preprocess
 
 
 @hydra.main(config_path="./", config_name="test_orca_rlhf")

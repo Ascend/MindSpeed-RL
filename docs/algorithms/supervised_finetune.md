@@ -7,13 +7,13 @@
 
 在强化学习中，SFT 一般用来初始化 actor 模型和 reference 模型。
 
-![image](../sources/images/instruction_finetune/sft_in_rl.PNG)
+![image](../../sources/images/instruction_finetune/sft_in_rl.PNG)
 
 ## 使用示例
 
 ### 准备环境
 
-请参考首页[安装指南](./install_guide.md)安装环境和准备代码依赖。
+请参考首页[安装指南](../install_guide.md)安装环境和准备代码依赖。
 
 ### 准备数据
 
@@ -92,7 +92,7 @@ Alpaca风格示例：
 【--prompt-type】
 
 用于指定模型模板，能够让base模型微调后能具备更好的对话能力。`prompt-type`
-的可选项可以在[templates](../configs/templates.json)文件内查看。
+的可选项可以在[templates](../../configs/templates.json)文件内查看。
 
 【--handler-name】
 
@@ -184,15 +184,15 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 
 ### 单机
 
-参考[配置](#配置)
-，根据真实环境填写路径。进入项目目录后通过 [examples/sft/sft_qwen25_7b.sh](../examples/sft/sft_qwen25_7b.sh)
-或者[examples/sft/sft_pack_qwen25_7b.sh](../examples/sft/sft_pack_qwen25_7b.sh) 启动7B模型训练（单机）
+参考[配置](../../configs/sft_qwen25_7b.yaml)
+，根据真实环境填写路径。进入项目目录后通过 [examples/sft/sft_qwen25_7b.sh](../../examples/sft/sft_qwen25_7b.sh)
+或者[examples/sft/sft_pack_qwen25_7b.sh](../../examples/sft/sft_pack_qwen25_7b.sh) 启动7B模型训练（单机）
 
 ### 多机
 
-参考[配置](#配置)，根据真实环境填写路径。
-进入项目目录后通过 [examples/sft/sft_qwen25_32b.sh](../examples/sft/sft_qwen25_32b.sh)
-或者[examples/sft/sft_pack_qwen25_32b.sh](../examples/sft/sft_pack_qwen25_32b.sh) 启动32B模型训练（多机）
+参考[配置](../../configs/sft_qwen25_32b.yaml)，根据真实环境填写路径。
+进入项目目录后通过 [examples/sft/sft_qwen25_32b.sh](../../examples/sft/sft_qwen25_32b.sh)
+或者[examples/sft/sft_pack_qwen25_32b.sh](../../examples/sft/sft_pack_qwen25_32b.sh) 启动32B模型训练（多机）
 在运行脚本前需要根据真实环境配置脚本中的环境变量
 
 - MASTER_ADDR 主节点的IP
@@ -216,7 +216,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 - tensor_model_parallel_size 张量并行数
 - pipeline_model_parallel_size 流水线并行数
 - 需要保证并行数乘积能整除总卡数
-- 并行配置要与[权重转换](#权重转换)中转换目标的并行配置一致
+- 并行配置要与权重转换时转换目标的并行配置一致
 
 ## 参考集群规模
 
@@ -234,15 +234,15 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
       <td rowspan="2">Qwen25-7B</td>
       <td rowspan="2">Atlas 900 A2 PODc</td>
       <td rowspan="2">1x8</td>
-      <td><a href="../examples/sft/sft_qwen25_7b.sh">non_pack</a></td>
+      <td><a href="../../examples/sft/sft_qwen25_7b.sh">non_pack</a></td>
     </tr>
-      <td><a href="../examples/sft/sft_pack_qwen25_7b.sh">pack</a></td>
+      <td><a href="../../examples/sft/sft_pack_qwen25_7b.sh">pack</a></td>
     <tr>
       <td rowspan="2">Qwen25-32B</td>
       <td rowspan="2">Atlas 900 A2 PODc</td>
       <td rowspan="2">2x8</td>
-      <td><a href="../examples/sft/sft_qwen25_32b.sh">non_pack</a></td>
+      <td><a href="../../examples/sft/sft_qwen25_32b.sh">non_pack</a></td>
     </tr>
-      <td><a href="../examples/sft/sft_pack_qwen25_32b.sh">pack</a></td>
+      <td><a href="../../examples/sft/sft_pack_qwen25_32b.sh">pack</a></td>
   </tbody>
 </table>

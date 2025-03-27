@@ -1,9 +1,9 @@
-# DeepSeek-R1-Zero(qwen25-32b)
+# DeepSeek-R1-Zero-Qwen25-32B
 R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，本篇工作使用Qwen25-32B模型复现DeepSeek-R1-Zero在Math领域的工作
 
 ## 整体流程示意图
 
-![](../../sources/images/R1-Zero/r1_zero_roadmap.png)
+![](../../sources/images/r1_zero/r1_zero_roadmap.png)
 
 
 ## 复现效果
@@ -14,7 +14,7 @@ R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，�
 | 240 | 1e-6 (contant) |  128  |  16  |  0.8  |  0.001  |  1024  |  3072  |  acc + format  | - |
 
     训练过程用tensorboard记录如下
-![](../../sources/images/R1-Zero/qwen32b_curses.png)
+![](../../sources/images/r1_zero/qwen32b_curses.png)
 
 
 ### 评测结果
@@ -33,10 +33,10 @@ R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，�
 
 - **训练前**
 
-  ![](../../sources/images/R1-Zero/normal_answer.png)
+  ![](../../sources/images/r1_zero/normal_answer.png)
 - **训练后**
 
-  ![](../../sources/images/R1-Zero/aha_moment.png)
+  ![](../../sources/images/r1_zero/aha_moment.png)
 
 
 ## 环境配置
@@ -47,7 +47,7 @@ R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，�
 
 ### 权重转换
 ---
-在进行RL训练之前，模型需要从HuggingFace权重转换为megatron权重，可参考[**权重转换部分**](../grpo.md)
+在进行RL训练之前，模型需要从HuggingFace权重转换为megatron权重，可参考[**权重转换部分**](../algorithms/grpo.md)
 
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
@@ -80,7 +80,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 
 ### 数据预处理
 需要先配置数据处理的yaml文件(examples\datasets\r1_zero_qwen25_32b.yaml)
-自定义数据集需要设置--map-keys映射，或重写自定义handler；具体参考[**数据集处理部分**](../grpo.md)
+自定义数据集需要设置--map-keys映射，或重写自定义handler；具体参考[**数据集处理部分**](../algorithms/grpo.md)
 
 
 **Qwen2.5-32B**
@@ -94,7 +94,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 ## 打分器
 DeepSeek-R1-Zero训练的过程中仅使用了基于程序的打分器而没有使用ORM，我们在数学领域上的打分逻辑分为以下几个部分：
 
-![](../../sources/images/R1-Zero/rule_reward.png)
+![](../../sources/images/r1_zero/rule_reward.png)
 
 ## 训练
 ### 背景
@@ -106,7 +106,7 @@ DeepSeek-R1-Zero训练的过程中仅使用了基于程序的打分器而没有�
 ```
 GRPO通过分组采样n个输出，利用组内的平均奖励作为基线计算每个输出在组内的相对奖励，并基于相对奖励计算优势值，从而避免了引入额外的价值网络（critic model）
 ```
-![](../../sources/images/R1-Zero/grpo.png)
+![](../../sources/images/r1_zero/grpo.png)
 
 DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）替换为基于规则的打分器。
 

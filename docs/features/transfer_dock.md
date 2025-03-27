@@ -4,7 +4,7 @@
 
 在分离式架构中，Actor Rollout、Ref Forward、Critic Forward、Actor Forward、Actor Train、Critic Train等不同计算任务存在数据流程依赖。传统ReplayBuffer不支持细粒度、异步高性能读写，**需按序等待各个计算任务完全完成才能启动后续任务**，造成较大**流水空泡**与**计算资源浪费**。为解决此问题，提出TransferDock模块，以mbs为粒度实现各个计算任务的异步、高性能读写。
 
-![TransferDock收益空间](../sources/images/transfer_dock/TransferDock_benefit.png)
+![TransferDock收益空间](../../sources/images/transfer_dock/transfer_dock_benefit.png)
 
 如上图所示，TransferDock可支持各个RL任务按照mbs粒度进行无阻塞读写，从而实现各个RL任务之间的掩盖。考虑到一般Actor Rollout约占端到端时间的80%，理想情况下引入TransferDock可将训练任务除最后一个mbs外完全掩盖，**取得接近10~20%的收益**。
 
@@ -16,7 +16,7 @@ TransferDock在LLM后训练系统中连接了推理框架与训练框架，扮�
 3. 训练引擎请求数据，TransferDock按照其所需的mbs大小重新打包（装箱），并装载至Dataloader（装船）发送给训练引擎。
 
 
-![TransferDock架构示意](../sources/images/transfer_dock/TransferDock_design.png)
+![TransferDock架构示意](../../sources/images/transfer_dock/transfer_dock_design.png)
 
 ### 设计抽象
 在TranserDock中，构建了一个数据存储Manager，用于存储、维护RL后训练中所需要的各类数据，如`prompts`, `responses`, `old_log_prob`等。此外，还维护了一个消费状态Manager，用于记录各个RL角色的数据消费情况，确保数据读写不重不漏。数据存储Manager采用Index进行访问；消费状态Manager则提供了扫描数据生产消费状态，并按照Index读写数据存储Manager的能力。
@@ -26,7 +26,7 @@ TransferDock在LLM后训练系统中连接了推理框架与训练框架，扮�
 ### 具体实现
 TransferDock在实现时采用分层设计，基类TransferDock通过index+信号量进行异步并发操作，避免线程锁的引入，实现高性能读写；上层提供与RL算法耦合的GRPOTransferDock派生类，维护各个RL角色的生产/消费状态，为用户提供友好的数据读写接口，实现各个RL角色间的无阻塞读写。
 
-![TransferDock分层设计](../sources/images/transfer_dock/TransferDock_arch.png)
+![TransferDock分层设计](../../sources/images/transfer_dock/transfer_dock_arch.png)
 
 ### 高并发设计
 
@@ -49,7 +49,7 @@ TransferDock在实现时采用分层设计，基类TransferDock通过index+信�
 
 综上，TransferDock在实现过程中充分考虑了异步高并发场景，可支持大规模后训练任务。
 
-![TransferDock高并发读写](../sources/images/transfer_dock/TransferDock_high_concurrency.png)
+![TransferDock高并发读写](../../sources/images/transfer_dock/transfer_dock_high_concurrency.png)
 
 > 特别地，使能异步模式时需将`configs/XXX.yaml`中的blocking设置为false
 
@@ -140,6 +140,6 @@ while self.all_consumed(experience_consumer_stage) > 0:
 
 ## 未来演进
 
-![TransferDock架构演进](../sources/images/transfer_dock/TransferDock_distributed.png)
+![TransferDock架构演进](../../sources/images/transfer_dock/transfer_dock_distributed.png)
 
 如上图左侧所示，当前TransferDock采用单节点设计，各路DP均会向单一节点发送读写请求，在千卡以上大规模训练时可能成为瓶颈。未来TransferDock将进一步支持分布式存储，将控制平面与数据平面分离，管理节点维护数据状态，实际数据读写过程将分布在各个存储节点中，从而缓解网络带宽瓶颈与IO瓶颈。

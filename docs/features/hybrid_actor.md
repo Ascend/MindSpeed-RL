@@ -1,11 +1,11 @@
-# 训推共卡机制介绍
+# 训推共卡机制
 
 ## 背景介绍
 
 在 GRPO、PPO 等 RLHF 算法中，主要耗时会集中在推理阶段，所以通常会使用专门的推理引擎（如 vLLM 等）对推理过程进行加速。 
 因此，Actor 模型在训练过程中会同时存在推理态和训练态两种模式，在每轮训练中，Actor 模型需要在训练态和推理态间切换。
 
-![background.png](../sources/images/hybrid_actor/background.jpg)
+![background.png](../../sources/images/hybrid_actor/background.jpg)
 
 如果采用分离方案进行 Actor 部署，即将 Actor 推理态与训练态部署在不同的物理资源上，可能导致训练推理任务相互等待，资源利用率低。
 即使采用了 MBS 间异步方案提升利用率，分离式部署的资源需求量也会远大于共卡部署方案，因此 Actor 共卡方案在资源量较为有限的情况下，是一种资源高效的部署方式。
@@ -30,14 +30,14 @@
 该类主要包括 `model`，`optimizer`，`inference_model`，`sharding_manager` 等成员，其中 `model`和 `optimizer` 是训练态的模型和优化器，当前基于 Megatron 框架实现；
 `inference_model` 是推理态的模型，当前基于 vLLM 框架实现；`sharding_manager` 负责实现训推状态的切换，包括从训练状态到推理状态的权重切分转换及相关显存管理功能。
 
-![background.png](../sources/images/hybrid_actor/ActorHybridWorker.jpg)
+![background.png](../../sources/images/hybrid_actor/actor_hybrid_worker.jpg)
 
 ### 具体实现
 
 从训练态切换到推理态时，需要根据推理态的切分从训练权重构建出相应的推理权重，并将训练态的模型权重、优化器和梯度从显存上进行卸载，为推理时的 KV Cache 留出显存空间；
 从推理态切换到训练态时，则只需将推理态的权重和KV Cache卸载，并重新加载回训练态的权重、优化器和梯度。
 
-![sharding_process.jpg](../sources/images/hybrid_actor/sharding_process.jpg)
+![sharding_process.jpg](../../sources/images/hybrid_actor/sharding_process.jpg)
 
 当前框架会自动启用训推共卡式 Actor，在配置文件中，可以对共卡情况下的训练态和推理态模型的切分策略进行分别配置，并设定在推理时是否需要对训练相关权重、梯度和优化器进行卸载。
 以 `grpo_trainer_qwen25_7b.yaml` 为例，
@@ -51,7 +51,7 @@ actor_config:
 generate_config:
   infer_tensor_parallel_size: 4     # 推理态 TP 切分
   infer_pipeline_parallel_size: 1   # 推理态 PP 切分
-  infer_expert_parallel_size: 1     # 推理态 PP 切分
+  infer_expert_parallel_size: 1     # 推理态 EP 切分
 
   offload_train_optimizer: true     # 设置为 true 可以使能在推理时卸载训练态优化器
   offload_train_grad: true          # 设置为 true 可以使能在推理时卸载训练态梯度

@@ -122,7 +122,7 @@ def rm_train(args):
             variable_seq_lengths=args.variable_seq_lengths,
             num_nextn_predict_layers=args.num_nextn_predict_layers,
             micro_batch_size=args.micro_batch_size,
-            comsumed_samples=0,
+            comsumed_samples=args.consumed_valid_samples,
             seed=args.seed
         )
     test_dataloader = None

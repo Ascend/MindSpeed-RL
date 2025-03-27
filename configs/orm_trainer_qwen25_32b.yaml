@@ -1,9 +1,9 @@
 defaults:
   - model:
-      - qwen25_7b
+      - qwen25_32b
 
 reward:
-  model: qwen25_7b
+  model: qwen25_32b
   global_batch_size: 64
   seq_length: 4096
   tokenizer_type: PretrainedFromHF
@@ -13,15 +13,13 @@ reward:
   no_shared_storage: false
   no_load_optim: true
   no_load_rng: true
-  is_instruction_dataset: true
   variable_seq_lengths: false
   no_save_optim: true
   no_save_rng: true
-  no_shuffle: true
   stage: orm
   prompt_type: qwen
+  load_checkpoint_loosely: true
   sequence_parallel: True
-  rotary_base: 1000000
   bf16: true
   lr: 1.25e-6
   lr-decay-style: cosine
@@ -40,10 +38,9 @@ reward:
   data_path: /data/for_dt/datasets/convert/orca_rlhf
   split: 12659,200,0
   log_interval: 1
-  save_interval: 1000
-  eval_interval: 1000
-  eval_iters: 10
-  group_query_attention: true
+  save_interval: 100
+  eval_interval: 100
+  eval_iters: 0
   no_gradient_accumulation_fusion: true
   no_masked_softmax_fusion: true
   use_distributed_optimizer: true
@@ -52,15 +49,14 @@ reward:
   use_fused_rmsnorm: true
   tokenizer_not_use_fast: true
   use_mcore_models: true
+  overlap_grad_reduce: true
   use_flash_attn: true
   use_rotary_position_embeddings: false
   rope_scaling_factor: 1.0
   rotary_percent: 1.0
-  original_max_position_embeddings: 4096
-  use_kv_cache: False
   pad_to_multiple_of: 8
+  load: ./ckpt
   save: ./ckpt
   micro_batch_size: 1
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 2
-  load: ./ckpt

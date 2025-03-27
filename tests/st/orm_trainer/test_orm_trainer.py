@@ -63,7 +63,8 @@ def rm_train(args):
                                           args.eval_iters * args.global_batch_size
 
     # build tokenizer
-    tokenizer = get_tokenizer(args.tokenizer_name_or_path)
+    tokenizer = get_tokenizer(args.tokenizer_name_or_path,
+                              prompt_type=args.prompt_type, prompt_type_path=args.prompt_type_path)
 
     # Build datasets.
     train_dataset, valid_dataset, test_dataset = None, None, None

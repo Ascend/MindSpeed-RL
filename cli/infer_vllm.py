@@ -44,7 +44,12 @@ def get_args():
                        help='Which backend to use for distributed training.')
     group.add_argument('--local-rank', type=int, default=int(os.getenv('LOCAL_RANK', '0')),
                        help='Local rank passed from distributed launcher.')
-
+    group.add_argument('--prompt-type', type=str, default=None,
+                       choices=['default', 'empty', 'trl', 'qwen', 'qwen_r1', "qwen_math_r1", 'llama3', 'mistral', 'mixtral', 'gemma', 'llama2',
+                                'alpaca', 'deepseek2', 'deepseek2-lite', 'minicpm3', 'cpm', 'baichuan2', 'deepseek3'],
+                       help='Which template to use for constructing prompts in training/inference.'  'e.g., "qwen"')
+    group.add_argument('--prompt-type-path', type=str, default=None,
+                       help='Path to the json file of templates.')
     group = parser.add_argument_group(title='sampling params')
     group.add_argument('--num-completions', type=int, default=1,
                        help='Number of output sequences to return for the given prompt.')
@@ -90,7 +95,9 @@ def main():
         sampling_config=sampling_config,
         train_expert_parallel_size=1,
         infer_expert_parallel_size=1,
-        tokenizer_name_or_path=args.tokenizer_name_or_path,
+        tokenizer_name_or_pathr=args.tokenizer_name_or_path,
+        prompt_type=args.prompt_type,
+        prompt_type_path=args.prompt_type_path,
         train_tensor_parallel_size=args.tensor_parallel_size,
         train_pipeline_parallel_size=1,
         infer_tensor_parallel_size=args.tensor_parallel_size,

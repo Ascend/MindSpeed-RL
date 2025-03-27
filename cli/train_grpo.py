@@ -37,7 +37,8 @@ def train(config):
 
     pgs = get_colocate_placement_group(rl_config)
 
-    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path)
+    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
+                              prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
 
     logger.info('start async initializing ray actor groups')
 

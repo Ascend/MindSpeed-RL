@@ -55,7 +55,8 @@ def sft_train(args):
     model_arch_config = get_model_config(model[0])
 
     # build tokenizer
-    tokenizer = get_tokenizer(args.tokenizer_name_or_path)
+    tokenizer = get_tokenizer(args.tokenizer_name_or_path,
+                              prompt_type=args.prompt_type, prompt_type_path=args.prompt_type_path)
     logger.info('after tokenizer is built')
 
     # build dataset

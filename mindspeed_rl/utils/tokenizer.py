@@ -3,12 +3,13 @@
 
 import os
 import json
-from typing import Any
+from typing import Any, Dict, Optional
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 
 import numpy
 
+from mindspeed_rl.datasets.templates import get_model_template
 from .loggers import Loggers
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"
@@ -21,7 +22,9 @@ def get_tokenizer(
         eos_token: str = None,
         pad_token_id: int = None,
         pad_token: str = None,
-        eos_for_pad: bool = True
+        eos_for_pad: bool = True,
+        prompt_type: str = None,
+        prompt_type_path: str = None
         ):
     """Get tokenizer.
 
@@ -33,6 +36,8 @@ def get_tokenizer(
         pad_token_id: pad_token_id
         pad_token: pad_token
         eos_for_pad: if tokenizer has no pad, use eos for pad.
+        prompt_type: Which template to use for constructing prompts in training/inference  'e.g., "qwen (default None)"
+        prompt_type_path:Path to the json file of templates (default: None).
     """
     logger = Loggers(name='get_tokenizer')
 
@@ -66,16 +71,19 @@ def get_tokenizer(
     if tokenizer.eod_token is None or tokenizer.eod is None:
         raise ValueError("eos_token and eos_token_id are required for tokenizer.")
 
-    if pad_token is not None:
+    if pad_token:
         tokenizer.pad_token = pad_token
         tokenizer.pad = pad_token_id
-    elif eos_for_pad:
+    elif eos_for_pad and tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eod_token
         tokenizer.pad = tokenizer.eod
-        logger.info("eos token {} and id {} are used for"
+        logger.info("eod token {} and id {} are used for"
                     " pad token and id".format(tokenizer.eod_token, tokenizer.eod))
     else:
         logger.warning("pad token and id are none.")
+
+    if prompt_type and prompt_type_path:
+        replace_token_from_template(tokenizer.tokenizer, prompt_type.strip(), prompt_type_path.strip())
 
     return tokenizer
 
@@ -285,3 +293,47 @@ class _HuggingFaceTokenizer(BaseTokenizer):
     @pad_token.setter
     def pad_token(self, value):
         self.tokenizer.pad_token = value
+
+
+def replace_token_from_template(
+    tokenizer: "PreTrainedTokenizer",
+    name: Optional[str] = None,
+    prompt_type_path: Optional[str] = None,
+):
+    template = get_model_template(name, prompt_type_path)
+
+    stop_words = template.stop_words
+    if template.replace_eos:
+        if not stop_words:
+            raise ValueError("Stop words are required to replace the EOS token.")
+
+        _add_or_replace_eos_token(tokenizer, eos_token=stop_words[0])
+        stop_words = stop_words[1:]
+
+    if tokenizer.eos_token_id is None:
+        _add_or_replace_eos_token(tokenizer, eos_token="<|endoftext|>")
+
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        logger.info("Update pad token: {}".format(tokenizer.pad_token))
+
+    if stop_words:
+        num_added_tokens = tokenizer.add_special_tokens(
+            dict(additional_special_tokens=stop_words), replace_additional_special_tokens=False
+        )
+        logger.info("Update {} to stop words.".format(",".join(stop_words)))
+        if num_added_tokens > 0:
+            logger.warning("New tokens have been added, make sure `resize_vocab` is True.")
+
+
+def _add_or_replace_eos_token(tokenizer: "PreTrainedTokenizer", eos_token: str) -> None:
+    is_added = tokenizer.eos_token_id is None
+    num_added_tokens = tokenizer.add_special_tokens({"eos_token": eos_token})
+
+    if is_added:
+        logger.info("Update eos token: {}".format(tokenizer.eos_token))
+    else:
+        logger.info("Replace eos token: {}".format(tokenizer.eos_token))
+
+    if num_added_tokens > 0:
+        logger.warning("New tokens have been added, make sure `resize_vocab` is True.")

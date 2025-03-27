@@ -53,6 +53,8 @@ class VLLMInferEngine(BaseInferEngine):
             infer_expert_parallel_size: int,
             megatron_config: MegatronConfig,
             sampling_config: dict,
+            prompt_type: str = None,
+            prompt_type_path: str = None,
             enable_prefix_caching: bool = False,
             num_scheduler_steps: int = 1,
             max_num_seqs: int = 1,
@@ -87,6 +89,8 @@ class VLLMInferEngine(BaseInferEngine):
         # Call the parent class's __init__ method
         super().__init__(
             tokenizer_name_or_path=tokenizer_name_or_path,
+            prompt_type=prompt_type,
+            prompt_type_path=prompt_type_path,
             train_tensor_parallel_size=train_tensor_parallel_size,
             train_pipeline_parallel_size=train_pipeline_parallel_size,
             train_expert_parallel_size=train_expert_parallel_size,
@@ -122,7 +126,8 @@ class VLLMInferEngine(BaseInferEngine):
             trust_remote_code=trust_remote_code
         )
 
-        self.tokenizer = get_tokenizer(tokenizer_name_or_path)
+        self.tokenizer = get_tokenizer(tokenizer_name_or_path,
+                                       prompt_type=prompt_type, prompt_type_path=prompt_type_path)
         self.pad_token_id = (
             self.tokenizer.tokenizer.pad_token_id if self.tokenizer.tokenizer.pad_token_id is not None
             else self.tokenizer.tokenizer.eos_token_id)

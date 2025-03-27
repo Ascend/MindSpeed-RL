@@ -14,6 +14,8 @@ class BaseInferEngine(ABC):
             tokenizer_name_or_path: str,
             train_tensor_parallel_size: int,
             train_pipeline_parallel_size: int,
+            prompt_type: str = None,
+            prompt_type_path: str = None,
             train_expert_parallel_size: int = 1,
             infer_tensor_parallel_size: int = 8,
             infer_pipeline_parallel_size: int = 1,
@@ -42,6 +44,8 @@ class BaseInferEngine(ABC):
             trust_remote_code (bool): Whether to trust remote code (e.g., for custom tokenizers).
         """
         self.tokenizer_name_or_path = tokenizer_name_or_path
+        self.prompt_type = prompt_type
+        self.prompt_type_path = prompt_type_path
         self.train_tensor_parallel_size = train_tensor_parallel_size
         self.train_pipeline_parallel_size = train_pipeline_parallel_size
         self.train_expert_parallel_size = train_expert_parallel_size
@@ -53,7 +57,6 @@ class BaseInferEngine(ABC):
         self.dtype = dtype
         self.gpu_memory_utilization = gpu_memory_utilization
         self.trust_remote_code = trust_remote_code
-
 
 
     @abstractmethod

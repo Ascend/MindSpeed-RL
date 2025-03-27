@@ -22,7 +22,6 @@ class MegatronConfig(BaseConfig):
     use_mcore_models: Whether to use MCore models (default: False)
     spec: Specify the <module_location function_name> pair (default: None)
     sequence_parallel: Whether to use sequence parallelism (default: False)
-    use_mc2: Whether to use MC2 (default: False)
     use_flash_attn: Whether to use flash attention (default: False)
     use_rotary_position_embeddings: Whether to use rotary position embeddings (default: False)
     use_fused_rmsnorm: Whether to use fused RMSNorm (default: False)
@@ -167,12 +166,36 @@ class MegatronConfig(BaseConfig):
     recompute_num_layers: 1) uniform: the number of Transformer layers in each uniformly divided recompute unit,
                           2) block: the number of individual Transformer layers to recompute within each pipeline stage
                           (default: None)
-    
+
     num_layer_list: a list of number of layers, seperated by comma; e.g., 4,4,4,4 (default: None)
     dataset_additional_keys: Additional keys need to be add from dataset (default: [])
 
     inference_parameters:
     use_kv_cache: Use kv cache to accelerate inference
+
+    log_parameters:
+    log_throughput:'If set, calculate and log throughput per GPU.'(default: False)
+
+    memory_parameters:
+    recompute_activation_function: Recompute the activation function in MLP layers (default: False)
+    recompute_granularity: 'Checkpoint activations to allow for training '
+                           'with larger models, sequences, and batch sizes. '
+                           'It is supported at two granularities 1) full: '
+                           'whole transformer layer is recomputed, '
+                           '2) selective: core attention part of the transformer '
+                           'layer is recomputed.' (default: None) choices=['full', 'selective'],
+    recompute_method:  '1) uniform: uniformly divide the total number of '
+                       'Transformer layers and recompute the input activation of '
+                       'each divided chunk at specified granularity, '
+                       '2) recompute the input activations of only a set number of '
+                       'individual Transformer layers per pipeline stage and do the '
+                       'rest without any recomputing at specified granularity'  (default: None)  choices=['uniform', 'block'],
+    recompute_num_layers: '1) uniform: the number of Transformer layers in each '
+                       'uniformly divided recompute unit, '
+                       '2) block: the number of individual Transformer layers '
+                       'to recompute within each pipeline stage.'  (default: None)
+    swap_attention: switch to open swap-attention feature (default: False)
+    reuse_fp32_param: The distributed training optimizer frees up 'param copies of FP32 to save memory. (default: False)
     '''
 
     def __init__(self, training_config: Dict, model_config: Dict):
@@ -183,7 +206,6 @@ class MegatronConfig(BaseConfig):
         self.use_mcore_models = False
         self.spec = None
         self.sequence_parallel = False
-        self.use_mc2 = False
         self.use_flash_attn = False
         self.use_rotary_position_embeddings = False
         self.use_fused_rmsnorm = False
@@ -238,7 +260,7 @@ class MegatronConfig(BaseConfig):
         self.norm_topk_prob = False
         self.moe_router_score_function = 'softmax'
         self.moe_router_enable_expert_bias = False
-
+        self.log_throughput = False
         self.make_vocab_size_divisible_by = 128
         self.padded_vocab_size = None
         self.add_qkv_bias = False
@@ -328,5 +350,15 @@ class MegatronConfig(BaseConfig):
         self.recompute_num_layers = None
         self.num_layer_list = None
         self.dataset_additional_keys = []
+        self.use_deter_comp = False
+        self.overlap_param_gather = False
+
+        # memory_parameters
+        self.recompute_activation_function = False
+        self.recompute_granularity = None
+        self.recompute_method = None
+        self.recompute_num_layers = None
+        self.swap_attention = False
+        self.reuse_fp32_param = False
 
         self.update(training_config, model_config)

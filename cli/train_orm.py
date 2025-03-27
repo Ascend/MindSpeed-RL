@@ -2,32 +2,11 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import sys
-from datetime import timedelta
 from pathlib import Path
 
 import torch
 import hydra
 from omegaconf import OmegaConf
-
-import megatron
-import mindspeed_llm
-from megatron.core import parallel_state
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
-from megatron.core.utils import get_model_config
-from megatron.core.transformer.spec_utils import import_module
-from megatron.training import get_args
-from megatron.training.arguments import validate_args, core_transformer_config_from_args
-from megatron.training.checkpointing import save_checkpoint, load_args_from_checkpoint
-from megatron.training.global_vars import set_global_variables
-from megatron.training.initialize import _set_random_seed, _init_autoresume, \
-    _initialize_tp_communicators, _compile_dependencies
-from megatron.training.training import evaluate_and_print_results, setup_model_and_optimizer
-from megatron.training.utils import get_batch_on_this_cp_rank
-
-from mindspeed_llm.tasks.posttrain.orm.orm_model import GPTRewardModel
-from mindspeed_llm.training.arguments import parse_args_decorator
-from mindspeed_llm.training.initialize import set_jit_fusion_options
-from mindspeed_llm.training import train
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.datasets.reward_dataset import PreferenceDataset
@@ -40,7 +19,18 @@ from mindspeed_rl.utils import get_tokenizer, Loggers, synchronize_time, seed_al
 logger = Loggers('train_orm')
 
 
-def rm_train(args):
+def rm_train():
+    from megatron.training import get_args
+    from megatron.core import parallel_state
+    from megatron.core.utils import get_model_config
+    from megatron.training.checkpointing import save_checkpoint
+    from megatron.training.training import evaluate_and_print_results, setup_model_and_optimizer
+    from megatron.training.utils import get_batch_on_this_cp_rank
+
+    from mindspeed_llm.training.initialize import set_jit_fusion_options
+    from mindspeed_llm.training import train
+    args = get_args()
+
     model_type = None
     process_non_loss_data_func = None
 
@@ -209,6 +199,11 @@ def rm_model_provider(pre_process, post_process):
     Returns:
         GPTRewardModel: The returned model
     """
+    from megatron.training import get_args
+    from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
+    from megatron.core.transformer.spec_utils import import_module
+    from megatron.training.arguments import core_transformer_config_from_args
+    from mindspeed_llm.tasks.posttrain.orm.orm_model import GPTRewardModel
     args = get_args()
     logger.info('building RM GPT model ...')
     # Experimental loading arguments from configs
@@ -263,16 +258,28 @@ def initialize_megatron(
     if args_defaults is None:
         args_defaults = {}
 
+    origin_sys_argv = sys.argv
+    sys.argv = [sys.argv[0]]
+    parse_args_from_config(config)
+    from mindspeed_llm.training.arguments import parse_args_decorator
+    import megatron
+
+    parse_args = parse_args_decorator(megatron.training.arguments.parse_args)
+    args = parse_args(extra_args_provider, ignore_unknown_args)
+    sys.argv = origin_sys_argv
+
     if not allow_no_cuda:
         if not torch.cuda.is_available():
             raise ValueError("Megatron requires CUDA.")
 
-    origin_sys_argv = sys.argv
-    sys.argv = [sys.argv[0]]
-    parse_args_from_config(config)
-    parse_args = parse_args_decorator(megatron.training.arguments.parse_args)
-    args = parse_args(extra_args_provider, ignore_unknown_args)
-    sys.argv = origin_sys_argv
+    from megatron.core import parallel_state
+    from megatron.training import get_args
+    from megatron.training.arguments import validate_args
+    from megatron.training.checkpointing import load_args_from_checkpoint
+    from megatron.training.global_vars import set_global_variables
+    from megatron.training.initialize import _set_random_seed, \
+        _init_autoresume, _compile_dependencies, \
+        _initialize_tp_communicators, _initialize_distributed
 
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
         if args.load is None:
@@ -328,69 +335,6 @@ def initialize_megatron(
         return None
 
 
-def _initialize_distributed():
-    """Initialize torch.distributed and core model parallel."""
-    args = get_args()
-
-    device_count = torch.cuda.device_count()
-    if torch.distributed.is_initialized():
-        if args.rank == 0:
-            logger.info("torch distributed is already initialized, skipping initialization...")
-        args.rank = torch.distributed.get_rank()
-        args.world_size = torch.distributed.get_world_size()
-    else:
-        if args.rank == 0:
-            logger.info("> initializing torch distributed...")
-        # Manually set the device ids.
-        if device_count > 0:
-            if args.stage in ["ray_ppo", "ray_online_dpo", "ray_grpo"]:
-                import ray
-                allocated_device = int(ray.get_runtime_context().get_accelerator_ids()["NPU"][0])
-                torch.cuda.set_device(allocated_device)
-            else:
-                device = args.rank % device_count
-                if args.local_rank is not None:
-                    if args.local_rank != device:
-                        raise ValueError("expected local-rank to be the same as rank % device-count.")
-                else:
-                    args.local_rank = device
-                torch.cuda.set_device(device)
-        # Call the init process
-        torch.distributed.init_process_group(
-            backend=args.distributed_backend,
-            world_size=args.world_size,
-            rank=args.rank,
-            timeout=timedelta(minutes=args.distributed_timeout_minutes),
-        )
-
-    # Set the tensor model-parallel, pipeline model-parallel, and
-    # data-parallel communicators.
-    if device_count > 0:
-        if parallel_state.model_parallel_is_initialized():
-            logger.info("model parallel is already initialized")
-        else:
-            parallel_state.initialize_model_parallel(
-                args.tensor_model_parallel_size,
-                args.pipeline_model_parallel_size,
-                args.virtual_pipeline_model_parallel_size,
-                args.pipeline_model_parallel_split_rank,
-                context_parallel_size=args.context_parallel_size,
-                expert_model_parallel_size=args.expert_model_parallel_size,
-                distributed_timeout_minutes=args.distributed_timeout_minutes,
-                nccl_communicator_config_path=args.nccl_communicator_config_path,
-                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-pp-dp',
-            )
-            if args.rank == 0:
-                logger.info(
-                    f"> initialized tensor model parallel with size "
-                    f"{parallel_state.get_tensor_model_parallel_world_size()}"
-                )
-                logger.info(
-                    f"> initialized pipeline model parallel with size "
-                    f"{parallel_state.get_pipeline_model_parallel_world_size()}"
-                )
-
-
 def separate_config_and_parse_args(config):
     model_config = config.model
     reward_config = config.reward
@@ -409,8 +353,7 @@ def separate_config_and_parse_args(config):
 def main(config):
     megatron_config = separate_config_and_parse_args(config)
     initialize_megatron(config=megatron_config)
-    args = get_args()
-    rm_train(args)
+    rm_train()
 
 
 if __name__ == '__main__':

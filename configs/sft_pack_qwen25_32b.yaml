@@ -1,8 +1,15 @@
 defaults:
   - model:
-      - qwen25_7b
+      - qwen25_32b
 
 sft:
+  # memory_args:
+  swap_attention: true
+  recompute_granularity: full
+  recompute_method: block
+  recompute_num_layers: 4
+  recompute_activation_function: true
+
   # tune_args:
   finetune: true
   stage: sft
@@ -12,21 +19,22 @@ sft:
   prompt_type: qwen
 
   # gpt_args:
+  reuse_fp32_param: true
   norm_epsilon: 1e-6
   micro_batch_size: 2
   global_batch_size: 128
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path: ./Qwen2.5-7B/
-  train_iters: 5000
-  lr: 5e-5
+  tokenizer_name_or_path: ./Qwen2.5-32B/
+  train_iters: 2000
+  lr: 1.25e-6
   lr_decay_style: cosine
   min_lr: 1.25e-7
   lr_warmup_fraction: 0.01
-  weight_decay: 1e-1
+  weight_decay: 0.0
   clip_grad: 1.0
   initial_loss_scale: 4096
   use_distributed_optimizer: true
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 2
   sequence_parallel: true
   use_mcore_models: true
@@ -47,10 +55,10 @@ sft:
   overlap_param_gather: true
 
   # data_args:
-  data_path: ./dataset/data
-  reset_position_ids: true
+  data_path: ./alpaca/data
   split: 100,0,0
   no_shuffle: true
+  reset_position_ids: true
 
   # ckpt_args:
   no_load_optim: true
@@ -58,13 +66,13 @@ sft:
   no_save_optim: true
   no_save_rng: true
   seed: 1234
-  model: qwen25_7b
-  load: ./ckpt
-  save: ./ckpt
+  model: qwen25_32b
+  load: ./mcore_tp8pp2/
+  save: /cache
 
   # output_args:
   log_interval: 1
-  save_interval: 5000
-  eval_interval: 5000
+  save_interval: 2000
+  eval_interval: 2000
   eval_iters: 0
   log_throughput: true

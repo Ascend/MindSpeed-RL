@@ -7,13 +7,13 @@ sft:
   finetune: true
   stage: sft
   is_instruction_dataset: true
-  variable_seq_lengths: false
+  variable_seq_lengths: true
   tokenizer_not_use_fast: true
   prompt_type: qwen
 
   # gpt_args:
   norm_epsilon: 1e-6
-  micro_batch_size: 2
+  micro_batch_size: 4
   global_batch_size: 128
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path: ./Qwen2.5-7B/
@@ -28,7 +28,7 @@ sft:
   use_distributed_optimizer: true
   tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 2
-  sequence_parallel: true
+  sequence_parallel: false
   use_mcore_models: true
   use_fused_rmsnorm: true
   use_flash_attn: true
@@ -47,8 +47,7 @@ sft:
   overlap_param_gather: true
 
   # data_args:
-  data_path: ./dataset/data
-  reset_position_ids: true
+  data_path: ./alpaca/data
   split: 100,0,0
   no_shuffle: true
 
@@ -59,7 +58,7 @@ sft:
   no_save_rng: true
   seed: 1234
   model: qwen25_7b
-  load: ./ckpt
+  load: ./tp2pp2/
   save: ./ckpt
 
   # output_args:

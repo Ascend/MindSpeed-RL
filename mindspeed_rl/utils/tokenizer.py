@@ -14,6 +14,8 @@ from .loggers import Loggers
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"
 
+logger = Loggers(name='tokenizer')
+
 
 def get_tokenizer(
         tokenizer_model: str,
@@ -39,7 +41,6 @@ def get_tokenizer(
         prompt_type: Which template to use for constructing prompts in training/inference  'e.g., "qwen (default None)"
         prompt_type_path:Path to the json file of templates (default: None).
     """
-    logger = Loggers(name='get_tokenizer')
 
     if tokenizer_type == 'HuggingFaceTokenizer':
         if not os.path.isdir(tokenizer_model):

@@ -14,10 +14,10 @@ sft:
   # gpt_args:
   norm_epsilon: 1e-6
   micro_batch_size: 2
-  global_batch_size: 128
+  global_batch_size: 4
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path: ./Qwen2.5-7B/
-  train_iters: 5000
+  tokenizer_name_or_path: /data/for_dt/tokenizer/Qwen25-7B
+  train_iters: 5
   lr: 5e-5
   lr_decay_style: cosine
   min_lr: 1.25e-7
@@ -47,7 +47,7 @@ sft:
   overlap_param_gather: true
 
   # data_args:
-  data_path: ./dataset/data
+  data_path: /data/datasets/pack/alpaca
   reset_position_ids: true
   split: 100,0,0
   no_shuffle: true

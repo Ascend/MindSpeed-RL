@@ -90,8 +90,6 @@ rl_config:
   verifier_function: ["base_acc"]
   verifier_weight: [1.0]
   verifier_parallel: 4
-  colocate_actor_ref: false
-  colocate_all_models: false
   num_cpus_for_local_task: 1.0
   actor_resource:
     num_npus: 16

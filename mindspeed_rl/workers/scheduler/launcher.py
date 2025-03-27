@@ -104,44 +104,6 @@ def construct_placement_groups(num_npus, num_devices_per_node, num_nodes) \
     return placement_groups
 
 
-def validate_colocate_config(rl_config):
-    """
-    校验共置配置
-
-    校验规则：
-        1 如果设置colocate_actor_ref
-          必须ActorHybridWorker和ReferenceWorker的num_npus相等
-        2 如果设置colocate_all_models
-          必须ActorHybridWorker和ReferenceWorker和RewardWorker的num_npus相等
-
-    检验结果失败：
-        程序不再继续执行
-    """
-    actor_num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
-    ref_num_npus = get_npu_deployment(rl_config, ReferenceWorker)
-    reward_num_npus = get_npu_deployment(rl_config, RewardWorker)
-
-    if rl_config.colocate_actor_ref:
-        if actor_num_npus != ref_num_npus:
-            raise ValueError(f"num_npus must be the same when colocate actor and ref model.")
-
-    # if colocate all models, must set num_npus the same value
-    if rl_config.colocate_all_models:
-        if actor_num_npus != ref_num_npus or actor_num_npus != reward_num_npus:
-            raise ValueError(f"num_npus must be the same when colocate all models.")
-
-
-def get_colocate_placement_group(rl_config) -> Optional[PlacementGroup]:
-    validate_colocate_config(rl_config)
-    # if colocate models, use the same placement group bundle index
-    if rl_config.colocate_all_models or rl_config.colocate_actor_ref:
-        num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
-        num_devices_per_node, num_nodes = get_device_information(num_npus)
-        return construct_placement_groups(num_npus, num_devices_per_node, num_nodes)
-
-    return None
-
-
 @dataclass
 class ActorHandlerParams:
     placement_group: PlacementGroup

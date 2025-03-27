@@ -39,8 +39,6 @@ class RLConfig(BaseConfig):
     n_samples_per_prompt: Number of samples per prompt (default: 1)
     enable_sharding_validate: Whether to enable sharding validation (default: False)
     tp_split_expert:
-    colocate_all_models: Whether to colocate all models (default: False)
-    colocate_actor_ref: Whether to colocate actor and reference (default: False)
     use_tensorboard: Whether to use tensorboard (default: False)
     use_wandb: Whether to use wandb (default: False)
     wandb_project: The wandb project name. Ignore wandb by default. If use_wandb is True, you need to set the wandb project name (default: "")
@@ -85,8 +83,6 @@ class RLConfig(BaseConfig):
         self.n_samples_per_prompt = 1
         self.enable_sharding_validate = False
         self.tp_split_expert = False
-        self.colocate_all_models = False
-        self.colocate_actor_ref = False
 
         self.use_tensorboard = False
         self.use_wandb = False

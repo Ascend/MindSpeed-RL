@@ -16,7 +16,6 @@ from tests.test_tools.dist_test import DistributedTest
 
 def stub_build_actor_rl_config_no_colocate():
     rl_config = {
-        'colocate_actor_ref': False,
         'actor_resource': {
             'num_npus': 1
         }
@@ -26,7 +25,6 @@ def stub_build_actor_rl_config_no_colocate():
 
 def stub_build_ref_rl_config_colocate():
     rl_config = {
-        'colocate_actor_ref': False,
         'actor_resource': {
             'num_npus': 2
         }
@@ -36,7 +34,6 @@ def stub_build_ref_rl_config_colocate():
 
 def stub_build_reward_rl_config_colocate():
     rl_config = {
-        'colocate_actor_ref': True,
         'actor_resource': {
             'num_npus': 2
         }

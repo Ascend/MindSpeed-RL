@@ -28,14 +28,12 @@ def train(config):
     from mindspeed_rl.datasets.dataloader import PromptDataLoader
     from mindspeed_rl.workers.rule_reward import RuleReward
     from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
-    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup, get_colocate_placement_group
+    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
     from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
     from mindspeed_rl.workers.reference_woker import ReferenceWorker
     from mindspeed_rl.workers.reward_woker import RewardWorker
 
     actor_config, ref_config, reward_config, rl_config, generate_config = parse_training_config(config)
-
-    pgs = get_colocate_placement_group(rl_config)
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
                               prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
@@ -44,7 +42,7 @@ def train(config):
 
     actor_worker = RayActorGroup(
         worker=ActorHybridWorker,
-        placement_group=pgs,
+        placement_group=None,
         megatron_config=actor_config,
         rl_config=rl_config,
         generate_config=generate_config,
@@ -57,7 +55,7 @@ def train(config):
 
     reference_worker = RayActorGroup(
         worker=ReferenceWorker,
-        placement_group=pgs,
+        placement_group=None,
         megatron_config=ref_config,
         rl_config=rl_config,
         model_provider=gpt_model_provider,
@@ -67,15 +65,12 @@ def train(config):
         global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
     ).initialize()
 
-    if not rl_config.colocate_all_models:
-        pgs = None
-
     reward_list = []
 
     if rl_config.reward_resource:
         reward_worker = RayActorGroup(
             worker=RewardWorker,
-            placement_group=pgs,
+            placement_group=None,
             megatron_config=reward_config,
             rl_config=rl_config,
             model_provider=rm_model_provider,

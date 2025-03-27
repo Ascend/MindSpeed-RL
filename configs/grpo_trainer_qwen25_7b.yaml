@@ -88,8 +88,6 @@ rl_config:
   shuffle_mini_batch: false
   n_samples_per_prompt: 2
   rule_reward: false
-  colocate_actor_ref: false
-  colocate_all_models: false
   num_cpus_for_local_task: 1.0
   actor_resource:
     num_npus: 4

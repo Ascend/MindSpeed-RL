@@ -66,7 +66,7 @@ def process_outputs(outputs):
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text
-        res = res + f"Prompt: {prompt!r}, Generated text: {generated_text!r}\n"
+        res = res + f"Prompt: {prompt!r}\nGenerated Text: {generated_text!r}\n"
     res = res + "-" * 80
     return res
 
@@ -131,8 +131,8 @@ def chat_task(inference_engine, query):
     ]
     outputs = inference_engine.chat(conversation)
     res = process_outputs(outputs)
-    logger.info('query: {}'.format(query))
-    logger.info('responses: {}'.format(res))
+    logger.info('Query: {}'.format(query))
+    logger.info('Responses:\n{}'.format(res))
 
 
 def generate_task(inference_engine, query):
@@ -141,8 +141,8 @@ def generate_task(inference_engine, query):
         sampling_params=inference_engine.sampling_params,
     )
     res = process_outputs(outputs)
-    logger.info('query: {}'.format(query))
-    logger.info('responses: {}'.format(res))
+    logger.info('Query: {}'.format(query))
+    logger.info('Responses:\n{}'.format(res))
 
 
 def replace_state_dict_name(state_dict, vllm_dict, arch=None):

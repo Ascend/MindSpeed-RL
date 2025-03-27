@@ -87,7 +87,10 @@ class TestInstructionDataset(DistributedTest):
             prompt_type_path='./configs/templates.json',
         )
 
+        def dummy_dp_size():
+            return 1
 
+        parallel_state.get_data_parallel_world_size = dummy_dp_size
         dataloader = InstructionDataLoader(
             dataset=dataset,
             parallel_state=parallel_state,

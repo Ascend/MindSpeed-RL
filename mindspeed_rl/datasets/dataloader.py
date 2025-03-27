@@ -47,9 +47,8 @@ class InstructionDataLoader(torch.utils.data.DataLoader):
             total_samples=len(dataset),
             consumed_samples=comsumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=0,
-            data_parallel_size=1 if parallel_state.get_data_parallel_world_size()
-                                    == 0 else parallel_state.get_data_parallel_world_size()
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size()
         )
 
         if tokenizer is None:

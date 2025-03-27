@@ -74,7 +74,7 @@ class SFTTrainer(ABC):
                 not self.parallel_state.is_pipeline_last_stage()):
             tokens, attention_mask = get_finetune_data_on_this_tp_rank(data_iterator,
                                                                        self.parallel_state,
-                                                                       self.args.reset_position_ids,
+                                                                       self.args.reset_attention_mask,
                                                                        self.args.tokenizer_padding_side)
             if self.args.variable_seq_lengths and self.args.pipeline_model_parallel_size > 2:
                 return tokens, None, None, attention_mask, None
@@ -113,7 +113,7 @@ class SFTTrainer(ABC):
 
         attention_mask = get_tune_attention_mask(attention_mask_1d,
                                                  tokenizer_padding_side=self.args.tokenizer_padding_side,
-                                                 reset_attention_mask=self.args.reset_position_ids
+                                                 reset_attention_mask=self.args.reset_attention_mask
                                                  )
         position_ids = None
         batch = {

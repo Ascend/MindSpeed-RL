@@ -88,7 +88,7 @@ class ORMTrainer(ABC):
 
         attention_mask = get_tune_attention_mask(attention_mask_1d,
                                                  tokenizer_padding_side=self.args.tokenizer_padding_side,
-                                                 reset_attention_mask=self.args.reset_position_ids
+                                                 reset_attention_mask=self.args.reset_attention_mask
                                                  )
 
         batch = {

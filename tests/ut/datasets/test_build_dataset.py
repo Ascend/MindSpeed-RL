@@ -35,6 +35,10 @@ class TestBuildTrainValidTestDataset(DistributedTest):
             extra_param=None
         )
 
+        def dummy_dp_size():
+            return 1
+
+        parallel_state.get_data_parallel_world_size = dummy_dp_size
         train_dl = InstructionDataLoader(
             dataset=train_ds,
             parallel_state=parallel_state,

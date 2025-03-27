@@ -94,6 +94,7 @@ def train(config):
         train_valid_test_num_samples=[
             actor_config.train_iters * actor_config.global_batch_size, 0, 0
         ],
+        no_shuffle=actor_config.no_shuffle,
         seed=actor_config.seed,
         dataset_cls=PromptDataset,
         extra_param=actor_config

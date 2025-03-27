@@ -1,8 +1,11 @@
+# Copyright (c) 2022; NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import time
 
 import torch
 import torch_npu
+
+from mindspeed_rl.utils.utils import get_tune_attention_mask
 
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()

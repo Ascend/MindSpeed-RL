@@ -16,7 +16,7 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path:
+  tokenizer_name_or_path: ./data/models/Qwen2.5-7B
   global_batch_size: 4
   seq_length: 512
   save_interval: 10000
@@ -30,7 +30,7 @@ megatron_training:
   variable_seq_lengths: true
   norm_epsilon: 1e-6
   dataset_additional_keys: ['labels',]
-  data_path:  ./dataset/data
+  data_path: ./dataset/data
   split: 100,0,0
 
 actor_config:

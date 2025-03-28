@@ -16,7 +16,7 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path:
+  tokenizer_name_or_path: ./data/models/Qwen2.5-32B
   global_batch_size: 128
   seq_length: 1024
   save_interval: 50
@@ -72,7 +72,7 @@ reward_config:
 
 rl_config:
   blocking: false
-  experience_count: 64
+  experience_count: 32
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
@@ -90,7 +90,8 @@ rl_config:
   rule_reward: true
   verifier_function: ["acc", "strict_format"]
   verifier_weight: [1.0, 1.0]
-  verifier_parallel: 4
+  verifier_parallel: 16
+  verifier_timeout: 120
   colocate_actor_ref: false
   colocate_all_models: false
   use_tensorboard: true

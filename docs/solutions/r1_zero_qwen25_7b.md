@@ -50,8 +50,8 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # 设置需要的权重转换参数
 
-# actor使用TP8PP2，将脚本里改成TP8PP2配置
-# reference使用TP8PP1，将脚本里改成TP8PP2配置
+# actor使用TP2PP4，将脚本里改成TP2PP4配置
+# reference使用TP2PP2，将脚本里改成TP2PP2配置
 bash examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh
 
 # 训练完后如需要转回HF格式
@@ -179,7 +179,7 @@ generate_config:
   offload_train_param: true          <-- 卸载模型权重
 
   sampling_config:                   <-- vllm 采样配置
-    max_tokens: 3072                 <-- 单条response最大生成token数量
+    max_tokens: 2048                 <-- 单条response最大生成token数量
     logprobs: 1                      <-- 是否生成logprobs
     max_tokens: 2048
     top_p: 0.9

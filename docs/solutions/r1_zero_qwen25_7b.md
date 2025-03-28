@@ -149,7 +149,7 @@ rl_config:
   ...
   max_prompt_length: 1024      <-- 最大的prompt长度
   clip_ratio: 0.2              <-- 策略裁剪比例
-  shuffle_minibatch: false     <-- 策略裁剪比例
+  shuffle_minibatch: false     <-- minibatch里的数据是否打乱
   n_samples_per_prompt: 8      <-- GRPO中一个group内生成的response条数
   colocate_actor_ref: false
   colocate_all_models: false

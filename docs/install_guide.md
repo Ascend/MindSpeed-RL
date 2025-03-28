@@ -73,5 +73,6 @@ cp -r mindspeed_llm ../MindSpeed-RL/
 cd ..
 
 cd ./MindSpeed-RL
-pip install -r requirements.txt 
+pip install -r requirements.txt
+pip install antlr4-python3-runtime==4.7.2 --no-deps 
 ```

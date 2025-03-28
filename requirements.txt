@@ -13,4 +13,3 @@ tensordict
 transformers==4.48.2
 word2number
 wandb
-antlr4-python3-runtime==4.7.2

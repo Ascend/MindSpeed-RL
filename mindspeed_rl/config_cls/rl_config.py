@@ -48,6 +48,7 @@ class RLConfig(BaseConfig):
     '''
 
     def __init__(self, config_dict):
+        self.runtime_env_path = 'configs/envs/runtime_env.yaml'
         self.rule_reward = True
         self.beta = 0.1
         self.actor_resource = None

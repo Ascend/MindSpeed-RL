@@ -3,14 +3,16 @@
 """
 Note that we don't combine the main with trainer as trainer is used by other main.
 """
+import os
 from datetime import timedelta
+from pathlib import Path
 from typing import Dict
 import sys
 
 import hydra
 import ray
 import torch
-from ray.util.placement_group import placement_group, PlacementGroup
+import yaml
 
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
@@ -18,21 +20,24 @@ from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
+from mindspeed_rl.config_cls.megatron_config import MegatronConfig
+from mindspeed_rl.config_cls.rl_config import RLConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.datasets.prompt_dataset import PromptDataset
+from mindspeed_rl.datasets.dataloader import PromptDataLoader
+from mindspeed_rl.workers.rule_reward import RuleReward
+from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
+from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
+from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
+from mindspeed_rl.workers.reference_woker import ReferenceWorker
+from mindspeed_rl.workers.reward_woker import RewardWorker
 
+cur_file_dir = Path(__file__).absolute().parent.parent
 logger = Loggers("grpo_train")
 
 
 @ray.remote
 def train(config):
-    from mindspeed_rl.datasets.prompt_dataset import PromptDataset
-    from mindspeed_rl.datasets.dataloader import PromptDataLoader
-    from mindspeed_rl.workers.rule_reward import RuleReward
-    from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
-    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
-    from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-    from mindspeed_rl.workers.reference_woker import ReferenceWorker
-    from mindspeed_rl.workers.reward_woker import RewardWorker
-
     actor_config, ref_config, reward_config, rl_config, generate_config = parse_training_config(config)
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
@@ -138,9 +143,6 @@ def parse_training_config(config: Dict):
     :param config: 输入的全局配置字典。
     :return: 包含 actor_config、ref_config、reward_config、rl_config 和 generate_config 的实例。
     """
-    from mindspeed_rl.config_cls.megatron_config import MegatronConfig
-    from mindspeed_rl.config_cls.rl_config import RLConfig
-    from mindspeed_rl.config_cls.generate_config import GenerateConfig
     actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
                                   config.get('model'))
     ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
@@ -447,10 +449,11 @@ def main(config):
     if not ray.is_initialized():
         # this is for local ray cluster
         logger.info('start initializing local ray cluster')
-        ray.init(runtime_env={
-            'env_vars': {"RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES": "True",
-                         'TOKENIZERS_PARALLELISM': 'true',
-                         'NCCL_DEBUG': 'WARN'}})
+        rl_config = RLConfig(config.get("rl_config"))
+        with open(os.path.join(cur_file_dir, rl_config.runtime_env_path)) as file:
+            runtime_env = yaml.safe_load(file)
+        logger.info(f"ray init with runtime_env: {runtime_env}")
+        ray.init(runtime_env=runtime_env)
 
     ray.get(train.remote(config))
 

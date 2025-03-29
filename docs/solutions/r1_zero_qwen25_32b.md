@@ -70,7 +70,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
   <|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nA conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think><answer> answer here </answer>Put your final answer within \\boxed{}.\n{你真正的问题}<|im_end|>\n<|im_start|>assistant\n{模型真正的回答}
   ```
 
-* 以上为默认的qwen_r1模板，根据模型和数据的不同，用户可以在`configs/templates.json`添加自己的**自定义模板**
+* 以上为默认的qwen_r1模板，根据模型和数据的不同，用户可以在`configs/model/templates.json`添加自己的**自定义模板**
 
 
 ## 数据集

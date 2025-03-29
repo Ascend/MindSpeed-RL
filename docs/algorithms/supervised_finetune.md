@@ -92,7 +92,7 @@ Alpaca风格示例：
 【--prompt-type】
 
 用于指定模型模板，能够让base模型微调后能具备更好的对话能力。`prompt-type`
-的可选项可以在[templates](../../configs/templates.json)文件内查看。
+的可选项可以在[templates](../../configs/model/templates.json)文件内查看。
 
 【--handler-name】
 

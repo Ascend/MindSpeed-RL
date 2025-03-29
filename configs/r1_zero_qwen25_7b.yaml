@@ -16,7 +16,7 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path:
+  tokenizer_name_or_path: ./data/models/Qwen2.5-7B
   global_batch_size: 64
   seq_length: 1024
   save_interval: 50
@@ -34,12 +34,12 @@ megatron_training:
 
 actor_config:
   model: qwen25_7b
-  micro_batch_size: 1
+  micro_batch_size: 4
   tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 4
   lr: 5e-7
-  lr_decay_style: cosine
-  min_lr: 5e-8
+  lr_decay_style: constant
+  min_lr: 0
   weight_decay: 0.0
   lr_warmup_fraction: 0.0
   clip_grad: 10000.0
@@ -54,8 +54,8 @@ actor_config:
 
 ref_config:
   model: qwen25_7b
-  tensor_model_parallel_size: 4
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: 2
+  pipeline_model_parallel_size: 2
   micro_batch_size: 8
   load: ./ckpt
   no_load_optim: true
@@ -78,7 +78,7 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.001
+  init_kl_coef: 0.0001
   missing_eos_penalty: 0.0
   mini_batch_size: 512
   max_prompt_length: 1024
@@ -91,6 +91,7 @@ rl_config:
   verifier_function: ["base_acc"]
   verifier_weight: [1.0]
   verifier_parallel: 4
+  verifier_timeout: 120
   colocate_actor_ref: false
   colocate_all_models: false
   use_tensorboard: true

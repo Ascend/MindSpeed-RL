@@ -183,7 +183,6 @@ generate_config:
   sampling_config:                   <-- vllm 采样配置
     max_tokens: 3072                 <-- 单条response最大生成token数量
     logprobs: 1                      <-- 是否生成logprobs
-    max_tokens: 3072
     top_p: 0.9
     top_k: 50
     min_p: 0.01

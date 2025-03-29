@@ -17,7 +17,7 @@ megatron_training:
   sequence_parallel: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path:
+  tokenizer_name_or_path: ./data/models/deepseekv3
   global_batch_size: 12
   seq_length: 1024
   save_interval: 10000

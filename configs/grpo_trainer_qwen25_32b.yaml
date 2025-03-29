@@ -16,7 +16,7 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path:
+  tokenizer_name_or_path: ./data/models/Qwen2.5-32B
   global_batch_size: 4
   seq_length: 512
   save_interval: 10000

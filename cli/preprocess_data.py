@@ -20,7 +20,7 @@ from mindspeed_rl.utils.loggers import Loggers
 logger = Loggers(name="process_data")
 cur_file_dir = Path(__file__).absolute().parent
 
-TEMPLATES_DIR = os.path.join(cur_file_dir, "./configs/templates.json")
+TEMPLATES_DIR = os.path.join(cur_file_dir, "./configs/model/templates.json")
 
 config_name = sys.argv.pop(1)
 

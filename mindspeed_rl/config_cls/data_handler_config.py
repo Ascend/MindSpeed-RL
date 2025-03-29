@@ -8,7 +8,7 @@ from mindspeed_rl.config_cls.base_config import BaseConfig
 
 cur_file_dir = Path(__file__).absolute().parent
 
-TEMPLATES_DIR = os.path.join(cur_file_dir, "../../configs/templates.json")
+TEMPLATES_DIR = os.path.join(cur_file_dir, "../../configs/model/templates.json")
 
 
 class DataHandlerConfig(BaseConfig):

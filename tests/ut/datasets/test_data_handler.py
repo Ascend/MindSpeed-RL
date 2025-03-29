@@ -21,7 +21,7 @@ project_path = os.path.dirname(current_file)
 DATA_ORCA_RLHF_JSONL = '/data/for_dt/datasets/orca_rlhf/orca_rlhf.jsonl'
 DATA_ORCA_RLHF_PREFIX = '/data/for_dt/datasets/orca_rlhf/test'
 DATA_PE_NLP = "/data/for_dt/datasets/pe-nlp/train-00000-of-00001.parquet"
-PROMPT_TEMPLATE_FILE = os.path.join(project_path, "../../../configs/templates.json")
+PROMPT_TEMPLATE_FILE = os.path.join(project_path, "../../../configs/model/templates.json")
 
 
 class TestHandler(DistributedTest):

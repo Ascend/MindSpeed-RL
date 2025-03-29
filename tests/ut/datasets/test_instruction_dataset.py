@@ -37,7 +37,7 @@ class TestInstructionDataset(DistributedTest):
             no_shuffle=False,
             reset_position_ids=False,
             prompt_type='llama2',
-            prompt_type_path='./configs/templates.json'
+            prompt_type_path='./configs/model/templates.json'
         )
 
         dataloader = InstructionDataLoader(
@@ -84,7 +84,7 @@ class TestInstructionDataset(DistributedTest):
             no_shuffle=False,
             reset_position_ids=True,
             prompt_type='llama2',
-            prompt_type_path='./configs/templates.json',
+            prompt_type_path='./configs/model/templates.json',
         )
 
         def dummy_dp_size():

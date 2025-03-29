@@ -9,7 +9,7 @@ from mindspeed_rl.config_cls.base_config import BaseConfig
 
 
 cur_file_dir = Path(__file__).absolute().parent
-TEMPLATES_DIR = os.path.join(cur_file_dir.parent.parent, "configs/templates.json")
+TEMPLATES_DIR = os.path.join(cur_file_dir.parent.parent, "configs/model/templates.json")
 
 
 class MegatronConfig(BaseConfig):

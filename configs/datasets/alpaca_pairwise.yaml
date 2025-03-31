@@ -6,4 +6,4 @@ workers: 8
 log_interval: 1000
 tokenizer_name_or_path: /data/models/Qwen2.5-7B-Instruct
 tokenizer_type: HuggingFaceTokenizer
-prompt_type: empty
+prompt_type: qwen

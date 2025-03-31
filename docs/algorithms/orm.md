@@ -33,7 +33,7 @@ cd ..
 使用MindSpeed-RL仓库中的preprocess_data.sh对数据进行预处理
 
 ```shell
-bash examples/data/preprocess_data.sh alpaca_reward
+bash examples/data/preprocess_data.sh alpaca_pairwise
 ```
 
 数据预处理的文件在configs/datasets目录下，一般只需要配置输入和输出参数
@@ -62,7 +62,7 @@ bash examples/ckpt/ckpt_convert_qwen25_hf2mcore_orm.sh
 
 将 Megatron 格式转化为 Huggingface 格式
 ```shell
-bash examples/ckpt/ckpt_convert_qwen25_hf2mcore_orm.sh
+bash examples/ckpt/ckpt_convert_qwen25_mcore2hf_orm.sh
 ```
 
 在脚本内需要根据真实环境配置

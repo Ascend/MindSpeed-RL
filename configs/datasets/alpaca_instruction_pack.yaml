@@ -6,6 +6,6 @@ tokenizer_type: HuggingFaceTokenizer
 workers: 8
 log_interval: 1000
 prompt_type: qwen
-map_keys: { "prompt": "question", "query": "", "response": "ground_truth_answer", "system": "" }
 pack: True
+append-eod: True
 seq_length: 4096

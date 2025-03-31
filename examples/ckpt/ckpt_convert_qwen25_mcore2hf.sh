@@ -8,7 +8,7 @@ python cli/convert_ckpt.py \
     --model-type-hf llama2 \
     --load-model-type mg \
     --save-model-type hf \
-    --target-tensor-parallel-size 4 \
+    --target-tensor-parallel-size 1 \
     --target-pipeline-parallel-size 1 \
     --add-qkv-bias \
     --load-dir ./ckpt/ \

@@ -45,6 +45,7 @@ sft:
   hidden_dropout: 0.0
   overlap_grad_reduce: true
   overlap_param_gather: true
+  max_position_embeddings: 4096
 
   # data_args:
   data_path: ./dataset/data

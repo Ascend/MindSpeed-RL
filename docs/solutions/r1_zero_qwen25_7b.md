@@ -74,7 +74,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 * [**Orz**](https://huggingface.co/datasets/pe-nlp/orz_math_57k)
 
 ### 数据预处理
-需要先配置数据处理的yaml文件(examples\datasets\r1_zero_qwen25_7b.yaml)
+需要先配置数据处理的yaml文件(configs\datasets\r1_zero_qwen25_7b.yaml)
 自定义数据集需要设置--map-keys映射，或重写自定义handler；具体参考[**数据集处理部分**](../algorithms/grpo.md)
 
 
@@ -181,7 +181,6 @@ generate_config:
   sampling_config:                   <-- vllm 采样配置
     max_tokens: 2048                 <-- 单条response最大生成token数量
     logprobs: 1                      <-- 是否生成logprobs
-    max_tokens: 2048
     top_p: 0.9
     top_k: 50
     min_p: 0.01

@@ -2,7 +2,7 @@ codetiming
 datasets
 hydra-core==1.3.2
 latex2sympy2
-numpy
+numpy==1.26.4
 omegaconf
 pybind11
 ray==2.42.1

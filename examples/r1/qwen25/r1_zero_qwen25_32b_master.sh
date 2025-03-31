@@ -24,7 +24,7 @@ while true; do
     if [ "$device_count" -eq "$NNODES" ]; then
         echo "Ray cluster is ready with $device_count devices (from $npu_count NPU resources), starting Python script."
         ray status
-        python cli/train_grpo.py --config-name $YAML | tee logs/training.log
+        python cli/train_grpo.py --config-name $YAML 2>&1 | tee logs/training.log
         break
     else
         echo "Waiting for Ray to allocate $NNODES devices. Current device count: $device_count"

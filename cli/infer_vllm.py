@@ -95,7 +95,7 @@ def main():
         sampling_config=sampling_config,
         train_expert_parallel_size=1,
         infer_expert_parallel_size=1,
-        tokenizer_name_or_pathr=args.tokenizer_name_or_path,
+        tokenizer_name_or_path=args.tokenizer_name_or_path,
         prompt_type=args.prompt_type,
         prompt_type_path=args.prompt_type_path,
         train_tensor_parallel_size=args.tensor_parallel_size,

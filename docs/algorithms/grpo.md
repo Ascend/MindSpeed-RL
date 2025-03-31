@@ -14,13 +14,19 @@
 ## 数据预处理
 配置好环境后，需要对数据集进行预处理。
 
-以 [alpaca 数据集](https://huggingface.co/datasets/tatsu-lab/alpaca) 为例。
+以 [pe-nlp 数据集](https://huggingface.co/datasets/pe-nlp/Big-Math-RL-Verified-Filtered) 为例。
+
+```shell
+cd dataset/
+wget https://huggingface.co/datasets/pe-nlp/Big-Math-RL-Verified-Filtered/resolve/main/data/train-00000-of-00001.parquet --no-check
+cd ..
+```
 
 数据预处理的yaml配置文件放置于configs/datasets文件夹下，通过以下命令进行数据集预处理：
-[示例yaml配置文件](../../configs/datasets/alpaca_instruction_non_pack.yaml)
+[示例yaml配置文件](../../configs/datasets/grpo_pe_nlp.yaml)
 ```shell
-bash examples/data/preprocess_data.sh alpaca_instruction_non_pack  
-#读取configs/datasets/alpaca_instruction_non_pack.yaml文件 
+bash examples/data/preprocess_data.sh grpo_pe_nlp 
+#读取configs/datasets/grpo_pe_nlp.yaml文件 
 ```
 ### 参数介绍
 数据集处理配置可以根据需求自行配置，以下是数据集处理的yaml文件中基础参数的介绍：
@@ -34,7 +40,6 @@ bash examples/data/preprocess_data.sh alpaca_instruction_non_pack
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称;
 * `seq_length`：设置序列长度;
-* `placeholder_token`：微调数据prompt中每个推理步骤间的分割占位符，默认为"ки"。
 
 ## 模型权重转换
 
@@ -114,14 +119,11 @@ ray start --address="IP_ADDRESS:6344"
 
 最后，在主节点上启动训练：
 ```shell
-export HCCL_CONNECT_TIMEOUT=1800
-export CUDA_DEVICE_MAX_CONNECTIONS=1
-
 python cli/train_grpo.py --config-name r1_zero_qwen25_32b | tee logs/r1_zero_qwen25_32b_full.log
 ```
 
 ### 脚本启动训练
----
+
 
 ```shell
 # 主节点

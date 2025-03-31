@@ -89,7 +89,7 @@ def train(config):
 
     if rl_config.rule_reward:
         rule_reward = RuleReward.options(num_cpus=rl_config.num_cpus_for_local_task).remote()
-        rule_reward.initialize.remote(reward_config, rl_config)
+        rule_reward.initialize.remote(reward_config, rl_config, tokenizer)
         reward_list.append(rule_reward)
 
     train_ds, _, _ = build_train_valid_test_datasets(

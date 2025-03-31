@@ -84,21 +84,21 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
 
     reward_index = batch["response_length"]
 
-    logger.debug("=" * 50)
-    logger.debug(">>>>>>>>>> User:\n")
-    logger.debug(str_question[0])
-    logger.debug(">>>>>>>>>> Assistant:\n")
-    logger.debug(str_responses[0])
+    logger.info("=" * 50)
+    logger.info(">>>>>>>>>> User:\n")
+    logger.info(str_question[0])
+    logger.info(">>>>>>>>>> Assistant:\n")
+    logger.info(str_responses[0])
 
     extra_data = {}
 
     if hasattr(megatron_config, "dataset_additional_keys"):
         for k in megatron_config.dataset_additional_keys:
             extra_data[k] = tokenizer.batch_decode(batch[k], skip_special_tokens=True)
-            logger.debug(f">>>>>>>>>> {k}")
-            logger.debug(extra_data[k][0])
+            logger.info(f">>>>>>>>>> {k}")
+            logger.info(extra_data[k][0])
 
-    logger.debug("=" * 50)
+    logger.info("=" * 50)
 
     scores, metrics = verifier(str_responses, extra_data, rl_config)
 

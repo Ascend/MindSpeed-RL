@@ -55,7 +55,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 # 设置需要的权重转换参数
 
 # actor使用TP8PP2，将脚本里改成TP8PP2配置
-# reference使用TP8PP1，将脚本里改成TP8PP2配置
+# reference使用TP8PP1，将脚本里改成TP8PP1配置
 bash examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh
 
 # 训练完后如需要转回HF格式
@@ -79,7 +79,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 * [**DeepScaler**](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/tree/main)
 
 ### 数据预处理
-需要先配置数据处理的yaml文件(examples\datasets\r1_zero_qwen25_32b.yaml)
+需要先配置数据处理的yaml文件(configs\datasets\r1_zero_qwen25_32b.yaml)
 自定义数据集需要设置--map-keys映射，或重写自定义handler；具体参考[**数据集处理部分**](../algorithms/grpo.md)
 
 

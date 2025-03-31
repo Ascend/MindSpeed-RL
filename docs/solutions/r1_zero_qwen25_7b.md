@@ -74,7 +74,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 * [**Orz**](https://huggingface.co/datasets/pe-nlp/orz_math_57k)
 
 ### 数据预处理
-需要先配置数据处理的yaml文件(examples\datasets\r1_zero_qwen25_7b.yaml)
+需要先配置数据处理的yaml文件(configs\datasets\r1_zero_qwen25_7b.yaml)
 自定义数据集需要设置--map-keys映射，或重写自定义handler；具体参考[**数据集处理部分**](../algorithms/grpo.md)
 
 

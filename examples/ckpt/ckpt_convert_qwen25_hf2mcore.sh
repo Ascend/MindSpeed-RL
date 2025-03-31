@@ -1,3 +1,5 @@
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+
 # 修改 ascend-toolkit 路径
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 

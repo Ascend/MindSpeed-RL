@@ -108,6 +108,8 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
 </table>
 注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
 
+注：使用Ray拉起任务的算法，如GRPO，环境变量需要在[runtime_env.yaml](./configs/envs/runtime_env.yaml)处配置
+
 ### 核心特性
 
 <table>
@@ -134,6 +136,35 @@ MindSpeed-RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tbody>
 </table>
 注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
+
+### 效率工具
+
+<table>
+  <thead>
+    <tr>
+      <th>工具特性</th>
+      <th>特性指南</th>
+      <th>适用算法</th>
+      <th>适用模型</th>
+      <th>发布状态</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>训练监控</td>
+      <td>  <a href="docs/features/logging_wandb_tensorboard.md">Doc</a> </td>
+      <td  rowspan="1">GRPO</td>
+      <td  rowspan="1">
+        Qwen2.5-7B <br>
+        Qwen2.5-32B <br>
+      </td>
+      <td> Preview</td>
+    </tr>
+  </tbody>
+</table>
+注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
+
+
 
 ## 版本维护策略
 

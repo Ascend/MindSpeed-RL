@@ -1,13 +1,13 @@
 #!/bin/bash
-
 export CUDA_DEVICE_MAX_CONNECTIONS=1
+export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 
 Project_Path=$(dirname $(dirname $(dirname $(readlink -f "$0"))))
 export PYTHONPATH="$Project_Path:$PYTHONPATH"
 echo $PYTHONPATH
 
 NPUS_PER_NODE=8
-MASTER_ADDR=localhost
+MASTER_ADDR=localhost #主节点IP
 MASTER_PORT=6021
 NNODES=1
 NODE_RANK=0

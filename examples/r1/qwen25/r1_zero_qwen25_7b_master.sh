@@ -3,8 +3,6 @@ DEFAULT_YAML="grpo_trainer_qwen25_7b.yaml"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
 
-export HCCL_CONNECT_TIMEOUT=1800
-export CUDA_DEVICE_MAX_CONNECTIONS=1
 ulimit -n 32768
 mkdir logs
 

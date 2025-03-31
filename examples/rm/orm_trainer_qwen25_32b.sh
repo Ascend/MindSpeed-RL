@@ -1,18 +1,19 @@
 #!/bin/bash
-
 export CUDA_DEVICE_MAX_CONNECTIONS=1
+export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+export GLOO_SOCKET_IFNAME= "Your SOCKET IFNAME"
+export TP_SOCKET_IFNAME= "Your SOCKET IFNAME"
+export HCCL_SOCKET_IFNAME= "Your SOCKET IFNAME"
+export HYDRA_FULL_ERROR=1
 
 Project_Path=$(dirname $(dirname $(dirname $(readlink -f "$0"))))
 
-MASTER_ADDR=
-MASTER_PORT=
+MASTER_ADDR=localhost #主节点IP
+MASTER_PORT=6000
 NPUS_PER_NODE=8
-NNODES=
-NODE_RANK=
+NNODES=2
+NODE_RANK=0
 WORLD_SIZE=$(($NPUS_PER_NODE*$NNODES))
-export GLOO_SOCKET_IFNAME=
-export TP_SOCKET_IFNAME=
-export HCCL_SOCKET_IFNAME=
 
 DISTRIBUTED_ARGS="
     --nproc_per_node $NPUS_PER_NODE \

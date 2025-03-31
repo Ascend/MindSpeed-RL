@@ -79,21 +79,17 @@ rl_config:
   kl_penalty: kl
   kl_ctrl_type: fixed
   init_kl_coef: 0.001
-  missing_eos_penalty: 0.0
   mini_batch_size: 2048
   max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
   entropy_coeff: 0.001
-  shuffle_minibatch: false
   n_samples_per_prompt: 16
   rule_reward: true
   verifier_function: ["acc", "strict_format"]
   verifier_weight: [1.0, 1.0]
   verifier_parallel: 16
   verifier_timeout: 120
-  colocate_actor_ref: false
-  colocate_all_models: false
   use_tensorboard: true
   actor_resource:
     num_npus: 16

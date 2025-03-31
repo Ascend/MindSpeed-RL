@@ -33,7 +33,9 @@ def preprocess(config):
         merge_datasets(args)
         return
 
-    tokenizer = get_tokenizer(args.tokenizer_name_or_path, args.tokenizer_type)
+    tokenizer = get_tokenizer(args.tokenizer_name_or_path,
+                              prompt_type=args.prompt_type,
+                              prompt_type_path=args.prompt_type_path)
     splitter = build_splitter(args)
 
     logger.info(f"building dataset: {args.input}")

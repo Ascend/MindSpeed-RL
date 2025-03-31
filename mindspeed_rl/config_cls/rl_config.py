@@ -44,6 +44,8 @@ class RLConfig(BaseConfig):
     wandb_project: The wandb project name. Ignore wandb by default. If use_wandb is True, you need to set the wandb project name (default: "")
     wandb_exp_name: The wandb experiment name. If use_wandb is True, you need to set the wandb experiment name (default: "")
     wandb_save_dir: Path to save the wandb results locally. (default: "")
+    blocking: Whether to enable blocking mode (default: False)
+    num_cpus_for_local_task: Number of CPUs for local ray task (default: 1)
     # Default values can still be defined if no config is provided
     '''
 

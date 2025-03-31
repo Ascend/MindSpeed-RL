@@ -35,8 +35,10 @@ class RayGRPOTrainer(RayBaseTrainer):
         global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
         experience_count: int = 1 The batch size of prompts per pipeline stage in each data fetch operation from the TransferDock (TD).
         n_samples_per_prompt: int = 1 The number of samples generated per prompt.
-        tokenizer_name_or_path: str = None The name or path of the tokenizer to use.
+        tokenizer: BaseTokenizer = None tokenizer to use.
         dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
+        blocking: bool = False  Whether to enable blocking mode.
+        num_cpus_for_local_task: int = 1 Number of CPUs for local ray task.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -58,7 +60,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
             blocking: bool = False,
-            num_cpus_for_local_task: float = 0.1,
+            num_cpus_for_local_task: int = 1,
             **kwargs
     ):
         super().__init__(

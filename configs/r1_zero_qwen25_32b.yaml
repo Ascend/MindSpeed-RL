@@ -88,8 +88,8 @@ rl_config:
   rule_reward: true
   verifier_function: ["acc", "strict_format"]
   verifier_weight: [1.0, 1.0]
-  verifier_parallel: 16
-  verifier_timeout: 120
+  verifier_parallel: 32
+  verifier_timeout: 30
   use_tensorboard: true
   actor_resource:
     num_npus: 16

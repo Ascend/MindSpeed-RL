@@ -18,7 +18,7 @@ bash Ascend-cann-nnal_8.1.RC1_linux-aarch64.run --install
 # 设置环境变量
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 source /usr/local/Ascend/nnal/asdsip/set_env.sh
-source /usr/local/Ascend/rc1b0202/nnal/atb/set_env.sh
+source /usr/local/Ascend/nnal/atb/set_env.sh
 ```
 
 ### PTA安装

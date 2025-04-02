@@ -8,34 +8,6 @@ _TP_ALLGATHER_GROUP = None
 _TP_GROUP = None
 
 
-def _replace_name_v2m(vllm_name, name_mapping):
-    """
-    Transfer state dict names from vllm to megatron.
-    This function works in the opposite direction of _replace_name.
-    """
-    for m_name, v_name in name_mapping:
-        if v_name not in vllm_name:
-            continue
-        if "layers" in vllm_name:  # deal with decoder layers
-            vllm_name = vllm_name.replace("model", "decoder")
-            vllm_name_list = vllm_name.split(".")
-            if "layer_norm_weight" in vllm_name_list or "layer_norm_bias" in vllm_name_list:
-                param_name_list = vllm_name_list[:3]
-                param_name_list.append(m_name)
-                param_name = ".".join(param_name_list)
-            else:
-                param_name_list = vllm_name_list[:3]
-                weight_or_bias = vllm_name_list[-1]
-                param_name_list.append(m_name)
-                if weight_or_bias in ['weight', 'bias']:
-                    param_name_list.append(weight_or_bias)
-                param_name = ".".join(param_name_list)
-            return param_name
-        else:
-            param_name = vllm_name.replace(v_name, m_name)
-            return param_name
-
-
 def _build_infer_param_dict(params):
     """
     params: List[List[Dict[str, param]]]
@@ -56,14 +28,6 @@ def get_tp_group():
     return _TP_GROUP
 
 
-def get_tp_world_size():
-    return torch.distributed.get_world_size(group=get_tp_group())
-
-
-def get_tp_rank():
-    return torch.distributed.get_rank(group=get_tp_group())
-
-
 def get_tp_allgather_group():
     if _TP_ALLGATHER_GROUP is None:
         raise ValueError("TP AllGather Group is not initialized")
@@ -74,22 +38,10 @@ def get_tp_allgather_world_size():
     return torch.distributed.get_world_size(group=get_tp_allgather_group())
 
 
-def get_tp_allgather_rank():
-    return torch.distributed.get_rank(group=get_tp_allgather_group())
-
-
 def get_pp_allgather_group():
     if _PP_ALLGATHER_GROUP is None:
         raise ValueError("PP AllGather Group is not initialized")
     return _PP_ALLGATHER_GROUP
-
-
-def get_pp_allgather_world_size():
-    return torch.distributed.get_world_size(group=get_pp_allgather_group())
-
-
-def get_pp_allgather_rank():
-    return torch.distributed.get_rank(group=get_pp_allgather_group())
 
 
 def is_tensor_parallel_param(param):
@@ -143,3 +95,7 @@ def validate_md5(md5_tensor_src, md5_tensor, log_prefix):
         logging.info(f"{log_prefix} md5 validate Hash: The weights of the two models match.")
     else:
         logging.info(f"{log_prefix} md5 validate Hash: The weights of the two models do not match.")
+
+
+def is_fake_tp_param(name, moe_tp_extended_ep):
+    return 'mlp.experts.weight' in name and moe_tp_extended_ep

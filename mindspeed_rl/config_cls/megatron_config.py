@@ -196,6 +196,8 @@ class MegatronConfig(BaseConfig):
                        'to recompute within each pipeline stage.'  (default: None)
     swap_attention: switch to open swap-attention feature (default: False)
     reuse_fp32_param: The distributed training optimizer frees up 'param copies of FP32 to save memory. (default: False)
+    moe_tp_extend_ep: use tp group to extend experts parallelism instead of sharding weight tensor of experts in tp group
+    moe_alltoall_overlap_comm: moe_alltoall_overlap_comm
     '''
 
     def __init__(self, training_config: Dict, model_config: Dict):
@@ -244,6 +246,8 @@ class MegatronConfig(BaseConfig):
 
         self.moe_grouped_gemm = False
         self.moe_permutation_async_comm = False
+        self.moe_tp_extend_ep = False
+        self.moe_alltoall_overlap_comm = False
         self.use_fused_moe_token_permute_and_unpermute = False
         self.moe_token_dispatcher_type = None
         self.seq_aux = False
@@ -352,13 +356,9 @@ class MegatronConfig(BaseConfig):
         self.dataset_additional_keys = []
         self.use_deter_comp = False
         self.overlap_param_gather = False
-
-        # memory_parameters
         self.recompute_activation_function = False
-        self.recompute_granularity = None
-        self.recompute_method = None
-        self.recompute_num_layers = None
         self.swap_attention = False
-        self.reuse_fp32_param = False
+
+
 
         self.update(training_config, model_config)

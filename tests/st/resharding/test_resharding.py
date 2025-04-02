@@ -325,7 +325,7 @@ class TestActor():
             infer_pipeline_parallel_size=args.infer_pp,
             infer_expert_parallel_size=args.infer_ep,
             num_layer_list=None,
-            tp_split_expert=False,
+            moe_tp_extend_ep=False,
             parallel_state=mpu,
             inference_engine=self.inference_engine,
             optimizer=self.optimizer,

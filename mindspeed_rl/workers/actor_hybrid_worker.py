@@ -298,7 +298,7 @@ class ActorHybridWorker(BaseWorker):
             infer_pipeline_parallel_size=self.generate_config.infer_pipeline_parallel_size,
             infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
             num_layer_list=self.megatron_config.num_layer_list,
-            tp_split_expert=self.rl_config.tp_split_expert,
+            moe_tp_extend_ep=self.megatron_config.moe_tp_extend_ep,
             parallel_state=self.parallel_state,
             inference_engine=self.inference_model,
             optimizer=self.optimizer,

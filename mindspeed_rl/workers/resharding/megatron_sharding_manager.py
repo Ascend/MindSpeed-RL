@@ -25,6 +25,7 @@ import torch
 import torch.distributed
 
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
+from mindspeed_rl.workers.resharding.weight_adaptor import get_weight_adaptor
 
 
 class MegatronOffLoader:
@@ -113,7 +114,7 @@ class MegatronShardingManager:
             infer_pipeline_parallel_size=None,
             infer_expert_parallel_size=None,
             num_layer_list=None,
-            tp_split_expert=None,
+            moe_tp_extend_ep=None,
             parallel_state=None,
             megatron_offloader=None
     ):
@@ -131,12 +132,14 @@ class MegatronShardingManager:
             infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
             infer_expert_parallel_size (int): Expert parallel size during inference.
             num_layer_list (str): a list of number of layers, seperated by comma; e.g., 4,4,4,4.
-            tp_split_expert (bool): Controls whether expert model parameters are split across multiple GPUs.
+            moe_tp_extend_ep (bool): Controls whether expert model parameters are split across multiple GPUs.
             parallel_state (ModuleType): Megatron parallel state of the model.
         """
         self.inference_engine = inference_engine
         self.optimizer = optimizer
         self.train_model = megatron_model
+        weight_adaptor = get_weight_adaptor(self.inference_engine.model.__class__.__name__)
+        self.weight_adaptor = weight_adaptor(model_config)
 
         self.vllm_weight_container = MegatronStyleVllmWeightContainer(
             megatron_model=megatron_model,
@@ -146,8 +149,9 @@ class MegatronShardingManager:
             infer_pipeline_parallel_size=infer_pipeline_parallel_size,
             infer_expert_parallel_size=infer_expert_parallel_size,
             num_layer_list=num_layer_list,
-            tp_split_expert=tp_split_expert,
+            moe_tp_extend_ep=moe_tp_extend_ep,
             parallel_state=parallel_state,
+            weight_adaptor=self.weight_adaptor,
             enable_validate=enable_validate)
 
         self.optimizer_offload = optimizer_offload

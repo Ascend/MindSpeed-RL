@@ -29,15 +29,19 @@ from torch.distributed import new_group
 from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer
 import mindspeed_rl.workers.resharding.utils
 from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, tp_md5_validate, \
-    update_md5_by_rank, compute_md5, validate_md5, _replace_name_v2m, _build_infer_param_dict, get_tp_allgather_group, \
-    get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group
+    update_md5_by_rank, compute_md5, validate_md5, _build_infer_param_dict, get_tp_allgather_group, \
+    get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group, is_fake_tp_param
 
 
 class MegatronStyleVllmWeightContainer:
 
     def __init__(self, megatron_model, vllm_model, model_config, infer_tensor_parallel_size,
                  infer_pipeline_parallel_size,
-                 infer_expert_parallel_size, num_layer_list, tp_split_expert=False, parallel_state=None,
+                 infer_expert_parallel_size,
+                 num_layer_list,
+                 moe_tp_extend_ep=False,
+                 parallel_state=None,
+                 weight_adaptor=None,
                  enable_validate=False) -> None:
         """ Megatron style vllm weight container.
 
@@ -49,8 +53,9 @@ class MegatronStyleVllmWeightContainer:
             infer_pipeline_parallel_size (int): Inference pipeline parallel size
             infer_expert_parallel_size (int): Inference expert parallel size
             num_layer_list (str): a list of number of layers, seperated by comma; e.g., 4,4,4,4.
-            tp_split_expert (bool): Controls whether expert model parameters are split across multiple GPUs.
+            moe_tp_extend_ep (bool): Controls whether expert model parameters are split across multiple GPUs.
             parallel_state (ModuleType): Megatron parallel state of the model.
+            weight_adaptor (WeightAdaptor): Provides a set of tools to transfer from training weight to inference weight.
             enable_validate (bool): Whether to enable communication data validate.
         """
 
@@ -58,6 +63,7 @@ class MegatronStyleVllmWeightContainer:
         self.model_config = model_config
         self.megatron_model = megatron_model
         self.parallel_state = parallel_state
+        self.weight_adaptor = weight_adaptor
         self._num_hidden_layers = self.model_config.num_hidden_layers
 
         # pp configs
@@ -74,12 +80,22 @@ class MegatronStyleVllmWeightContainer:
 
         # ep configs
         self._ep_size = self.parallel_state.get_expert_model_parallel_world_size()
-        self._ep_group = self.parallel_state.get_expert_model_parallel_group()
+
+        if moe_tp_extend_ep:
+            self._ep_group = self.parallel_state.get_tensor_and_expert_parallel_group()
+            self._ep_size = self._tp_size * self._ep_size
+        else:
+            self._ep_group = self.parallel_state.get_expert_model_parallel_group()
+
+        if hasattr(self.model_config, "n_routed_experts"):
+            self.num_experts = self.model_config.n_routed_experts
+            self.num_local_experts = self.num_experts // self._ep_size
 
         # infer configs
         self._infer_tp_size = infer_tensor_parallel_size
         self._infer_pp_size = infer_pipeline_parallel_size
         self._infer_ep_size = infer_expert_parallel_size
+        self.moe_tp_extend_ep = moe_tp_extend_ep
 
         self._world_size = dist.get_world_size()
 
@@ -90,9 +106,8 @@ class MegatronStyleVllmWeightContainer:
         self.enable_validate = enable_validate
         self.origin_params_for_md5 = None
         self.infer_params_for_md5 = None
-        
+
         self._rank = dist.get_rank()
-        self.tp_split_expert = tp_split_expert
         self._init_tensor_model_parallel_allgather_group()
         self._init_pipeline_model_parallel_allgather_group()
         self._init_tensor_model_parallel_split_group()
@@ -101,8 +116,12 @@ class MegatronStyleVllmWeightContainer:
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
             raise ValueError("infer_pp_size != 1 not supported yet")
-        if self._infer_ep_size != self._ep_size:
-            raise ValueError("The training expert size should be equal to the inference expert size.")
+        if self._infer_ep_size != 1:
+            raise ValueError("infer_ep_size != 1 not supported yet")
+        if self._ep_size > 1 and self._ep_size != self._infer_tp_size:
+            raise ValueError("For training EP, supports EP -> TP only currently.")
+        if self._ep_size > 1 and not self.moe_tp_extend_ep:
+            raise ValueError("To enable training EP, you need to enable moe_tp_extend_ep and use GroupedMLP.")
         if self._pp_size < self._infer_pp_size:
             raise ValueError(
                 "The training pipeline parallel size should be greater than or equal to the inference pipeline "
@@ -117,7 +136,7 @@ class MegatronStyleVllmWeightContainer:
         # For tp increase, train_tp * dp >= infer_tp, train_tp * dp % infer_tp == 0
         if self._tp_size < self._infer_tp_size:
             if (self._world_size // self._pp_size < self._infer_tp_size or
-                (self._world_size // self._pp_size) % self._infer_tp_size != 0):
+                    (self._world_size // self._pp_size) % self._infer_tp_size != 0):
                 raise ValueError(
                     f"Do not support split train tp size {self._tp_size} to infer tp size {self._infer_tp_size} "
                     f"with train dp size {(self._world_size // (self._tp_size * self._pp_size))}.")
@@ -206,30 +225,93 @@ class MegatronStyleVllmWeightContainer:
         Build buffers from vllm state dict. Totally build train pp_size buffers, each buffer corresponds to a pack of megatron weight.
         Return a list of buffers, and a reference dict megatron_param_name->buffer.
         """
-        self.params_mapping = [
-            # (megatron core gpt model name, vllm model name)
-            ("embedding.word_embeddings", "model.embed_tokens"),
-            ("self_attention.linear_qkv", "self_attn.qkv_proj"),
-            ("self_attention.linear_proj", "self_attn.o_proj"),
-            ("input_layernorm", "input_layernorm"),
-            ("pre_mlp_layernorm", "post_attention_layernorm"),
-            ("mlp.linear_fc1", "mlp.gate_up_proj"),
-            ("mlp.linear_fc2", "mlp.down_proj"),
-            ("decoder.final_layernorm", "model.norm"),
-            ("output_layer", "lm_head"),
-            ("self_attention.linear_qb", "self_attn.q_b_proj"),
-            ("self_attention.linear_kvb", "self_attn.kv_b_proj"),
-            ("mlp.router.expert_bias", "mlp.gate.e_score_correction_bias"),
-            ("mlp.router", "mlp.gate"),
-            ("mlp.shared_experts.linear_fc1", "mlp.shared_experts.gate_up_proj"),
-            ("mlp.shared_experts.linear_fc2", "mlp.shared_experts.down_proj"),
-            ("mlp.experts.weight1", "mlp.experts.w13_weight"),
-            ("mlp.experts.weight2", "mlp.experts.w2_weight"),
-            ("self_attention.q_layernorm", "self_attn.q_a_layernorm"),
-            ("self_attention.k_layernorm", "self_attn.kv_a_layernorm"),
-        ]
-        self.weight_names_per_pp = self._get_weight_names_per_pp()
-        self.weight_buffers = build_model_weight_buffer(self.vllm_model, self.weight_names_per_pp)
+        vllm_names = list(dict(self.vllm_model.named_parameters()).keys())
+        self.weight_names_per_pp = self.weight_adaptor.get_weight_names_per_pp(self._num_layer_list, vllm_names)
+        self.weight_buffers = build_model_weight_buffer(self.vllm_model, self.weight_names_per_pp,
+                                                        self.weight_adaptor.get_weight_buffer_meta)
+
+    def trans_ep_params_to_tp(self, megatron_param, name):
+        """
+        Transfer a GroupedMLP from EP to TP. Currently, assert EP==TP.
+        e.g. EP=2 -> TP=2
+        Assume we have 4 experts in total.
+        We here note e0 for expert 0, and [a0, b0] for the tensor parallel weight for expert 0,
+        so we can denote first half weights for all the 4 experts as a0-4 .
+        For EP to TP transfer, what we actually need to do is:
+        [[e0-1], [e2-3]] -> [[a0-4], [b0-4]]
+        We first build a matrix, each column is a rank before transfer, and each row is a rank after transfer.
+                    ep0   ep1
+                [
+        a0-4        a0-1, a2-3,
+        b0-4        b0-1, b2-3,
+                ]
+        When we get this matrix, we only need to do All2All to transfer EP to TP on the EP group.
+
+        So, for ep_rank 0 we need to build [a0-1, b0-1] from [e0-1], i.e.
+        [e0-1] <=> [e0, e1] <=> [a0, a1, b0, b1] -> [a0, a1, b0, b1] <=> [a0-1, b0-1]
+
+        For DSv3 model, this function only handles decoder.layers.x.mlp.experts.weight1 and
+        decoder.layers.x.mlp.experts.weight2.
+        In which, weight 1 is cut by column and contains both gate and up;
+              and weight 2 is cut by row.
+        """
+
+        # the true ep size, equal to ep_size * tp_size when tp_extend_ep
+        if self._ep_size == 1:
+            return megatron_param
+
+        tp_size = self._infer_tp_size
+
+        num_experts = self.num_local_experts
+
+        # 1. build ep_tp matrix buffer
+        # For megatron param [e0, e1], we make it [a0, a1, b0, b1], in which e0 == [a0, b0]
+
+        # weight1: column cut, be like [g0, u0, g1, u1, ...]
+        if 'weight1' in name:
+
+            hidden_size = megatron_param.shape[0]
+            megatron_param = torch.cat(megatron_param.view(num_experts, hidden_size, -1).unbind(0), dim=1)
+
+            # We can treat both the gate and the up weight as 2 independent experts.
+            num_experts *= 2
+
+        # weight2: row cut, be like [ d0, d1, d2, ...]^T
+        elif 'weight2' in name:
+
+            hidden_size = megatron_param.shape[1]
+            megatron_param = torch.cat(megatron_param.view(num_experts, -1, hidden_size).unbind(0), dim=0)
+
+            # transpose params to handle uniformly with column cut
+            megatron_param = megatron_param.t()
+
+        else:
+            return megatron_param
+
+        # chunk to tp * ep parts
+        chunks = torch.chunk(megatron_param, tp_size * num_experts, dim=1)
+
+        # re-select by tp-ep order
+        # e.g. TP=2 num_experts=4, old order [1,2,3,4,5,6,7,8],  new order [1,3,5,7,2,4,6,8]
+        new_order = []
+        for i in range(tp_size):
+            for j in range(num_experts):
+                new_order.append(chunks[i + j * tp_size])
+
+        reordered_x = torch.cat(new_order, dim=1)
+        final_chunks = torch.chunk(reordered_x, tp_size, dim=1)
+
+        # 2. do AlltoAll communication
+        input_tensor_list = [chunk.contiguous() for chunk in final_chunks]
+        output_tensor_list = [torch.empty_like(chunk) for chunk in input_tensor_list]
+        torch.distributed.all_to_all(
+            output_tensor_list,
+            input_tensor_list,
+            group=self._ep_group,
+            async_op=False
+        )
+        total_experts = self.num_local_experts * tp_size
+        return torch.cat(output_tensor_list, dim=1).reshape(hidden_size, total_experts, -1).permute(1, 0, 2)
 
     def _update_weight_buffers_intra_pp(self):
         """
@@ -242,40 +324,14 @@ class MegatronStyleVllmWeightContainer:
             """
             infer_param = self.allgather_tp_param(megatron_param, name)
             infer_param = self.split_tp_params(infer_param, name)
+            infer_param = self.trans_ep_params_to_tp(infer_param, name)
             return infer_param
-
-        def _global2local_layer(name, num_layer_list):
-            """
-            Transform the model name in each model_chunk in global space to local space
-            """
-            layer_name = 'layers'
-
-            if layer_name in name:  # belong to an intermediate layer
-                split_name = name.split('.')
-                # find the num next to split_name
-                for i, name in enumerate(split_name):
-                    if name == layer_name:
-                        break
-                layer_num_idx = i + 1
-                # check the name
-                if len(split_name) < layer_num_idx + 1 or not split_name[layer_num_idx].isdigit():
-                    raise ValueError(f'split_name = {split_name}')
-                # increment layer_num_idx by layer_offset
-                global_idx = int(split_name[layer_num_idx])
-                for layers_in_pp in num_layer_list:
-                    global_idx -= layers_in_pp
-                    if global_idx < 0:
-                        local_index = global_idx + layers_in_pp
-                        break
-                split_name[layer_num_idx] = str(local_index)
-                name = '.'.join(split_name)  # weight name in inference_tp_model
-            return name
 
         pp_rank = self._pp_rank
         weight_buffer = self.weight_buffers[pp_rank]
         true_megatron_model = self._unwrap_megatron_model(self.megatron_model)
-        normal_layer_func = partial(_global2local_layer, num_layer_list=self._num_layer_list)
-        name_pairs = sorted(list(set([(name, _replace_name_v2m(normal_layer_func(name), self.params_mapping))
+        normal_layer_func = partial(self.weight_adaptor.global2local_layer, num_layer_list=self._num_layer_list)
+        name_pairs = sorted(list(set([(name, self.weight_adaptor.replace_name_i2t(normal_layer_func(name)))
                                       for name in weight_buffer.weight_names])))
         if self.enable_validate:
             self.origin_params_for_md5 = hashlib.md5()
@@ -285,8 +341,10 @@ class MegatronStyleVllmWeightContainer:
                 fc2_name = megatron_name.replace("linear_fc1", "linear_fc2")
                 megatron_param_fc1 = dict(true_megatron_model.named_parameters())[megatron_name]
                 megatron_param_fc2 = dict(true_megatron_model.named_parameters())[fc2_name]
-                if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * megatron_param_fc2.shape[1] * 2:
+                if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * \
+                        megatron_param_fc2.shape[1] * 2:
                     raise ValueError("Only implemented for Llama model which linear_fc1 contains gate and up params.")
+
         megatron_params_dict = dict(true_megatron_model.named_buffers())
         megatron_params_dict.update(true_megatron_model.named_parameters())
         for hf_name, megatron_name in name_pairs:
@@ -384,7 +442,7 @@ class MegatronStyleVllmWeightContainer:
             raise RuntimeError("Group for tensor model parallel weight is already initialized")
         if self._infer_tp_size > self._tp_size:
             mindspeed_rl.workers.resharding.utils._TP_GROUP = self.parallel_state.get_tensor_model_parallel_group()
-            
+
     def _default_tp_concat_fn(self, name, param, infer_params):
         """
         name: name of the parameter
@@ -474,7 +532,7 @@ class MegatronStyleVllmWeightContainer:
         tp_allgather_group = get_tp_allgather_group()
         infer_param = param
 
-        if tp_allgather_size <= 1:
+        if tp_allgather_size <= 1 or is_fake_tp_param(name, self.moe_tp_extend_ep):
             return infer_param
 
         if is_tensor_parallel_param(param):

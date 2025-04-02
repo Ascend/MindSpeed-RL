@@ -81,27 +81,6 @@ def calc_padded_numel(shape: torch.Size, dtype: torch.dtype):
     return (numel + align_numel - 1) // align_numel * align_numel
 
 
-def get_weight_buffer_meta_from_module(module: nn.Module, valid_names=None) -> Dict[str, Dict]:
-    """
-    Return a dictionary containing name to a shape and dtype.
-    """
-    weight_buffer_meta = {}
-    for name, param in sorted(module.named_parameters()):
-        if valid_names and name not in valid_names:
-            continue
-        if 'kv_a_proj_with_mqa' in name:
-            q_param = dict(module.named_parameters()).get(
-                name.replace('kv_a_proj_with_mqa', 'q_a_proj'))
-            qkv_param_shape = torch.cat([q_param, param], dim=0).shape
-            qkv_name = name.replace('kv_a_proj_with_mqa', 'qkv_proj')
-            weight_buffer_meta[qkv_name] = {'shape': qkv_param_shape, 'dtype': param.dtype}
-        elif 'q_a_proj' in name:
-            continue
-        else:
-            weight_buffer_meta[name] = {'shape': param.shape, 'dtype': param.dtype}
-    return weight_buffer_meta
-
-
 def build_memory_buffer(weight_buffer_meta: Dict[str, Dict]) -> Dict[torch.dtype, MemoryBuffer]:
     """Build the memory buffer given weight_buffer_meta
 
@@ -143,8 +122,8 @@ def build_memory_buffer(weight_buffer_meta: Dict[str, Dict]) -> Dict[torch.dtype
     return memory_buffers
 
 
-def build_model_weight_buffer(model: nn.Module, names_per_pp: List[str]):
-    memory_buffers = [ModelWeightBuffer(model, weight_names) for weight_names in names_per_pp]
+def build_model_weight_buffer(model: nn.Module, names_per_pp: List[str], get_weight_buffer_meta):
+    memory_buffers = [ModelWeightBuffer(model, weight_names, get_weight_buffer_meta) for weight_names in names_per_pp]
     return memory_buffers
 
 
@@ -153,9 +132,10 @@ class ModelWeightBuffer:
     A factory class that processes a model's state_dict and returns memory buffers for the model parameters.
     It also provides a mapping between model parameter names and their corresponding memory buffer view.
     """
-    def __init__(self, model: nn.Module, weight_names: List):
+    def __init__(self, model: nn.Module, weight_names: List, get_weight_buffer_meta):
         self.model = model
-        self.weight_buffer_meta = get_weight_buffer_meta_from_module(self.model, weight_names)
+        self.get_weight_buffer_meta = get_weight_buffer_meta
+        self.weight_buffer_meta = self.get_weight_buffer_meta(self.model, weight_names)
         self.weight_names = list(self.weight_buffer_meta.keys())
         self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)
 

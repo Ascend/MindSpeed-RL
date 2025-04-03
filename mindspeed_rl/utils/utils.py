@@ -181,12 +181,57 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
                 new_metrics[key] = metrics.compute_max(key, value) - metrics.compute_min(key, value)
             else:
                 new_metrics[key] = value
-
+        elif "start_time" in key:
+            if isinstance(value, list):
+                new_metrics[key] = metrics.compute_min(key, value)
+            else:
+                new_metrics[key] = value
+        elif "end_time" in key:
+            if isinstance(value, list):
+                new_metrics[key] = metrics.compute_max(key, value)
+            else:
+                new_metrics[key] = value
         elif isinstance(value, list):
             new_metrics[key] = metrics.compute_mean(key, value)
         else:
             new_metrics[key] = value
     return new_metrics
+
+
+def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
+
+    old_log_p_end_time = metrics.pop('end_time/old_log_p', None)
+
+    reference_start_time = metrics.pop('start_time/reference_model', None)
+    reference_end_time = metrics.pop('end_time/reference', None)
+    non_overlap_reference_model_time = max(reference_end_time - max(old_log_p_end_time, reference_start_time), 0)  
+
+    if "timing/rule_reward" in metrics.keys():
+        reward_start_time = metrics.pop('start_time/rule_reward', None)
+        reward_end_time = metrics.pop('end_time/rule_reward', None)
+        non_overlap_rule_reward_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)   
+        metrics["timing/non_overlap_rule_reward"] = non_overlap_rule_reward_time
+    if "timing/reward_model" in metrics.keys():
+        reward_start_time = metrics.pop('start_time/reward_model', None)
+        reward_end_time = metrics.pop('end_time/reward_model', None)
+        non_overlap_reward_model_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)  
+        metrics["timing/non_overlap_reward_model"] = non_overlap_reward_model_time
+ 
+
+    metrics["timing/non_overlap_reference_model"] = non_overlap_reference_model_time
+    metrics["timing/all"] = time_all
+
+    sort_metrics = dict(sorted(metrics.items()))
+    custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
+    special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/rule_reward', 'timing/reward_model']
+    keys_to_move = [key for key in sort_metrics.keys() if key in special_keys]
+    remaining_keys = []
+    for key in sort_metrics:
+        if key not in custom_order and key not in special_keys:
+            remaining_keys.append(key)
+    new_order = custom_order + keys_to_move + remaining_keys
+    sorted_metric = {key: sort_metrics[key] for key in new_order}
+    return sorted_metric
 
 
 def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):

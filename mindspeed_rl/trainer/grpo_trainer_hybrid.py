@@ -14,7 +14,7 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -161,10 +161,10 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # compute advantages, executed on the driver process
                 self.compute_advantage(blocking=self.blocking)
 
-                self.actor_worker.wait_all_ref_objs_run_over()
                 # compute old log_prob
                 self.actor_worker.compute_log_prob(blocking=self.blocking)
 
+                self.actor_worker.wait_all_ref_objs_run_over()
                 self.ref_worker.wait_all_ref_objs_run_over()
                 for reward in self.reward_list:
                     if hasattr(reward, 'wait_all_ref_objs_run_over'):
@@ -180,11 +180,10 @@ class RayGRPOTrainer(RayBaseTrainer):
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
             metrics_result = metrics_post_processing(metrics_result)
+            metrics_result = metrics_sort(metrics_result, all_timer.last)
             tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, all_timer.last)
-
-            metrics.update(value=grpo_data_metrics)
             metrics.update(value=metrics_result)
-            metrics.update("timing/all", all_timer.last)
+            metrics.update(value=grpo_data_metrics)
             metrics.update("tokens/p/s", tps)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)

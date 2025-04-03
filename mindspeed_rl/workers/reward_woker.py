@@ -13,6 +13,8 @@ from mindspeed_rl.models.reward import Reward
 from mindspeed_rl.trainer.utils.compute_utils import get_last_reward
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
+from mindspeed_rl.utils.compute import get_parallel_state
+from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
 @ray.remote(resources={"NPU": 0.1})
@@ -77,16 +79,26 @@ class RewardWorker(BaseWorker):
         self.td = td
 
     def compute_rm_score(self):
-        start_time = time.time()
         experience_consumer_stage = 'reward_scores'
         experience_columns = ['input_ids', 'prompt_length', "responses", "response_length",
                               *self.megatron_config.dataset_additional_keys]
         experience_count = self.rl_config.experience_count_reward // self.parallel_state.get_data_parallel_world_size()
 
+        start_time_defined = False
         while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
                                                                  experience_count, self.rl_config.n_samples_per_prompt,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size)
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
+                ray.get(
+                    self.td.update_metrics.remote(
+                        "start_time/reward_model",
+                        value=[round(start_time, 4)],
+                        cumulate=True
+                    )
+                )
             if batch_data and index:
                 output, batch = self.reward.compute_rm_score(batch_data)
                 if self.parallel_state.is_pipeline_last_stage():
@@ -98,12 +110,23 @@ class RewardWorker(BaseWorker):
                         n_sample_batch=self.rl_config.n_samples_per_prompt
                     )
                     output = {'rm_scores': rm_score, 'token_level_rewards': last_rewards}
-                    ray.get(
-                        self.td.update_metrics.remote(
-                            "timing/reward_model", 
-                            value=[round(time.time(), 4), round(start_time, 4)], 
-                            cumulate=True
-                        )
-                    )
                 self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                end_time = time.time()
+                ray.get(
+                    self.td.update_metrics.remote(
+                        "timing/reward_model", 
+                        value=[round(end_time, 4), round(start_time, 4)],
+                        cumulate=True
+                    )
+                )
+        parallel_state = get_parallel_state()
+        use_vllm = False
+        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
+            rwd_end_time = time.time()
+            ray.get(
+                    self.td.update_metrics.remote(
+                        "end_time/reward_model", 
+                        value=[round(rwd_end_time, 4)]
+                    )
+            )
         self.empty_cache()

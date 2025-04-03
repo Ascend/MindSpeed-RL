@@ -112,7 +112,11 @@ def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100)
     scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-8)
     scores = scores.reshape(reward_index.shape)
 
-    metrics["timing/rule_reward"] = [round(time.time(), 4), round(start_time, 4)]
+    end_time = time.time()
+    metrics["timing/rule_reward"] = [round(end_time, 4), round(start_time, 4)]
+    metrics["start_time/rule_reward"] = [round(start_time, 4)]
+    metrics["end_time/rule_reward"] = [round(end_time, 4)]
+
 
     return scores, metrics
 

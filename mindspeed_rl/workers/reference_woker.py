@@ -13,6 +13,8 @@ from mindspeed_rl.models.reference import Reference
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
+from mindspeed_rl.utils.compute import get_parallel_state
+from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
 @ray.remote(resources={"NPU": 0.3})
@@ -81,15 +83,25 @@ class ReferenceWorker(BaseWorker):
         self.td = td
 
     def compute_log_prob(self):
-        start_time = time.time()
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.rl_config.experience_count_ref // self.parallel_state.get_data_parallel_world_size()
 
+        start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size)
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
+                ray.get(
+                    self.td.update_metrics.remote(
+                        "start_time/reference_model",
+                        value=[round(start_time, 4)],
+                        cumulate=True
+                    )
+                )
             if batch_data and index:
                 output, batch = self.reference.compute_log_prob(batch_data)
 
@@ -99,13 +111,23 @@ class ReferenceWorker(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'ref_log_prob': log_probs}
+                    self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                    end_time = time.time()
                     ray.get(
                         self.td.update_metrics.remote(
                             "timing/reference_model",
-                            value=[round(time.time(), 4), round(start_time, 4)],
+                            value=[round(end_time, 4), round(start_time, 4)],
                             cumulate=True
                         )
                     )
-                    self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
-
+        parallel_state = get_parallel_state()
+        use_vllm = False
+        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
+            ref_end_time = time.time()
+            ray.get(
+                    self.td.update_metrics.remote(
+                        "end_time/reference", 
+                        value=[round(ref_end_time, 4)]
+                    )
+            )
         self.empty_cache()

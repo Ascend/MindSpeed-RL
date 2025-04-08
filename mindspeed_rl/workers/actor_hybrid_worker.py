@@ -21,10 +21,11 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.utils.utils import num_floating_point_operations
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
+from mindspeed_rl.utils.compute import get_parallel_state
+from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
-@ray.remote(resources={"NPU": 0.7})
-class ActorHybridWorker(BaseWorker):
+class ActorHybridWorkerBase(BaseWorker):
     """
     ActorHybridWorker class. This class implements the hybrid worker logic for training and inference.
 
@@ -63,18 +64,18 @@ class ActorHybridWorker(BaseWorker):
 
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
-        self.megatron_offloader = None
+        self.actor_offloader = None
 
     def initialize(self):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
-        self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
+        self.actor_offloader = MegatronOffLoader(self.model, self.optimizer)
         if self.generate_config.offload_train_optimizer:
-            self.megatron_offloader.offload_optimizer()
+            self.actor_offloader.offload_optimizer()
         if self.generate_config.offload_train_grad:
-            self.megatron_offloader.offload_grad()
+            self.actor_offloader.offload_grad()
         if self.generate_config.offload_train_param:
-            self.megatron_offloader.offload_train_param()
+            self.actor_offloader.offload_param()
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
@@ -109,7 +110,8 @@ class ActorHybridWorker(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None):
-        start_time = time.time()
+        self.sharding_manager.enter_train_mode()
+
         experience_consumer_stage = 'actor_train'
         experience_colums = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
@@ -121,10 +123,14 @@ class ActorHybridWorker(BaseWorker):
             learning_rate = param_group['lr']
         ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate)) 
 
+        start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   self.megatron_config.tensor_model_parallel_size)
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
             if batch_data and index:
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
                 self.empty_cache()
@@ -141,19 +147,22 @@ class ActorHybridWorker(BaseWorker):
                         )
                     )
 
+        self.sharding_manager.exit_train_mode()
+
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
-        start_time = time.time()
+        self.sharding_manager.enter_infer_mode()
+
         experience_consumer_stage = 'actor_rollout'
         experience_colums = ['prompts', 'prompt_length']
         experience_count = self.rl_config.experience_count_actor // self.generate_config.data_parallel_size
 
-        self.sharding_manager.reshard_to_infer_mode()
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
+        start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
@@ -163,6 +172,9 @@ class ActorHybridWorker(BaseWorker):
                 tp_size=self.megatron_config.tensor_model_parallel_size,
                 use_vllm=True
             )
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
             if batch_data and index:
                 indexes = list(range(0, experience_count * self.rl_config.n_samples_per_prompt,
                                      self.rl_config.n_samples_per_prompt))
@@ -193,26 +205,44 @@ class ActorHybridWorker(BaseWorker):
                     'input_ids': input_ids_list,
                     'response_length': responses_length
                 }
+                self.collect_transfer_dock_data(outputs, index, self.rl_config.n_samples_per_prompt, use_vllm=True)
+                end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(
                             "timing/rollout", 
-                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            value=[round(end_time, 4), round(start_time, 4)],
                             cumulate=True
                         )
                 )
-                self.collect_transfer_dock_data(outputs, index, self.rl_config.n_samples_per_prompt, use_vllm=True)
-        self.sharding_manager.reshard_to_train_mode()
-        self.empty_cache()
+        generate_end_time = time.time()
+        parallel_state = get_parallel_state()
+        use_vllm = True
+        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
+            ray.get(
+                    self.td.update_metrics.remote(
+                        "end_time/generate",
+                        value=[round(generate_end_time, 4)],
+                        cumulate=True
+                    )
+            )
+
+        self.sharding_manager.exit_infer_mode()
 
     def compute_log_prob(self):
+        self.sharding_manager.enter_forward_mode()
+
         experience_consumer_stage = 'actor_log_prob'
         experience_colums = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.rl_config.experience_count_actor // self.parallel_state.get_data_parallel_world_size()
 
+        start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
                                                                   experience_count, self.rl_config.n_samples_per_prompt,
                                                                   tp_size=self.megatron_config.tensor_model_parallel_size)
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
             if batch_data and index:
                 output, batch = self.actor_hybrid.compute_log_prob(batch_data)
                 if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -222,6 +252,22 @@ class ActorHybridWorker(BaseWorker):
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'old_log_prob': log_probs}
                     self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                end_time = time.time()
+                ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/old_log_p",
+                            value=[round(end_time, 4), round(start_time, 4)],
+                            cumulate=True
+                        )
+                )
+                ray.get(
+                        self.td.update_metrics.remote(
+                            "end_time/old_log_p",
+                            value=[round(end_time, 4)],
+                            cumulate=True
+                        )
+                )
+
 
         self.empty_cache()
 
@@ -306,6 +352,11 @@ class ActorHybridWorker(BaseWorker):
             grad_offload=self.generate_config.offload_train_grad,
             train_param_offload=self.generate_config.offload_train_param,
             enable_validate=self.rl_config.enable_sharding_validate,
-            megatron_offloader=self.megatron_offloader
+            megatron_offloader=self.actor_offloader
         )
         return sharding_manager
+
+
+@ray.remote(resources={"NPU": 0.7})
+class ActorHybridWorker(ActorHybridWorkerBase):
+    pass

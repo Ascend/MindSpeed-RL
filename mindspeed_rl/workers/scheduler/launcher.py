@@ -35,11 +35,15 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 
 
 def get_rl_resource_by_worker_type(rl_config: RLConfig, worker: Type[BaseWorker]):
     if (worker.__ray_actor_class__.__name__ ==
             ActorHybridWorker.__ray_actor_class__.__name__):
+        return rl_config.actor_resource
+    elif (worker.__ray_actor_class__.__name__ ==
+          IntegratedWorker.__ray_actor_class__.__name__):
         return rl_config.actor_resource
     elif (worker.__ray_actor_class__.__name__ ==
           RewardWorker.__ray_actor_class__.__name__):
@@ -261,6 +265,12 @@ class RayActorGroup:
     def compute_log_prob(self, blocking=False):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.compute_log_prob.remote())
+        if blocking:
+            ray.get(self.temp_actor_ref_objs)
+
+    def compute_ref_log_prob(self, blocking=False):
+        for actor in self.actor_handlers:
+            self.temp_actor_ref_objs.append(actor.compute_ref_log_prob.remote())
         if blocking:
             ray.get(self.temp_actor_ref_objs)
 

@@ -29,23 +29,20 @@ from mindspeed_rl.workers.resharding.weight_adaptor import get_weight_adaptor
 
 
 class MegatronOffLoader:
-    def __init__(
-            self,
-            optimizer=None,
-            megatron_model=None
-    ):
+    def __init__(self, megatron_model=None, optimizer=None, wrap_with_ddp=True):
         self.optimizer = optimizer
-        self.train_model = megatron_model
+        self.model = megatron_model
+        self.wrap_with_ddp = wrap_with_ddp
 
         self.tensor_to_cpu_states_map = dict()
 
     def offload_grad(self):
-        for model_idx, model in enumerate(self.train_model):
+        for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
                 self.swap_tensors_to_host(buffer.grad_data)
 
     def onload_grad(self):
-        for model_idx, model in enumerate(self.train_model):
+        for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
                 self.swap_tensors_to_device(buffer.grad_data)
 
@@ -73,15 +70,23 @@ class MegatronOffLoader:
         else:
             return data
 
-    def offload_train_param(self):
-        for model_idx, model in enumerate(self.train_model):
-            for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_host(buffer.param_data)
+    def offload_param(self):
+        if self.wrap_with_ddp:
+            for model in self.model:
+                for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                    self.swap_tensors_to_host(buffer.param_data)
+        else:
+            for item in self.model:
+                item.to('cpu')
 
-    def onload_train_param(self):
-        for model_idx, model in enumerate(self.train_model):
-            for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_device(buffer.param_data)
+    def onload_param(self):
+        if self.wrap_with_ddp:
+            for model in self.model:
+                for buffer in chain(model.buffers, model.expert_parallel_buffers):
+                    self.swap_tensors_to_device(buffer.param_data)
+        else:
+            for item in self.model:
+                item.to(torch.cuda.current_device())
 
     def swap_tensors_to_host(self, tensor):
         if tensor not in self.tensor_to_cpu_states_map:
@@ -162,41 +167,6 @@ class MegatronShardingManager:
         self.inference_engine.offload_model_weights()
         self.megatron_offloader = megatron_offloader
 
-    def __enter__(self):
-        self.reshard_to_infer_mode()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.reshard_to_train_mode()
-
-    def reshard_to_train_mode(self):
-        self.inference_engine.offload_model_weights()
-        self.offload_infer_params()
-        torch.cuda.empty_cache()
-        if self.optimizer_offload:
-            self.megatron_offloader.onload_optimizer()
-        if self.train_param_offload:
-            self.megatron_offloader.onload_train_param()
-        if self.grad_offload:
-            self.megatron_offloader.onload_grad()
-        # add empty cache after each compute
-        torch.cuda.empty_cache()
-
-    def reshard_to_infer_mode(self):
-        if self.optimizer_offload:
-            self.megatron_offloader.offload_optimizer()
-        if self.grad_offload:
-            self.megatron_offloader.offload_grad()
-        torch.cuda.empty_cache()
-        if self.train_param_offload:
-            self.megatron_offloader.onload_train_param()
-
-        self.onload_infer_params()
-        infer_params = self.vllm_weight_container.get_infer_params()
-        if self.train_param_offload:
-            self.megatron_offloader.offload_train_param()
-        self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
-        torch.cuda.empty_cache()
-
     def offload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
@@ -206,3 +176,97 @@ class MegatronShardingManager:
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
             buffer.onload()
+
+    def enter_infer_mode(self):
+        """
+        Before:
+            Empty or with training param on NPU.
+
+        After:
+            Empty.
+
+        Process:
+            1. onload training param if needed
+            2. onload inference param
+            3. do resharding
+            4. offload training param
+        """
+        if self.train_param_offload:
+            self.megatron_offloader.onload_param()
+
+        self.onload_infer_params()
+
+        infer_params = self.vllm_weight_container.get_infer_params()
+
+        if self.train_param_offload:
+            self.megatron_offloader.offload_param()
+
+        self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
+        torch.cuda.empty_cache()
+
+    def exit_infer_mode(self):
+        """
+        Before:
+            With inference param on NPU.
+
+        After:
+            Empty.
+
+        Process:
+            1. offload inference param
+        """
+        self.inference_engine.offload_model_weights()
+        self.offload_infer_params()
+        torch.cuda.empty_cache()
+
+    def enter_forward_mode(self):
+        """
+        Before:
+            Empty.
+
+        After:
+            With training param on NPU.
+
+        Process:
+            1. onload training param
+        """
+        if self.train_param_offload:
+            self.megatron_offloader.onload_param()
+        torch.cuda.empty_cache()
+
+    def enter_train_mode(self):
+        """
+        Before:
+            With training param on NPU.
+
+        After:
+            With training param, optimizer and grad on NPU.
+
+        Process:
+            1. onload training optimizer
+            2. onload training grad
+        """
+        if self.optimizer_offload:
+            self.megatron_offloader.onload_optimizer()
+        if self.grad_offload:
+            self.megatron_offloader.onload_grad()
+        torch.cuda.empty_cache()
+
+    def exit_train_mode(self):
+        """
+        Before:
+            With training param, optimizer and grad on NPU.
+
+        After:
+            With training param on NPU.
+
+        Process:
+            1. offload training optimizer
+            2. offload training grad
+        """
+        if self.optimizer_offload:
+            self.megatron_offloader.offload_optimizer()
+        if self.grad_offload:
+            self.megatron_offloader.offload_grad()
+        torch.cuda.empty_cache()
+

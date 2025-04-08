@@ -317,7 +317,7 @@ class TestActor():
             trust_remote_code=True,
             megatron_config=megatron_config
         )
-        self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
+        self.megatron_offloader = MegatronOffLoader(self.model, self.optimizer)
         self.sharding_manager = MegatronShardingManager(
             megatron_model=self.model,
             model_config=model_config_mock,
@@ -342,9 +342,9 @@ class TestActor():
         tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_path)
         input_ids = tokenizer(prompts, padding=True, truncation=True, return_tensors="pt")["input_ids"].tolist()
 
-        self.sharding_manager.reshard_to_infer_mode()
+        self.sharding_manager.enter_infer_mode()
         outputs = self.inference_engine.generate_sequences(idx_list=input_ids)[0]
-        self.sharding_manager.reshard_to_train_mode()
+        self.sharding_manager.exit_infer_mode()
         rank = torch.distributed.get_rank()
 
         for output in outputs:

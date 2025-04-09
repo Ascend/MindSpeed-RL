@@ -60,6 +60,9 @@ class PromptDataset(BaseDataset):
 
         super().__init__(self.res_dataset, dataset_type)
 
+    def __len__(self):
+        return len(self.shuffle_index)
+
     def __getitem__(self, index):
         doc_idx = self.shuffle_index[index]
 

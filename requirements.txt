@@ -9,7 +9,7 @@ ray==2.42.1
 regex
 sympy
 tensorboard
-tensordict
+tensordict==0.1.2
 transformers==4.48.2
 word2number
 wandb

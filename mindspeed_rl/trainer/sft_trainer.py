@@ -70,20 +70,20 @@ class SFTTrainer(ABC):
             keys += ['position_ids']
         data_type = torch.int64
 
-        if (not self.parallel_state.is_pipeline_first_stage()) and (
-                not self.parallel_state.is_pipeline_last_stage()):
-            tokens, attention_mask = get_finetune_data_on_this_tp_rank(data_iterator,
-                                                                       self.parallel_state,
-                                                                       self.args.reset_attention_mask,
-                                                                       self.args.tokenizer_padding_side)
+        if (not self.parallel_state.is_pipeline_first_stage()) and (not self.parallel_state.is_pipeline_last_stage()):
             if self.args.variable_seq_lengths and self.args.pipeline_model_parallel_size > 2:
+                tokens, attention_mask = get_finetune_data_on_this_tp_rank(data_iterator,
+                                                                           self.parallel_state,
+                                                                           self.args.reset_position_ids,
+                                                                           self.args.tokenizer_padding_side)
                 return tokens, None, None, attention_mask, None
             else:
+                # Broadcast data.
+                data_b = broadcast_data(keys, next(data_iterator), data_type)
                 if self.args.reset_position_ids:
-                    # Broadcast data.
-                    data_b = broadcast_data(keys, next(data_iterator), data_type,
-                                            self.parallel_state)
                     self.generate_seq_len_fun(data_b)
+                attention_mask_1d = data_b.get('attention_mask').long()
+                attention_mask = get_tune_attention_mask(attention_mask_1d)
                 batch = {'attention_mask': attention_mask}
                 batch = self.get_batch_on_this_cp_rank(batch)
                 return None, None, None, batch['attention_mask'], None

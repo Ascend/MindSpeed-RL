@@ -46,6 +46,7 @@ class RLConfig(BaseConfig):
     wandb_save_dir: Path to save the wandb results locally. (default: "")
     blocking: Whether to enable blocking mode (default: False)
     num_cpus_for_local_task: Number of CPUs for local ray task (default: 1)
+    num_cpus_for_placement_group: Number of CPUs for ray worker placement group
     # Default values can still be defined if no config is provided
     '''
 
@@ -95,6 +96,7 @@ class RLConfig(BaseConfig):
         self.wandb_save_dir = ""
         self.blocking = False
         self.num_cpus_for_local_task = 1
+        self.num_cpus_for_placement_group = 8
         self.use_integrated_worker = False
 
         self.update(config_dict)

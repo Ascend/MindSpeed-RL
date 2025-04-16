@@ -159,6 +159,7 @@ rl_config:
   verifier_function: ["acc", "strict_format"]    <-- 规则奖励模型方法
   verifier_weight: [1.0, 1.0]                    <-- 规则奖励模型权重
   use_tensorboard: true                          <-- 开启tensorboard日志功能
+  num_cpus_for_placement_group: 8                <-- 给每个worker的ray placement分配cpu核数
   actor_resource:                                <-- actor worker资源分配
     num_npus: 16 
   reference_resource:                            <-- ref worker资源分配

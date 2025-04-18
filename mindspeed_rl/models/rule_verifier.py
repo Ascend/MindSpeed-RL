@@ -9,6 +9,7 @@ from transformers import AutoTokenizer
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
+from mindspeed_rl.utils.kwai import compute_score as kwai_score
 
 logger = Loggers("Rule verify")
 
@@ -142,7 +143,8 @@ def verifier(responses, data, config, **kwargs):
         "format": format_reward,
         "step": reasoning_steps_reward,
         "strict_format": strict_format_reward,
-        "base_acc": base_model_accuracy_reward
+        "base_acc": base_model_accuracy_reward,
+        "kwai": kwai_score
     }
 
     labels = data["labels"]
@@ -151,6 +153,10 @@ def verifier(responses, data, config, **kwargs):
 
     verifier_function = config.verifier_function
     verifier_weight = config.verifier_weight
+
+    tasks = None
+    if "kwai" in verifier_function:
+        tasks = data["tasks"]
 
     for idx, fun_verifier in enumerate(verifier_function):
         if fun_verifier not in rule_verifier_function:
@@ -165,7 +171,7 @@ def verifier(responses, data, config, **kwargs):
                 max_num_workers=config.verifier_parallel
                 )
         else:
-            scores = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels)
+            scores = rule_verifier_function[fun_verifier](queue=None, sequences=responses, answers=labels, tasks=tasks)
 
         metrics[f'grpo/{fun_verifier}_rewards/mean'] = scores
         rewards = [all_score + tmp_score * verifier_weight[idx]

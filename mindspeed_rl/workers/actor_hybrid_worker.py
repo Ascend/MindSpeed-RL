@@ -166,7 +166,7 @@ class ActorHybridWorkerBase(BaseWorker):
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage) > 0:
+        while self.all_consumed(experience_consumer_stage, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
                 experience_colums,

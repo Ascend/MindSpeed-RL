@@ -145,11 +145,15 @@ class BaseWorker(BaseRayWorker, ABC):
         self.args = None
 
     def all_consumed(self, experience_consumer_stage, use_vllm=False):
-        status = torch.tensor(0, device=next(self.model[0].parameters()).device)
+        if use_vllm:
+            current_device = next(self.inference_model.model.parameters()).device
+        else:
+            current_device = next(self.model[0].parameters()).device
+        status = torch.tensor(0, device=current_device)
         if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
                 get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
             status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
-                                  device=next(self.model[0].parameters()).device)
+                                  device=current_device)
         torch.distributed.all_reduce(status, group=get_model_parallel_group(self.parallel_state, use_vllm),
                                      op=torch.distributed.ReduceOp.MAX)
         return status

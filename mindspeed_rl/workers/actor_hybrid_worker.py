@@ -111,6 +111,8 @@ class ActorHybridWorker(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None):
+        self.args.curr_iteration = self.iteration
+
         experience_consumer_stage = 'actor_train'
         experience_colums = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
@@ -145,6 +147,8 @@ class ActorHybridWorker(BaseWorker):
                             cumulate=True
                         )
                     )
+
+        self.iteration += 1
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
@@ -304,10 +308,8 @@ class ActorHybridWorker(BaseWorker):
         return optimizer, opt_param_scheduler
 
     def _build_model_optimizer(self):
-        actor_module = self.get_model(self.model_provider, None)
-        if isinstance(actor_module, nn.ModuleList):
-            actor_module = [actor_module[0]]
-        optimizer, opt_param_scheduler = self._get_megatron_optimizer(model=actor_module)
+        actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(
+            self.model_provider, self.model_type.encoder_or_decoder)
 
         # load checkpoint
         if self.megatron_config.load is not None or self.megatron_config.pretrained_checkpoint is not None:
@@ -316,6 +318,8 @@ class ActorHybridWorker(BaseWorker):
         else:
             self.megatron_config.iteration = 0
             self.megatron_config.num_floating_point_operations_so_far = 0
+
+        self.iteration = self.get_iteration()
 
         return actor_module, optimizer, opt_param_scheduler
 

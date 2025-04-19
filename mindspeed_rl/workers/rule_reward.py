@@ -3,6 +3,7 @@ import ray
 
 from mindspeed_rl.models.rule_verifier import compute_verifier_score
 from mindspeed_rl.utils.loggers import Loggers
+from mindspeed_rl.utils.utils import get_least_common_multiple
 
 logger = Loggers("rule_reward")
 
@@ -22,7 +23,8 @@ class RuleReward(object):
     def compute_rm_score(self):
         experience_consumer_stage = 'rule_reward'
         experience_columns = ['prompts', 'responses', 'response_length', *self.megatron_config.dataset_additional_keys]
-        experience_count = self.rl_config.experience_count_rule_reward
+        experience_count = get_least_common_multiple(self.megatron_config.micro_batch_size,
+                                                     self.rl_config.n_samples_per_prompt)
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
             batch_data, index = ray.get(
@@ -50,4 +52,4 @@ class RuleReward(object):
                     ray.get(self.td.update_metrics.remote(key, value=value, cumulate=True))
 
                 output = {"rm_scores": token_level_rewards, "token_level_rewards": token_level_rewards}
-                self.td.put_experience.remote(data_dict=output, indexes=index, num_responses=self.n_samples_per_prompt)
+                self.td.put_experience.remote(data_dict=output, indexes=index)

@@ -35,7 +35,7 @@ megatron_training:
 
 actor_config:
   model: qwen25_7b
-  micro_batch_size: 1
+  micro_batch_size: 4
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
   lr: 1e-7
@@ -73,7 +73,6 @@ reward_config:
 
 rl_config:
   blocking: false
-  experience_count: 1
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
@@ -100,6 +99,7 @@ rl_config:
 generate_config:
   # tokenizer相关配置
   trust_remote_code: true
+  micro_batch_size: 1
 
   # 推理时的并行配置
   infer_tensor_parallel_size: 4

@@ -129,7 +129,7 @@ class TestBaseWorker(DistributedTest):
         mock_cuda.return_value = 'cpu'
 
         experience_consumer_stage = 'actor_train'
-        experience_colums = []
+        experience_columns = []
         experience_count = 1
 
         worker = BaseWorker(
@@ -146,6 +146,6 @@ class TestBaseWorker(DistributedTest):
         worker.parallel_state = MagicMock()
 
         _, _ = worker.dispatch_transfer_dock_data(experience_consumer_stage,
-                                                  experience_colums, experience_count)
+                                                  experience_columns, experience_count)
 
         assert mock_broadcast.call_count == 2

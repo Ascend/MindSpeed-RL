@@ -132,7 +132,6 @@ def main():
     )
     logger.info("generate_sequences output is:")
     logger.info(outputs[0])
-    logger.info(outputs[0].shape)
 
     logger.info("input")
     logger.info(idx_list[0])

@@ -14,7 +14,7 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort, get_least_common_multiple
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -33,7 +33,6 @@ class RayGRPOTrainer(RayBaseTrainer):
         kl_target: float = 100.0 The target value for KL divergence (used in adaptive methods).
         init_kl_coef: float = 0.01 The initial coefficient for KL divergence penalty.
         global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
-        experience_count: int = 1 The batch size of prompts per pipeline stage in each data fetch operation from the TransferDock (TD).
         n_samples_per_prompt: int = 1 The number of samples generated per prompt.
         tokenizer: BaseTokenizer = None tokenizer to use.
         dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
@@ -55,7 +54,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             kl_target: float = 100.0,
             init_kl_coef: float = 0.01,
             global_batch_size: int = 1,
-            experience_count: int = 1,
+            micro_batch_size: int = 1,
             n_samples_per_prompt: int = 1,
             tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
@@ -75,7 +74,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             adv_estimator=adv_estimator,
             init_kl_coef=init_kl_coef,
             global_batch_size=global_batch_size,
-            experience_count=experience_count,
+            micro_batch_size=micro_batch_size,
             n_samples_per_prompt=n_samples_per_prompt,
             tokenizer=tokenizer,
             dataset_additional_keys=dataset_additional_keys,
@@ -90,7 +89,8 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.kwargs = kwargs
 
     def transfer_dock_init(self):
-        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.metrics, addition_columns=self.dataset_additional_keys)
+        self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
+                                                     self.metrics, addition_columns=self.dataset_additional_keys)
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
         for reward in self.reward_list:
@@ -116,33 +116,10 @@ class RayGRPOTrainer(RayBaseTrainer):
             logger.info('async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
 
         while iteration < self.train_iters:
+            ray.get(self.transfer_dock.clear.remote())
 
             batch = next(data_iters)
-            prompts = batch['prompts']
-            prompt_length = []
-            for prompt in prompts:
-                for _ in range(self.n_samples_per_prompt):
-                    prompt_length.append(torch.tensor([len(prompt)]))
-
-            prompts_data = prompts
-            prompts = []
-            for prompt in prompts_data:
-                for _ in range(self.n_samples_per_prompt):
-                    prompts.append(copy.deepcopy(prompt))
-
-            add_vals = {}
-            for add_keys in self.dataset_additional_keys:
-                if add_keys in batch.keys():
-                    values = []
-                    for value in batch[add_keys]:
-                        for _ in range(self.n_samples_per_prompt):
-                            values.append(value)
-                    add_vals[add_keys] = values
-
-            ray.get(self.transfer_dock.clear.remote())
-            ray.get(self.transfer_dock.put_experience.remote(
-                    data_dict=dict({'prompt_length': prompt_length, 'prompts': prompts}, **add_vals),
-                    num_responses=self.n_samples_per_prompt))
+            ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences
@@ -175,7 +152,7 @@ class RayGRPOTrainer(RayBaseTrainer):
 
                 # collect metrics
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
-                                                              self.global_batch_size,
+                                                              self.global_batch_size * self.n_samples_per_prompt,
                                                               self.tokenizer)
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
@@ -198,14 +175,16 @@ class RayGRPOTrainer(RayBaseTrainer):
         logger.info('after grpo training is done')
 
     def compute_advantage(self, blocking=False):
+        experience_count = get_least_common_multiple(self.micro_batch_size,
+                                                     self.n_samples_per_prompt)
+
         compute_advantage_ref = compute_advantage.options(num_cpus=self.num_cpus_for_local_task).remote(
             self.transfer_dock,
             self.gamma,
             self.lam,
             adv_estimator=self.adv_estimator,
-            experience_count=self.experience_count,
+            experience_count=experience_count,
             tokenizer=self.tokenizer,
-            n_samples_per_prompt=self.n_samples_per_prompt,
         )
         if blocking:
             ray.get(compute_advantage_ref)

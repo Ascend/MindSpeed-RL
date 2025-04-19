@@ -124,7 +124,7 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
 
 
 @ray.remote
-def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer, n_samples_per_prompt):
+def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer):
     """
     Compute the advantage function based on different adv_estimator
 
@@ -135,18 +135,17 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
         adv_estimator:  The type of advantage estimator, which can be "gae" or "group_norm"
         experience_count: The number of experiences to retrieve from the experience rb
         tokenizer: The pre-trained tokenizer
-        n_samples_per_prompt: The number of samples per prompt
 
     Returns:
         None
     """
     experience_consumer_stage = "compute_advantage"
-    experience_colums = ["responses", "token_level_rewards", "response_length"]
+    experience_columns = ["responses", "token_level_rewards", "response_length"]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch_data, index = ray.get(
             rb.get_experience.remote(
-                experience_consumer_stage, experience_colums, experience_count, pad_id=pad_token_id
+                experience_consumer_stage, experience_columns, experience_count, pad_id=pad_token_id
             )
         )
         if batch_data and index:
@@ -170,7 +169,7 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
                 "advantages": advantages,
                 "returns": returns,
             }
-            rb.put_experience.remote(data_dict=output, indexes=index, num_responses=n_samples_per_prompt)
+            rb.put_experience.remote(data_dict=output, indexes=index)
 
 
 def get_last_reward(rm_scores, n_sample_batch: int):
@@ -205,7 +204,7 @@ def compute_grpo_data_metrics(
         Dictionary containing various metric values
     """
     experience_consumer_stage = "grpo_metrics"
-    experience_colums = [
+    experience_columns = [
         "rm_scores",
         "token_level_rewards",
         "responses",
@@ -217,7 +216,7 @@ def compute_grpo_data_metrics(
     pad_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(
-            rb.get_experience.remote(experience_consumer_stage, experience_colums, experience_count, pad_id=pad_id)
+            rb.get_experience.remote(experience_consumer_stage, experience_columns, experience_count, pad_id=pad_id)
         )
         if batch and index:
             sequence_score = batch["rm_scores"].sum(-1)

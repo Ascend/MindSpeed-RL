@@ -203,8 +203,9 @@ class BaseWorker(BaseRayWorker, ABC):
         torch.cuda.empty_cache()
 
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
-                                    experience_colums, experience_count, n_samples_per_prompt=1, tp_size=1,
-                                    use_vllm=False):
+                                    experience_columns, experience_count, tp_size=1,
+                                    use_vllm=False,
+                                    get_n_samples=True):
         pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         batch_data = {}
@@ -212,13 +213,14 @@ class BaseWorker(BaseRayWorker, ABC):
         # in case of rank0 get_experience before other ranks judge td.all_consumed
         if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
                 get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
-            batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_colums,
+            batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
                                                                       experience_count, pad_id=pad_id,
-                                                                      multiple=tp_size))  # cpu数据
+                                                                      multiple=tp_size,
+                                                                      get_n_samples=get_n_samples))  # cpu数据
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
 
-            index = torch.tensor(index).cuda()
+            index = torch.tensor(index + ([-1] * (experience_count - len(index)))).cuda()
         else:
             index = torch.empty(experience_count, device=torch.cuda.current_device(), dtype=torch.int64)
 
@@ -235,7 +237,8 @@ class BaseWorker(BaseRayWorker, ABC):
         if index[0].item() == -1:
             return None, None
 
-        for key in experience_colums:
+        index_without_pad = []
+        for key in experience_columns:
             if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
                     get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
                 batch_data_shape = torch.tensor(batch_data[key].shape,
@@ -289,11 +292,12 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data[key].cuda(), get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
             )
-        index = index.cpu().numpy().tolist()
-        return batch_data, index
+            if not index_without_pad:
+                index_without_pad = index.cpu().numpy().tolist()[:batch_data_shape[0]]
+        return batch_data, index_without_pad
 
-    def collect_transfer_dock_data(self, output, index, n_samples_per_prompt=1, use_vllm=False):
+    def collect_transfer_dock_data(self, output, index, use_vllm=False):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
-            self.td.put_experience.remote(data_dict=output, indexes=index, num_responses=n_samples_per_prompt)
+            self.td.put_experience.remote(data_dict=output, indexes=index)

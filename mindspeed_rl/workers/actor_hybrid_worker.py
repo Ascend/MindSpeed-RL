@@ -19,7 +19,7 @@ from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_least_common_multiple
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
@@ -115,9 +115,9 @@ class ActorHybridWorkerBase(BaseWorker):
         self.args.curr_iteration = self.iteration
 
         experience_consumer_stage = 'actor_train'
-        experience_colums = ['responses', 'advantages', 'old_log_prob',
+        experience_columns = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
-        experience_count = self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt // self.parallel_state.get_data_parallel_world_size()
+        experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
 
         #get lr
         learning_rate = None
@@ -127,9 +127,11 @@ class ActorHybridWorkerBase(BaseWorker):
 
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
-                                                                  experience_count, self.rl_config.n_samples_per_prompt,
-                                                                  self.megatron_config.tensor_model_parallel_size)
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 self.megatron_config.tensor_model_parallel_size,
+                                                                 get_n_samples=False)
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -160,8 +162,9 @@ class ActorHybridWorkerBase(BaseWorker):
         self.sharding_manager.enter_infer_mode()
 
         experience_consumer_stage = 'actor_rollout'
-        experience_colums = ['prompts', 'prompt_length']
-        experience_count = self.rl_config.experience_count_actor // self.generate_config.data_parallel_size
+        experience_columns = ['prompts', 'prompt_length']
+        experience_count = get_least_common_multiple(self.generate_config.micro_batch_size,
+                                                     self.rl_config.n_samples_per_prompt)
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
@@ -169,9 +172,8 @@ class ActorHybridWorkerBase(BaseWorker):
         while self.all_consumed(experience_consumer_stage, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
-                experience_colums,
+                experience_columns,
                 experience_count,
-                n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
                 tp_size=self.megatron_config.tensor_model_parallel_size,
                 use_vllm=True
             )
@@ -179,15 +181,13 @@ class ActorHybridWorkerBase(BaseWorker):
                 start_time = time.time()
                 start_time_defined = True
             if batch_data and index:
-                indexes = list(range(0, experience_count * self.rl_config.n_samples_per_prompt,
-                                     self.rl_config.n_samples_per_prompt))
+                indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
                 prompts_data = batch_data['prompts'][indexes]
                 prompt_length_data = batch_data['prompt_length'][indexes]
                 # preprocess, remove padding
                 prompts = truncate_rows(prompts_data, prompt_length_data)
                 prompts_list = [prompt.numpy().tolist() for prompt in prompts]
 
-                # inference
                 responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list))
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
@@ -208,7 +208,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     'input_ids': input_ids_list,
                     'response_length': responses_length
                 }
-                self.collect_transfer_dock_data(outputs, index, self.rl_config.n_samples_per_prompt, use_vllm=True)
+                self.collect_transfer_dock_data(outputs, index, use_vllm=True)
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(
@@ -217,6 +217,7 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
+
         generate_end_time = time.time()
         parallel_state = get_parallel_state()
         use_vllm = True
@@ -235,14 +236,17 @@ class ActorHybridWorkerBase(BaseWorker):
         self.sharding_manager.enter_forward_mode()
 
         experience_consumer_stage = 'actor_log_prob'
-        experience_colums = ['input_ids', 'responses', 'response_length', 'prompt_length']
-        experience_count = self.rl_config.experience_count_actor // self.parallel_state.get_data_parallel_world_size()
+        experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
+        experience_count = get_least_common_multiple(self.megatron_config.micro_batch_size,
+                                                     self.rl_config.n_samples_per_prompt)
 
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_colums,
-                                                                  experience_count, self.rl_config.n_samples_per_prompt,
-                                                                  tp_size=self.megatron_config.tensor_model_parallel_size)
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 get_n_samples=False)
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -254,7 +258,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'old_log_prob': log_probs}
-                    self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                    self.collect_transfer_dock_data(output, index)
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(

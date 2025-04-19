@@ -5,6 +5,7 @@ import os
 import sys
 
 import time
+import math
 import random
 from typing import Dict, List
 
@@ -276,3 +277,7 @@ def parse_args_from_config(config):
             continue
         else:
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
+
+
+def get_least_common_multiple(num_1: int, num_2: int):
+    return abs(num_1 * num_2) // math.gcd(num_1, num_2)

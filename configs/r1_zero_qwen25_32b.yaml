@@ -72,7 +72,6 @@ reward_config:
 
 rl_config:
   blocking: false
-  experience_count: 32
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
@@ -97,6 +96,7 @@ rl_config:
     num_npus: 16
 
 generate_config:
+  micro_batch_size: 1
   trust_remote_code: true
   offload_train_optimizer: true
   offload_train_grad: true

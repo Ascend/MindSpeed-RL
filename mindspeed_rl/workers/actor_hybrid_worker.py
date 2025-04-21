@@ -140,7 +140,7 @@ class ActorHybridWorker(BaseWorker):
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
-                    ray.get(self.td.update_metrics.remote(value=metrics))
+                    ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
                             "timing/update", 
@@ -224,18 +224,6 @@ class ActorHybridWorker(BaseWorker):
                             cumulate=True
                         )
                 )
-        generate_end_time = time.time()
-        parallel_state = get_parallel_state()
-        use_vllm = True
-        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
-            ray.get(
-                    self.td.update_metrics.remote(
-                        "end_time/generate", 
-                        value=[round(generate_end_time, 4)],
-                        cumulate=True
-                    )
-            )
-
         start_reshard_to_train = time.time()
         self.sharding_manager.reshard_to_train_mode()
         end_reshard_to_train = time.time()

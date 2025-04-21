@@ -159,6 +159,7 @@ def parse_training_config(config: Dict):
 
 def get_megatron_module():
     from megatron.core import parallel_state
+    from megatron.core import DistributedDataParallel
     from megatron.core.optimizer import get_megatron_optimizer
     from megatron.training.checkpointing import load_checkpoint, save_checkpoint
     from megatron.training.training import get_optimizer_param_scheduler
@@ -188,6 +189,7 @@ def get_megatron_module():
         'vocab_parallel_cross_entropy': vocab_parallel_cross_entropy,
         'setup_model_and_optimizer': setup_model_and_optimizer,
         'model_type': ModelType,
+        'distributed_data_parallel': DistributedDataParallel
     }
 
 

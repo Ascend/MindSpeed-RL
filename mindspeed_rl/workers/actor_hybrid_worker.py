@@ -19,7 +19,7 @@ from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 
@@ -68,6 +68,7 @@ class ActorHybridWorker(BaseWorker):
     def initialize(self):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
+        self._set_no_sync_func()
         self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
         if self.generate_config.offload_train_optimizer:
             self.megatron_offloader.offload_optimizer()
@@ -312,3 +313,12 @@ class ActorHybridWorker(BaseWorker):
             megatron_offloader=self.megatron_offloader
         )
         return sharding_manager
+
+    def _set_no_sync_func(self):
+        config = get_attr_wrapped_model(self.model[0], 'config', allow_none=False)
+
+        if isinstance(self.model[0], self.distributed_data_parallel) and config.no_sync_func is None:
+            # Megatron requires no_sync_func properly to correctly trigger DP reduce
+            config.no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
+            if len(self.model) == 1:
+                config.no_sync_func = config.no_sync_func[0]

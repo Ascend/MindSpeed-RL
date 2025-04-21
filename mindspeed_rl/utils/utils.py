@@ -275,3 +275,28 @@ def parse_args_from_config(config):
             continue
         else:
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
+
+
+def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False):
+    if isinstance(model, list):
+        raise RuntimeError("_get_attr_wrapped_model given a list of models")
+
+    if allow_none:
+
+        def condition(model, attr):
+            return not hasattr(model, attr)
+
+    else:
+
+        def condition(model, attr):
+            return getattr(model, attr, None) is None
+
+    while condition(model, attr):
+        if not hasattr(model, "module"):
+            raise RuntimeError(f"_get_attr_wrapped_model couldn't find attribute {attr}")
+
+        model = model.module
+
+    if return_model_obj:
+        return model
+    return getattr(model, attr)

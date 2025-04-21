@@ -18,13 +18,26 @@ class Metric(ABC):
         value: dict|list|tensor. when key is None, maybe value is a dict
         """
         if cumulate:
-            if key in self.metric:
-                if isinstance(self.metric[key], list):
-                    self.metric[key].extend(value)
+            if isinstance(value, Dict):
+                if cumulate:
+                    for key in value:
+                        if key in self.metric:
+                            if isinstance(self.metric[key], list):
+                                self.metric[key].extend(value[key])
+                            else:
+                                self.metric[key] = value[key]
+                        else:
+                            self.metric[key] = [*value[key]]
                 else:
-                    self.metric[key] = value
+                    self.metric.update(value)
             else:
-                self.metric[key] = [*value]
+                if key in self.metric:
+                    if isinstance(self.metric[key], list):
+                        self.metric[key].extend(value)
+                    else:
+                        self.metric[key] = value
+                else:
+                    self.metric[key] = [*value]
         else:
             if isinstance(value, Dict):
                 self.metric.update(value)

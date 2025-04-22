@@ -90,8 +90,7 @@ class RewardWorkerBase(BaseWorker):
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
                                                                  experience_count,
-                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
-                                                                 get_n_samples=False)
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size)
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True

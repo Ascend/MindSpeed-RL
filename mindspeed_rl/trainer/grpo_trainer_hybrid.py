@@ -14,7 +14,8 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort, get_least_common_multiple
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_least_common_multiple
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -142,6 +143,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.actor_worker.compute_log_prob(blocking=self.blocking)
 
                 self.actor_worker.wait_all_ref_objs_run_over()
+                
                 self.ref_worker.wait_all_ref_objs_run_over()
                 for reward in self.reward_list:
                     if hasattr(reward, 'wait_all_ref_objs_run_over'):
@@ -177,7 +179,7 @@ class RayGRPOTrainer(RayBaseTrainer):
     def compute_advantage(self, blocking=False):
         experience_count = get_least_common_multiple(self.micro_batch_size,
                                                      self.n_samples_per_prompt)
-
+        
         compute_advantage_ref = compute_advantage.options(num_cpus=self.num_cpus_for_local_task).remote(
             self.transfer_dock,
             self.gamma,

@@ -132,12 +132,12 @@ class TestGRPOTransferDock(DistributedTest):
 
         experience_batch, output_indexes = ray.get(
             self.td.get_experience.remote(
-                consumer="actor_rollout", experience_columns=["prompts"], indexes=get_indexes, pad_id=0.0
+                consumer="actor_rollout", experience_columns=["prompts"], indexes=get_indexes
             )
         )
 
         assert output_indexes == get_indexes
-        assert experience_batch["prompts"].size(0) == get_mbs
+        assert len(experience_batch["prompts"]) == get_mbs
 
     def test_put_experience(self):
         put_mbs = 4
@@ -149,7 +149,7 @@ class TestGRPOTransferDock(DistributedTest):
         for index in put_indexes:
             experience_batch, output_indexes = ray.get(
                 self.td.get_experience.remote(
-                    consumer="actor_rollout", experience_columns=["prompts"], indexes=[index], pad_id=0.0
+                    consumer="actor_rollout", experience_columns=["prompts"], indexes=[index]
                 )
             )
             assert output_indexes[0] == index
@@ -169,7 +169,7 @@ class TestGRPOTransferDock(DistributedTest):
 
         _, output_indexes = ray.get(
             self.td.get_experience.remote(
-                consumer="actor_rollout", experience_columns=["prompts"], experience_count=self.max_len, pad_id=0.0
+                consumer="actor_rollout", experience_columns=["prompts"], experience_count=self.max_len
             )
         )
         assert len(output_indexes) == self.max_len
@@ -182,7 +182,7 @@ class TestGRPOTransferDock(DistributedTest):
             while not ray.get(td.all_consumed.remote("actor_rollout")):
                 ray.get(
                     td.get_experience.remote(
-                        consumer=f"actor_rollout", experience_columns=["prompts"], experience_count=1, pad_id=0.0
+                        consumer=f"actor_rollout", experience_columns=["prompts"], experience_count=1,
                     )
                 )
 

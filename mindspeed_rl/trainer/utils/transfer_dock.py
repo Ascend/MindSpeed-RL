@@ -337,8 +337,6 @@ class GRPOTransferDock(TransferDock):
         experience_columns: List[str],
         experience_count: int = None,
         indexes: List[int] = None,
-        pad_id: int = None,
-        multiple: int = 1,
         get_n_samples: bool = True,
     ):
         """Get padded experience data from GRPOTransferDock.
@@ -399,13 +397,15 @@ class GRPOTransferDock(TransferDock):
             self.experience_consumer_status[consumer][indexes] = 1
             experience = self._get(experience_columns, indexes)
 
-        experience_batch = trans_experience_to_output(experience, experience_columns, pad_id, multiple)
+        experience_batch = {}
+        for i, experience_column in enumerate(experience_columns):
+            experience_batch[experience_column] = experience[i]
         return experience_batch, indexes
 
     def put_experience(
         self,
         data_dict: Dict[str, Union[Tensor, List[Tensor]]],
-        indexes: List[int] = None
+        indexes: List[int] = None,
     ):
         """Put data into specified columns and rows.
 
@@ -631,32 +631,25 @@ class GRPOTransferDock(TransferDock):
         return sampled_indexes
 
 
-def trans_experience_to_output(
-    experience: List[List[Tensor]],
-    experience_columns: List[str],
-    pad_id: int,
-    multiple: int,
+def pad_experience(
+        experience_batch: Dict[str, List[Tensor]],
+        pad_id: int,
+        multiple: int = 1,
 ):
-    """Merge and pad data into dict.
+    """ Pad dict data.
 
     Args:
-        experience: Data list.
-            [
-                [
-                    tensor([1, 1, 1, 1]),
-                    tensor([2, 2, 2, 2]),
-                    tensor([3, 3, 3, 3]),
-                    tensor([4, 4, 4, 4])
-                ],
-                [
-                    tensor([1]),
-                    tensor([2, 2]),
-                    tensor([3, 3, 3]),
-                    tensor([4, 4, 4, 4])
-                ]
-            ]
-        experience_columns: Columns for the corresponding data.
-            ['prompts', 'attention_mask']
+        experience_batch: Dict
+            {
+                'prompts': [ tensor([1, 1, 1, 1]), 
+                             tensor([2, 2, 2, 2]),
+                             tensor([3, 3, 3, 3]), 
+                             tensor([4, 4, 4, 4])], 
+                'attention_mask': [ tensor([1]), 
+                                    tensor([2, 2]), 
+                                    tensor([3, 3, 3]), 
+                                    tensor([4, 4, 4, 4])], 
+            }
         pad_id: Pad token.
             0.0
         multiple: The multiple of TP to pad.
@@ -677,17 +670,36 @@ def trans_experience_to_output(
         }
 
     """
-    batch = {}
-    for i, experience_column in enumerate(experience_columns):
-        experience_i_all = experience[i]
-        if experience_column in ["prompt_length", "response_length"]:
-            padded = torch.cat(experience_i_all).reshape(-1, 1)
-        elif experience_i_all[0].is_floating_point():
-            padded = pad_multiples(experience_i_all, pad_id=0.0, multiple=multiple)
-        else:
-            padded = pad_multiples(experience_i_all, pad_id=pad_id, multiple=multiple)
+    def pad_multiples(data_list: List[Tensor], pad_id: Union[float, int], multiple: int = 1) -> Tensor:
+        """Pad method for data list.
 
-        batch[experience_column] = padded
+        Args:
+            data_list: Data list.
+            pad_id: Pad token.
+            multiple: The multiple of TP to pad.
+
+        Returns: Padded tensor.
+
+        """
+        padded = pad_sequence(data_list, batch_first=True, padding_value=pad_id)
+        max_len = padded.size(1)
+        target_len = ((max_len + multiple - 1) // multiple) * multiple
+        padded = F.pad(padded, (0, target_len - max_len), value=pad_id)
+        return padded
+
+    batch = {}
+    if not experience_batch:
+        raise ValueError("ERROR: when pad, get an empty experience_batch")
+    else:
+        for experience_column, experience in experience_batch.items():
+            if experience_column in ["prompt_length", "response_length"]:
+                padded = torch.cat(experience).reshape(-1, 1)
+            elif experience[0].is_floating_point():
+                padded = pad_multiples(experience, pad_id=0.0, multiple=multiple)
+            else:
+                padded = pad_multiples(experience, pad_id=pad_id, multiple=multiple)
+
+            batch[experience_column] = padded
 
     return batch
 
@@ -736,27 +748,133 @@ def trans_input_to_experience(experience_dict: Dict[str, Union[Tensor, List[Tens
         if value is not None:
             experience_columns.append(key)
             if isinstance(value, Tensor):
+                if value.dtype == torch.int64:
+                    value = value.to(torch.int32)
                 value = list(torch.unbind(value, dim=0))
+            elif isinstance(value, List):
+                value = [val.to(torch.int32) if val.dtype == torch.int64 else val for val in value]
+            else:
+                raise ValueError(f"value type {type(value)} not supported")
             experience_list.append(value)
 
     return experience_columns, experience_list
 
 
-def pad_multiples(
-    data_list: List[Tensor], pad_id: Union[float, int], multiple: int = 1
-) -> Tensor:
-    """Pad method for data list.
-
-    Args:
-        data_list: Data list.
-        pad_id: Pad token.
-        multiple: The multiple of TP to pad.
-
-    Returns: Padded tensor.
-
+def pack_experience_columns(experience_dict, experience_count):
+    """ 
+    Compress experiences by packing tensors into ONE.
+    from experience_dict
+        {
+            'prompts': [ tensor([1, 1, 1]), 
+                            tensor([2, 2, 2, 2]),
+                            tensor([3, 3, 3]), 
+                            tensor([4, 4, 4, 4])], 
+            'attention_mask': [ tensor([1]), 
+                                tensor([2, 2]), 
+                                tensor([3, 3, 3]), 
+                                tensor([4, 4, 4, 4])], 
+        }
+    To batch_data
+        {
+            'prompts': tensor([1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4]),
+            'attention_mask': tensor([1, 2, 2, 3, 3, 3, 4, 4, 4, 4])
+        }
+        batch_data_length
+        {
+            'prompts': tensor([3, 4, 3, 4]), 
+            'attention_mask': tensor([1, 2, 3, 4])
+        }
     """
-    padded = pad_sequence(data_list, batch_first=True, padding_value=pad_id)
-    max_len = padded.size(1)
-    target_len = ((max_len + multiple - 1) // multiple) * multiple
-    padded = F.pad(padded, (0, target_len - max_len), value=pad_id)
-    return padded
+
+    if not experience_dict:
+        raise ValueError(f"ERROR: when pack, get an empty experience_dict")
+
+    batch_data = {}
+    batch_data_length = {}
+
+    for key, value in experience_dict.items():
+        if len(value) != experience_count:
+            raise ValueError(f"ERROR: when pack, experience '{key}' number does not match experience_count")
+        packed_experience = []
+        data_length = []
+        for i in range(experience_count):
+            packed_experience.extend(value[i].tolist())
+            data_length.append(len(value[i]))
+
+        batch_data[key] = torch.tensor(packed_experience, dtype=value[0].dtype)
+        batch_data_length[key] = torch.tensor(data_length, dtype=torch.int32)
+
+    return batch_data, batch_data_length
+
+
+def unpack_pad_experience(batch_data, batch_data_length, pad_id, multiple):
+    """
+    1. restore the received experience dict
+    2. pad the tensor (consider the requirement of multiple)
+    from batch_data
+        {
+            'prompts': tensor([1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4]),
+            'attention_mask': tensor([1, 2, 2, 3, 3, 3, 4, 4, 4, 4])
+        }
+        batch_data_length
+        {
+            'prompts': tensor([3, 4, 3, 4]),
+            'attention_mask': tensor([1, 2, 3, 4])
+        }
+    To padded_batch_data (multiple=2)
+        {
+            "prompts": tensor(
+                [[1, 1, 1, -1, -1, -1, -1, -1],
+                [2, 2, 2, 2, -1, -1, -1, -1],
+                [3, 3, 3, -1, -1, -1, -1, -1],
+                [4, 4, 4, 4, -1, -1, -1, -1]]),
+            "attention_mask": tensor(
+                [[1, -1, -1, -1, -1, -1, -1, -1],
+                [2, 2, -1, -1, -1, -1, -1, -1],
+                [3, 3, 3, -1, -1, -1, -1, -1],
+                [4, 4, 4, 4, -1, -1, -1, -1]]),
+        }
+    """
+    if not batch_data:
+        raise ValueError(f"ERROR: empty batch_data")
+
+    if set(batch_data.keys()) != set(batch_data_length.keys()):
+        raise ValueError(f"ERROR: when unpack, keys from batch_data and batch_data_length dictionaries do not match")
+
+    data_device = batch_data[list(batch_data.keys())[0]].device
+
+    padded_batch_data = {}
+    for key, length_list in batch_data_length.items():
+        if key in ['prompt_length', 'response_length']:
+            padded_batch_data[key] = batch_data[key].view(-1, 1)
+            continue
+        data = batch_data[key]
+        data_dtype = batch_data[key].dtype
+
+        lengths = length_list.to(data_device)
+
+        # 计算最大长度
+        max_row_len = torch.max(lengths).item()
+        if multiple > 1:
+            max_row_len = ((max_row_len + multiple - 1) // multiple) * multiple
+
+        # 预分配张量
+        if data[0].is_floating_point():
+            padded_tensor = torch.full((len(lengths), max_row_len), 0.0,
+                                       dtype=data_dtype, device=data_device)
+        else:
+            padded_tensor = torch.full((len(lengths), max_row_len), pad_id,
+                                       dtype=data_dtype, device=data_device)
+
+        # 向量化填充
+        cum_length = torch.cat([torch.tensor([0], device=data_device
+                                             ), torch.cumsum(lengths, 0)])
+
+        for i, _ in enumerate(lengths):
+            seq_len = lengths[i]
+            padded_tensor[i, :seq_len] = data[cum_length[i]:cum_length[i + 1]]
+        padded_batch_data[key] = padded_tensor
+
+    return padded_batch_data
+
+

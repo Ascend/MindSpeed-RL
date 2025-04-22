@@ -24,6 +24,7 @@ import numpy as np
 import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.utils import generate_mask
+from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 
 
 class AdaptiveKLController:
@@ -124,16 +125,16 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
 
 
 @ray.remote
-def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer):
+def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer):
     """
     Compute the advantage function based on different adv_estimator
 
     Args:
-        rb: A data queue object
+        td: A data queue object
         gamma: The reward discount factor
         lam: The lambda parameter in advantage estimation
         adv_estimator:  The type of advantage estimator, which can be "gae" or "group_norm"
-        experience_count: The number of experiences to retrieve from the experience rb
+        experience_count: The number of experiences to retrieve from the experience td
         tokenizer: The pre-trained tokenizer
 
     Returns:
@@ -142,13 +143,15 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
     experience_consumer_stage = "compute_advantage"
     experience_columns = ["responses", "token_level_rewards", "response_length"]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
-    while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
+    
+    while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
         batch_data, index = ray.get(
-            rb.get_experience.remote(
-                experience_consumer_stage, experience_columns, experience_count, pad_id=pad_token_id
+            td.get_experience.remote(
+                experience_consumer_stage, experience_columns, experience_count,  # pad_id=pad_token_id
             )
         )
         if batch_data and index:
+            batch_data = pad_experience(batch_data, pad_token_id) # multiple, tp_size
             response_mask = generate_mask(batch_data["responses"], batch_data["response_length"])
             token_level_rewards = batch_data["token_level_rewards"]
 
@@ -169,7 +172,7 @@ def compute_advantage(rb, gamma, lam, adv_estimator, experience_count, tokenizer
                 "advantages": advantages,
                 "returns": returns,
             }
-            rb.put_experience.remote(data_dict=output, indexes=index)
+            td.put_experience.remote(data_dict=output, indexes=index)
 
 
 def get_last_reward(rm_scores, n_sample_batch: int):
@@ -190,13 +193,13 @@ def get_last_reward(rm_scores, n_sample_batch: int):
 
 
 def compute_grpo_data_metrics(
-        rb, experience_count, tokenizer
+        td, experience_count, tokenizer
 ):
     """
     Calculate various metrics for GRPO data
 
     Args:
-        rb: A data queue object
+        td: A data queue object
         experience_count: Number of experiences to retrieve
         tokenizer: The pre-trained tokenizer
 
@@ -213,12 +216,13 @@ def compute_grpo_data_metrics(
         "prompt_length",
         "response_length",
     ]
-    pad_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
-    while not ray.get(rb.all_consumed.remote(experience_consumer_stage)):
+    pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
+    while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(
-            rb.get_experience.remote(experience_consumer_stage, experience_columns, experience_count, pad_id=pad_id)
+            td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count)
         )
         if batch and index:
+            batch = pad_experience(batch, pad_token_id) # multiple, tp_size
             sequence_score = batch["rm_scores"].sum(-1)
             sequence_reward = batch["token_level_rewards"].sum(-1)
             prompt_length = batch["prompt_length"]

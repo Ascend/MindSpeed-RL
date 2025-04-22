@@ -95,6 +95,7 @@ class ReferenceWorkerBase(BaseWorker):
                                                                  experience_count,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
                                                                  get_n_samples=False)
+            
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -133,6 +134,8 @@ class ReferenceWorkerBase(BaseWorker):
                         value=[round(ref_end_time, 4)]
                     )
             )
+
+        print('finish calc log prob')
 
         self.empty_cache()
 

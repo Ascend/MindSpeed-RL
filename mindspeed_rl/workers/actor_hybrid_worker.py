@@ -116,17 +116,20 @@ class ActorHybridWorkerBase(BaseWorker):
         self.args.curr_iteration = self.iteration
 
         experience_consumer_stage = 'actor_train'
+
         experience_columns = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+        
         experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
 
         #get lr
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
-        ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate)) 
+        ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate))
 
         start_time_defined = False
+        count = 0
         while self.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
@@ -138,6 +141,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 start_time_defined = True
             if batch_data and index:
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
+
                 # self.empty_cache()
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
@@ -193,7 +197,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]
-                # copy prompts (from 1 to n_samples_per_prompt)
+
                 prompts_data = prompts
                 prompts = []
                 for prompt in prompts_data:

@@ -202,10 +202,12 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
 def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
 
     old_log_p_end_time = metrics.pop('end_time/old_log_p', None)
+    end_adv_time = metrics.pop('end_time/end_adv_time', None)
 
     reference_start_time = metrics.pop('start_time/reference_model', None)
     reference_end_time = metrics.pop('end_time/reference', None)
-    non_overlap_reference_model_time = max(reference_end_time - max(old_log_p_end_time, reference_start_time), 0)  
+    non_overlap_reference_model_time = max(reference_end_time - max(old_log_p_end_time, reference_start_time), 0)
+    non_overlap_adv_time = max(max(old_log_p_end_time, end_adv_time) - old_log_p_end_time, 0)
 
     if "timing/rule_reward" in metrics.keys():
         reward_start_time = metrics.pop('start_time/rule_reward', None)
@@ -220,11 +222,12 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
  
 
     metrics["timing/non_overlap_reference_model"] = non_overlap_reference_model_time
+    metrics["timing/non_overlap_adv"] = non_overlap_adv_time
     metrics["timing/all"] = time_all
 
     sort_metrics = dict(sorted(metrics.items()))
-    custom_order = ['timing/all', 'timing/update', 'timing/rollout', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
-    special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/rule_reward', 'timing/reward_model']
+    custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_train', 'timing/rollout', 'timing/resharding_to_infer', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
+    special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/rule_reward', 'timing/reward_model', 'timing/adv', 'timing/non_overlap_adv', 'timing/onload', 'timing/offload']
     keys_to_move = [key for key in sort_metrics.keys() if key in special_keys]
     remaining_keys = []
     for key in sort_metrics:
@@ -249,6 +252,21 @@ def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
     tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs * n_samples / world_size / time_all
     return tps
+
+
+def compute_vllm_throughput(compute_kwargs, metrics_result, gbs, n_samples, time_rollout):
+    actor_resource = compute_kwargs.get('actor_resource', {})
+    reference_resource = compute_kwargs.get('reference_resource', {})
+    reward_resource = compute_kwargs.get('reward_resource', None)
+    actor_resource_only = compute_kwargs.get('use_integrated_worker', False)
+
+    actor_npus = actor_resource.get('num_npus', 0)
+    reference_npus = reference_resource.get('num_npus', 0)
+    reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
+
+    world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
+    vllm_throughput = metrics_result['response_length/mean'] * gbs * n_samples / world_size / time_rollout
+    return vllm_throughput
 
 
 def seed_all(seed=1234):

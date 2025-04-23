@@ -3,6 +3,7 @@
 import dataclasses
 from typing import Callable
 
+import time
 import ray
 import torch
 
@@ -90,9 +91,29 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         )
 
     def compute_ref_log_prob(self):
+        start_onload_time = time.time()
         self.ref_manager.onload_param()
+        end_onload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/onload", 
+                value=[round(end_onload_time, 4), round(start_onload_time, 4)],
+                cumulate=True
+            )
+        ) 
+        
         ReferenceWorkerBase.compute_ref_log_prob(self)
+        
+        start_offload_time = time.time()
         self.ref_manager.offload_param()
+        end_offload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/offload",
+                value=[round(end_offload_time, 4), round(start_offload_time, 4)],
+                cumulate=True
+            )
+        )
 
     def update(self, kl_ctrl=None):
         # set update mbs

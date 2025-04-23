@@ -111,7 +111,9 @@ class ActorHybridWorkerBase(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None):
+        start_sharding_enter_train = time.time()
         self.sharding_manager.enter_train_mode()
+        sharding_train_interval = time.time() - start_sharding_enter_train
 
         self.args.curr_iteration = self.iteration
 
@@ -157,14 +159,25 @@ class ActorHybridWorkerBase(BaseWorker):
                     )
 
         self.iteration += 1
+        start_sharding_exit_train = time.time()
         self.sharding_manager.exit_train_mode()
+        sharding_train_interval += (time.time() - start_sharding_exit_train)
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_train",
+                value=[sharding_train_interval],
+                cumulate=True
+            )
+        )
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
+        start_sharding_enter_infer = time.time()
         self.sharding_manager.enter_infer_mode()
+        sharding_infer_interval = time.time() - start_sharding_enter_infer
 
         experience_consumer_stage = 'actor_rollout'
         experience_columns = ['prompts', 'prompt_length']
@@ -222,7 +235,17 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
+
+        start_sharding_exit_infer = time.time()
         self.sharding_manager.exit_infer_mode()
+        sharding_infer_interval += (time.time() - start_sharding_exit_infer)
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[sharding_infer_interval],
+                cumulate=True
+            )
+        )
 
     def compute_log_prob(self):
         self.sharding_manager.enter_forward_mode()

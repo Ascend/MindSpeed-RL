@@ -35,8 +35,9 @@ pip install apex-0.1.dev*.whl
 ### vllm及相关依赖安装：
 （注：环境中需要安装git，因为vllm的安装过程依赖git）
 ```shell
-git clone -b v0.7.3 https://github.com/vllm-project/vllm.git
+git clone https://github.com/vllm-project/vllm.git
 cd vllm
+git checkout v0.7.3
 pip install -r requirements-build.txt
 VLLM_TARGET_DEVICE=empty pip install .
 ```

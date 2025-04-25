@@ -87,13 +87,17 @@ class ReferenceWorkerBase(BaseWorker):
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = get_least_common_multiple(self.megatron_config.micro_batch_size,
                                                      self.rl_config.n_samples_per_prompt)
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage) > 0:
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
                                                                  experience_count,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
                                                                  get_n_samples=False)
             
             if not start_time_defined:

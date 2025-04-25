@@ -84,13 +84,18 @@ class RewardWorkerBase(BaseWorker):
                               *self.megatron_config.dataset_additional_keys]
         experience_count = get_least_common_multiple(self.megatron_config.micro_batch_size,
                                                      self.rl_config.n_samples_per_prompt)
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
                                                                  experience_count,
-                                                                 tp_size=self.megatron_config.tensor_model_parallel_size)
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 )
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True

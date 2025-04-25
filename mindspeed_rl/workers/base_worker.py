@@ -11,6 +11,7 @@ import torch
 import torch_npu
 import ray
 
+from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 
@@ -28,9 +29,14 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_model_parallel_group
 )
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
+from mindspeed_rl.utils.utils import get_current_dp_range_indexes
 from mindspeed_rl.trainer.utils.transfer_dock import pack_experience_columns, unpack_pad_experience
 
 logger = Loggers("base_worker")
+
+_DP_RANGE_DATA_CONSUMED_FLAG = 0
+
+_DP_RANGE_DATA_NOT_CONSUMED_FLAG = 1
 
 
 class BaseRayWorker:
@@ -145,7 +151,11 @@ class BaseWorker(BaseRayWorker, ABC):
         self.td = None
         self.args = None
 
-    def all_consumed(self, experience_consumer_stage, use_vllm=False):
+    def all_consumed(self, experience_consumer_stage, sorted_indexes, use_vllm=False):
+        if self.rl_config.guarantee_order and not sorted_indexes:
+            return _DP_RANGE_DATA_CONSUMED_FLAG
+        elif self.rl_config.guarantee_order:
+            return _DP_RANGE_DATA_NOT_CONSUMED_FLAG
         if use_vllm:
             current_device = next(self.inference_model.model.parameters()).device
         else:
@@ -205,7 +215,7 @@ class BaseWorker(BaseRayWorker, ABC):
 
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
                                     experience_columns, experience_count, tp_size=1,
-                                    use_vllm=False,
+                                    use_vllm=False, indexes=None,
                                     get_n_samples=True):
         pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
@@ -216,8 +226,8 @@ class BaseWorker(BaseRayWorker, ABC):
         if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
                 get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
             batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
-                                                                      experience_count, get_n_samples=get_n_samples))  # cpu数据
-
+                                                                      experience_count, indexes=indexes,
+                                                                      get_n_samples=get_n_samples))  # cpu数据
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
 
@@ -325,3 +335,27 @@ class BaseWorker(BaseRayWorker, ABC):
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
             self.td.put_experience.remote(data_dict=output, indexes=index)
+
+    def get_dp_range_indexes(self, experience_count, use_vllm=False):
+        if use_vllm:
+            current_dp_rank, dp_world_size = self.get_vllm_dp_rank()
+        else:
+            current_dp_rank = self.parallel_state.get_data_parallel_rank()
+            dp_world_size = self.parallel_state.get_data_parallel_world_size()
+        assign_batch_size = self.megatron_config.global_batch_size // dp_world_size
+        return get_current_dp_range_indexes(experience_count=experience_count,
+                                            assign_batch_size=assign_batch_size,
+                                            current_dp_rank=current_dp_rank)
+
+    @staticmethod
+    def get_vllm_dp_rank():
+        get_rollout_data_parallel_rank = torch.distributed.get_rank()
+        vllm_dp_groups = get_vllm_tp_group_ranks()
+        if vllm_dp_groups is None:
+            raise ValueError("vllm dp groups is None")
+        for index, dp_group in enumerate(vllm_dp_groups):
+            if get_rollout_data_parallel_rank in dp_group:
+                current_dp_rank = index
+        return current_dp_rank, len(vllm_dp_groups)
+
+

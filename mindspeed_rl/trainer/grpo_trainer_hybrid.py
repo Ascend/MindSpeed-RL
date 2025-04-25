@@ -61,6 +61,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
             blocking: bool = False,
+            guarantee_order: bool = False,
             num_cpus_for_local_task: int = 1,
             **kwargs
     ):
@@ -81,6 +82,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             tokenizer=tokenizer,
             dataset_additional_keys=dataset_additional_keys,
             blocking=blocking,
+            guarantee_order=guarantee_order,
             num_cpus_for_local_task=num_cpus_for_local_task,
             **kwargs
         )
@@ -135,7 +137,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                         self.rule_reward_compute_rm_score(reward_worker, blocking=False)
 
                 # compute advantages, executed on the driver process
-                self.compute_advantage(blocking=False)
+                self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
 
                 # compute reference log_prob
                 self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
@@ -156,7 +158,9 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # collect metrics
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
                                                               self.global_batch_size * self.n_samples_per_prompt,
-                                                              self.tokenizer)
+                                                              self.tokenizer,
+                                                              self.global_batch_size * self.n_samples_per_prompt,
+                                                              self.guarantee_order)
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
             metrics_result = metrics_post_processing(metrics_result)
@@ -179,7 +183,7 @@ class RayGRPOTrainer(RayBaseTrainer):
 
         logger.info('after grpo training is done')
 
-    def compute_advantage(self, blocking=False):
+    def compute_advantage(self, blocking=False, guarantee_order=False):
         experience_count = get_least_common_multiple(self.micro_batch_size,
                                                      self.n_samples_per_prompt)
 
@@ -191,6 +195,8 @@ class RayGRPOTrainer(RayBaseTrainer):
             adv_estimator=self.adv_estimator,
             experience_count=experience_count,
             tokenizer=self.tokenizer,
+            global_batch_size=self.global_batch_size * self.n_samples_per_prompt,
+            guarantee_order=guarantee_order
         )
         if blocking:
             ray.get(compute_advantage_ref)

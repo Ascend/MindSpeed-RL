@@ -184,6 +184,7 @@ bash examples/r1/qwen25/r1_zero_qwen25_32b_worker.sh
 
 ### `rl_config:`
 * `blocking`：是否开启异步，默认为 False；
+* `guarantee_order`: 是否开启TransferDock保序，默认 False
 * `n_samples_per_prompt`：每条prompt的重用次数，一条 prompt 输入能输出 n 条 responese；
 * `max_prompt_length`：GRPO 训练中最大 prompt 长度，默认为512；
 * `clip_ratio`：Actor 模型训练计算损失函数时的 clip 比例，默认为0.2 一般取值范围 [0.1，0.3] 最大取值范围[0，1] 该数值越大允许策略更新的幅度越大，反之不然；

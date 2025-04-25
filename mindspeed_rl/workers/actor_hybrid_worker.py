@@ -121,7 +121,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
         experience_columns = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
-        
+
         experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
 
         #get lr
@@ -129,14 +129,17 @@ class ActorHybridWorkerBase(BaseWorker):
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
         ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate))
-
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
         start_time_defined = False
         count = 0
-        while self.all_consumed(experience_consumer_stage) > 0:
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
                                                                  experience_count,
                                                                  self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
                                                                  get_n_samples=False)
             if not start_time_defined:
                 start_time = time.time()
@@ -185,14 +188,17 @@ class ActorHybridWorkerBase(BaseWorker):
                                                      self.rl_config.n_samples_per_prompt)
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=True) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage, use_vllm=True) > 0:
+        while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
                 experience_columns,
                 experience_count,
                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
                 use_vllm=True
             )
             if not start_time_defined:
@@ -254,13 +260,17 @@ class ActorHybridWorkerBase(BaseWorker):
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = get_least_common_multiple(self.megatron_config.micro_batch_size,
                                                      self.rl_config.n_samples_per_prompt)
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage) > 0:
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
                                                                  experience_columns,
                                                                  experience_count,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
                                                                  get_n_samples=False)
             if not start_time_defined:
                 start_time = time.time()

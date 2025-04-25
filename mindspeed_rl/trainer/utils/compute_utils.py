@@ -23,7 +23,7 @@ import numpy as np
 
 import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.pad_process import truncate_rows
-from mindspeed_rl.utils.utils import generate_mask
+from mindspeed_rl.utils.utils import generate_mask, get_current_dp_range_indexes
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 
 
@@ -125,7 +125,7 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
 
 
 @ray.remote
-def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer):
+def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order):
     """
     Compute the advantage function based on different adv_estimator
 
@@ -136,6 +136,8 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
         adv_estimator:  The type of advantage estimator, which can be "gae" or "group_norm"
         experience_count: The number of experiences to retrieve from the experience td
         tokenizer: The pre-trained tokenizer
+        global_batch_size: The number of global batch size
+        guarantee_order: The switch of guarantee order
 
     Returns:
         None
@@ -143,11 +145,13 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
     experience_consumer_stage = "compute_advantage"
     experience_columns = ["responses", "token_level_rewards", "response_length"]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
-    
+    sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
+                                                  assign_batch_size=global_batch_size) if guarantee_order else None
     while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
         batch_data, index = ray.get(
             td.get_experience.remote(
                 experience_consumer_stage, experience_columns, experience_count,  # pad_id=pad_token_id
+                indexes=sorted_indexes.pop(0) if guarantee_order else None
             )
         )
         if batch_data and index:
@@ -193,7 +197,7 @@ def get_last_reward(rm_scores, n_sample_batch: int):
 
 
 def compute_grpo_data_metrics(
-        td, experience_count, tokenizer
+        td, experience_count, tokenizer, global_batch_size, guarantee_order
 ):
     """
     Calculate various metrics for GRPO data
@@ -202,6 +206,8 @@ def compute_grpo_data_metrics(
         td: A data queue object
         experience_count: Number of experiences to retrieve
         tokenizer: The pre-trained tokenizer
+        global_batch_size: The number of global batch size
+        guarantee_order: The switch of guarantee order
 
     Returns:
         Dictionary containing various metric values
@@ -217,9 +223,12 @@ def compute_grpo_data_metrics(
         "response_length",
     ]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
+    sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
+                                                  assign_batch_size=global_batch_size) if guarantee_order else None
     while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(
-            td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count)
+            td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
+                                     indexes=sorted_indexes.pop(0) if guarantee_order else None)
         )
         if batch and index:
             batch = pad_experience(batch, pad_token_id) # multiple, tp_size

@@ -16,6 +16,11 @@ import torch_npu
 from torch import Tensor
 
 
+def get_current_dp_range_indexes(experience_count, assign_batch_size, current_dp_rank=0):
+    all_indexes = list(range(assign_batch_size * current_dp_rank, assign_batch_size * (current_dp_rank + 1)))
+    return [all_indexes[i:i + experience_count] for i in range(0, len(all_indexes), experience_count)]
+
+
 def synchronize_time():
     """Synchronize training start time across all distributed processes."""
     cur_time = time.time()
@@ -272,6 +277,11 @@ def compute_vllm_throughput(compute_kwargs, metrics_result, gbs, n_samples, time
 def seed_all(seed=1234):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['HCCL_DETERMINISTIC'] = str(True)
+    os.environ['LCCL_DETERMINISTIC'] = str(1)
+    os.environ['CLOSE_MATMUL_K_SHIFT'] = str(1)
+    os.environ['ATB_MATMUL_SHUFFLE_K_ENABLE'] = "0"
+    os.environ['ATB_LLM_LCOC_ENABLE'] = "0"
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True)

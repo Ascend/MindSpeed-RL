@@ -71,6 +71,7 @@ reward_config:
   no_load_rng: true
 
 rl_config:
+  guarantee_order: false
   blocking: false
   gamma: 1.0
   lam: 0.95

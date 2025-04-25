@@ -37,6 +37,7 @@ class RayBaseTrainer(object):
                  tokenizer: BaseTokenizer = None,
                  dataset_additional_keys: List[str] = None,
                  blocking: bool = False,
+                 guarantee_order: bool = False,
                  num_cpus_for_local_task: float = 0.1,
                  **kwargs):
 
@@ -60,6 +61,7 @@ class RayBaseTrainer(object):
         self.tokenizer = tokenizer
         self.dataset_additional_keys = dataset_additional_keys
         self.blocking = blocking
+        self.guarantee_order = guarantee_order
         self.num_cpus_for_local_task = num_cpus_for_local_task
         self.kwargs = kwargs
 

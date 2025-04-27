@@ -36,7 +36,8 @@ class RuleReward(object):
                 self.td.get_experience.remote(
                     experience_consumer_stage,
                     experience_columns,
-                    experience_count
+                    experience_count,
+                    indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None
                 )
             )  # cpu数据
 

@@ -110,7 +110,9 @@ class ActorHybridWorkerBase(BaseWorker):
     def get_consumed_train_samples(self):
         return self.args.consumed_train_samples
 
-    def update(self, kl_ctrl=None):
+    def update(self, kl_ctrl=None, skip_actor_log_prob=False):
+        if skip_actor_log_prob:
+            self.sharding_manager.enter_forward_mode()
         start_sharding_enter_train = time.time()
         self.sharding_manager.enter_train_mode()
         sharding_train_interval = time.time() - start_sharding_enter_train
@@ -123,6 +125,8 @@ class ActorHybridWorkerBase(BaseWorker):
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
 
         experience_count = self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
+        if skip_actor_log_prob:
+            experience_columns.remove('old_log_prob')
 
         #get lr
         learning_rate = None

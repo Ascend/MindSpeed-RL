@@ -115,7 +115,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             )
         )
 
-    def update(self, kl_ctrl=None):
+    def update(self, kl_ctrl=None, skip_actor_log_prob=False):
         # set update mbs
         update_mbs = self.update_micro_batch_size
         mbs = self.actor_hybrid.train_actor.micro_batch_size
@@ -127,7 +127,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             self.actor_hybrid.train_actor.micro_batch_size = update_mbs
             args.micro_batch_size = update_mbs
 
-        ActorHybridWorkerBase.update(self, kl_ctrl)
+        ActorHybridWorkerBase.update(self, kl_ctrl, skip_actor_log_prob)
 
         args.micro_batch_size = mbs
         self.actor_hybrid.train_actor.micro_batch_size = mbs

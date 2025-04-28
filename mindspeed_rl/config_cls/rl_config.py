@@ -70,6 +70,7 @@ class RLConfig(BaseConfig):
         self.verifier_weight = [1.0, ]
         self.verifier_parallel = 1
         self.verifier_timeout = 30
+        self.verifier_micro_batch_size = 16
 
         self.shuffle_mini_batch = False
         self.n_samples_per_prompt = 1

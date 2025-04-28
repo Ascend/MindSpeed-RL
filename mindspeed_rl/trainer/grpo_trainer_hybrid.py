@@ -91,6 +91,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.metrics = Metric()
         self.transfer_dock_init()
         self.kwargs = kwargs
+        self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
         self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
@@ -102,6 +103,14 @@ class RayGRPOTrainer(RayBaseTrainer):
                 reward.sync_init_transfer_dock(self.transfer_dock)
             else:
                 reward.init_transfer_dock.remote(self.transfer_dock)
+
+    def set_actor_log_prob_skip_flag(self):
+        global_batch_size = self.actor_worker.megatron_config.global_batch_size
+        mini_batch_size = self.actor_worker.rl_config.mini_batch_size
+        n_samples_per_prompt = self.actor_worker.rl_config.n_samples_per_prompt
+        epochs = self.actor_worker.rl_config.epochs
+        self.skip_actor_log_prob = (global_batch_size * n_samples_per_prompt == mini_batch_size and epochs == 1)
+        self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
     def fit(self, data_loader: DataLoader):
         """
@@ -130,11 +139,12 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.actor_worker.generate_sequences(blocking=self.blocking)
 
                 # compute rm scores.
+                rule_reward = []
                 for reward_worker in self.reward_list:
                     if isinstance(reward_worker, RayActorGroup):
                         reward_worker.compute_rm_score(blocking=self.blocking)
                     else:
-                        self.rule_reward_compute_rm_score(reward_worker, blocking=False)
+                        rule_reward.append(reward_worker.compute_rm_score.remote())
 
                 # compute advantages, executed on the driver process
                 self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
@@ -143,17 +153,18 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
 
                 # compute old log_prob
-                self.actor_worker.compute_log_prob(blocking=self.blocking)
+                if not self.skip_actor_log_prob:
+                    self.actor_worker.compute_log_prob(blocking=self.blocking)
 
                 self.actor_worker.wait_all_ref_objs_run_over()
-                
+
                 self.ref_worker.wait_all_ref_objs_run_over()
                 for reward in self.reward_list:
                     if hasattr(reward, 'wait_all_ref_objs_run_over'):
                         reward.wait_all_ref_objs_run_over()
 
                 # update actor
-                self.actor_worker.update(self.kl_ctrl)
+                self.actor_worker.update(self.kl_ctrl, self.skip_actor_log_prob)
 
                 # collect metrics
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
@@ -187,7 +198,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         experience_count = get_least_common_multiple(self.micro_batch_size,
                                                      self.n_samples_per_prompt)
 
-        start_adv_time = time.time()        
+        start_adv_time = time.time()
         compute_advantage_ref = compute_advantage.options(num_cpus=self.num_cpus_for_local_task).remote(
             self.transfer_dock,
             self.gamma,
@@ -203,11 +214,11 @@ class RayGRPOTrainer(RayBaseTrainer):
         end_adv_time = time.time()
         ray.get(
             self.transfer_dock.update_metrics.remote(
-                "timing/adv", 
+                "timing/adv",
                 value=[round(end_adv_time, 4), round(start_adv_time, 4)],
                 cumulate=True
             )
-        ) 
+        )
         ray.get(
             self.transfer_dock.update_metrics.remote(
                 "end_time/end_adv_time",
@@ -215,12 +226,6 @@ class RayGRPOTrainer(RayBaseTrainer):
                 cumulate=True
             )
         )
-
-    @staticmethod
-    def rule_reward_compute_rm_score(reward_worker, blocking=False):
-        rule_reward_compute_rm_score_ref = reward_worker.compute_rm_score.remote()
-        if blocking:
-            ray.get(rule_reward_compute_rm_score_ref)
 
     def save_checkpoint(self, iteration: int):
         self.actor_worker.save_checkpoint(iteration)

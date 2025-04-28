@@ -93,6 +93,8 @@ class GRPOActorLossFunc(BaseLossFunc):
                 a float number indicating the fraction of policy gradient loss being clipped
 
         """
+        if old_log_prob is None:
+            old_log_prob = log_prob.detach().clone()
         negative_approx_kl = log_prob - old_log_prob
         ratio = torch.exp(negative_approx_kl)
         ppo_kl = F.masked_mean(-negative_approx_kl, eos_mask)

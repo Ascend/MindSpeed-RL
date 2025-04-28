@@ -135,7 +135,7 @@ class ActorHybridWorker(BaseWorker):
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
                 if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
-                    ray.get(self.td.update_metrics.remote(value=metrics))
+                    ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
                             "timing/update", 

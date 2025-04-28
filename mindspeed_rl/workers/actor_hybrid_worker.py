@@ -106,7 +106,7 @@ class ActorHybridWorker(BaseWorker):
         self.empty_cache()
 
     def get_iteration(self):
-        return self.megatron_config.iteration
+        return self.args.iteration
 
     def get_consumed_train_samples(self):
         return self.args.consumed_train_samples
@@ -277,36 +277,9 @@ class ActorHybridWorker(BaseWorker):
 
         self.empty_cache()
 
-    def _get_megatron_optimizer(
-            self,
-            model,
-            no_wd_decay_cond=None,
-            scale_lr_cond=None,
-            lr_mult=1.0
-    ):
-        args = self.args
-        kwargs = {}
-        for f in dataclasses.fields(OptimizerConfig):
-            if hasattr(args, f.name):
-                kwargs[f.name] = getattr(args, f.name)
-        config = OptimizerConfig(**kwargs)
-
-        optimizer = self.get_megatron_optimizer(config, model, no_wd_decay_cond,
-                                                scale_lr_cond, lr_mult)
-        opt_param_scheduler = self.get_optimizer_param_scheduler(optimizer)
-        return optimizer, opt_param_scheduler
-
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(
             self.model_provider, self.model_type.encoder_or_decoder)
-
-        # load checkpoint
-        if self.megatron_config.load is not None or self.megatron_config.pretrained_checkpoint is not None:
-            self.megatron_config.iteration, self.megatron_config.num_floating_point_operations_so_far = self.load_checkpoint(
-                actor_module, optimizer, opt_param_scheduler)
-        else:
-            self.megatron_config.iteration = 0
-            self.megatron_config.num_floating_point_operations_so_far = 0
 
         self.iteration = self.get_iteration()
 

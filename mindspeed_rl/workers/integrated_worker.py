@@ -75,7 +75,10 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         # Add Reference
         self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
-        self.load_checkpoint(self.ref_model, None, None)
+        ref_model_load_path = getattr(
+            self.rl_config.integrated_mode_config, "ref_model_load_path", None
+        ) if self.rl_config.integrated_mode_config is not None else None
+        self.load_checkpoint_with_path(self.ref_model, ref_model_load_path)
         self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
         self.ref_manager.offload_param()
         self.reference = Reference(
@@ -120,8 +123,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         update_mbs = self.update_micro_batch_size
         mbs = self.actor_hybrid.train_actor.micro_batch_size
 
-        from megatron.training import get_args
-        args = get_args()
+        args = self.get_args()
 
         if update_mbs is not None:
             self.actor_hybrid.train_actor.micro_batch_size = update_mbs
@@ -131,3 +133,13 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         args.micro_batch_size = mbs
         self.actor_hybrid.train_actor.micro_batch_size = mbs
+
+    def load_checkpoint_with_path(self, model, path, info=None):
+        if path is None:
+            self.load_checkpoint(model, None, None)
+        else:
+            origin_load_dir = getattr(self.get_args(), "load")
+            setattr(self.get_args(), "load", path)
+            self.load_checkpoint(model, None, None)
+            setattr(self.get_args(), "load", origin_load_dir)
+

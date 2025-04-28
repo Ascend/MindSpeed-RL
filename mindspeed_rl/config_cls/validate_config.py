@@ -24,6 +24,11 @@ def validate_rl_args(
             raise ValueError(
                 f" Reward model is not supported when use_integrated_worker mode is on.")
 
+    else:
+        if rl_config.integrated_mode_config is not None:
+            raise ValueError(
+                f"integrated_mode_config should not be set when use_integrated_worker mode is off.")
+
     # 校验序列长度与模型最大长度
     if generate_config.max_model_len < actor_config.seq_length:
         raise ValueError(

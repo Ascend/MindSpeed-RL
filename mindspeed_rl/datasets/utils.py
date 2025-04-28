@@ -103,7 +103,8 @@ def _build_index_mappings(
         num_samples: int,
         seed,
         full_shuffle_instruction_dataset,
-        parallel_state
+        parallel_state,
+        no_shuffle=False
 ):
     """
     - `shuffle_index` is [num_epoch * len(self.mtf)]
@@ -129,7 +130,12 @@ def _build_index_mappings(
             epoch = 0
             shuffle_idx = []
             while len(shuffle_idx) < num_samples:
-                new_document_ids = _build_shuffle_idx(nb_documents=nb_documents, start_index=start_index, np_rng=np_rng)
+                new_document_ids = _build_shuffle_idx(
+                    nb_documents=nb_documents,
+                    start_index=start_index,
+                    np_rng=np_rng,
+                    no_shuffle=no_shuffle
+                )
                 shuffle_idx.extend(new_document_ids.tolist())
                 epoch += 1
 
@@ -163,10 +169,10 @@ def _build_sequential_idx(nb_documents: int, start_index):
     return result
 
 
-def _build_shuffle_idx(nb_documents: int, start_index, np_rng):
+def _build_shuffle_idx(nb_documents: int, start_index, np_rng, no_shuffle):
     """Build the range [0, dataset_size) and shuffle."""
-
     result = _build_sequential_idx(nb_documents, start_index)
     # in-place shuffling
-    np_rng.shuffle(result)
+    if not no_shuffle:
+        np_rng.shuffle(result)
     return result

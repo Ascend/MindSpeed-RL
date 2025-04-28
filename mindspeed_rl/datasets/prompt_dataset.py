@@ -53,7 +53,8 @@ class PromptDataset(BaseDataset):
                                                        num_samples=self.num_samples,
                                                        seed=seed,
                                                        full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
-                                                       parallel_state=None)
+                                                       parallel_state=None,
+                                                       no_shuffle=True)
             dataset_type = "Prompt_DS_Packed"
         else:
             raise NotImplementedError('non packed data are not supported yet.')

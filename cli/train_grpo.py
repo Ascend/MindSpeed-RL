@@ -132,7 +132,6 @@ def train(config):
         train_valid_test_num_samples=[
             actor_config.train_iters * actor_config.global_batch_size, 0, 0
         ],
-        no_shuffle=actor_config.no_shuffle,
         seed=actor_config.seed,
         dataset_cls=PromptDataset,
         extra_param=actor_config
@@ -142,10 +141,15 @@ def train(config):
     actor_worker.wait_all_ref_objs_run_over()
 
     consumed_train_samples = actor_worker.get_consumed_train_samples()
+
     data_loader = PromptDataLoader(
-        train_ds, consumed_train_samples, actor_config.global_batch_size,
-        actor_config.num_workers, actor_config.seed, actor_config.dataset_additional_keys
+        train_ds, actor_config.global_batch_size,
+        actor_config.num_workers, actor_config.seed, actor_config.dataset_additional_keys,
+        actor_config.no_shuffle
     )
+    data_iters = iter(data_loader)
+    [next(data_iters) for _ in range(consumed_train_samples // actor_config.global_batch_size)]
+
     logger.info('after dataloader is built')
 
     reference_worker.wait_all_ref_objs_run_over()
@@ -166,7 +170,7 @@ def train(config):
         **rl_config.dict()
     )
 
-    trainer.fit(data_loader)
+    trainer.fit(data_iters)
     logger.info("training process successfully!")
 
 

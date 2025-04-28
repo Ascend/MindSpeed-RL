@@ -112,14 +112,12 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.skip_actor_log_prob = (global_batch_size * n_samples_per_prompt == mini_batch_size and epochs == 1)
         self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
-    def fit(self, data_loader: DataLoader):
+    def fit(self, data_iters):
         """
         The utils loop of GRPO
         """
         logger = Loggers('grpo_trainer_hybrid')
         metrics = Metric()
-
-        data_iters = iter(data_loader)
 
         iteration = self.actor_worker.get_iteration()
 

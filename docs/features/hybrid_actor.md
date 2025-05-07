@@ -70,22 +70,22 @@ generate_config:
 def initialize(self):
     # 初始化分布式环境
     self.setup_distributed_rank()
-    
+
     # 初始化训练态模型及卸载器
     self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
-    self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
-    
+    self.actor_offloader = MegatronOffLoader(self.model, self.optimizer)
+
     # 在初始化推理态模型之前，首先卸载训练态的模型，这样才能让推理模型在初始化时正确计算KV Block的数量
     if self.generate_config.offload_train_optimizer:
-        self.megatron_offloader.offload_optimizer()
-    if self.generate_config.offload_train_grad:
-        self.megatron_offloader.offload_grad()
-    if self.generate_config.offload_train_param:
-        self.megatron_offloader.offload_train_param()
+        self.actor_offloader.offload_optimizer()
+    if self.generate_config.offload_grad:
+        self.actor_offloader.offload_grad()
+    if self.generate_config.offload_param:
+        self.actor_offloader.offload_param()
 
     # 初始化推理态模型
     self.inference_model = self._build_rollout()
-    
+
     # 初始化 sharding_manager
     self.sharding_manager = self._build_sharding_manager()
     ...
@@ -221,44 +221,44 @@ def generate_sequences(self):
 # mindspeed_rl/workers/resharding/megatron_sharding_manager.py
 
 class MegatronShardingManager:
-    
+
     def reshard_to_train_mode(self):
         # 卸载推理态相关权重
         self.inference_engine.offload_model_weights()
         self.offload_infer_params()
         torch.cuda.empty_cache()
-        
+
         # 重新加载回训练态所需的内容
         if self.optimizer_offload:
             self.megatron_offloader.onload_optimizer()
         if self.train_param_offload:
-            self.megatron_offloader.onload_train_param()
+            self.megatron_offloader.onload_param()
         if self.grad_offload:
             self.megatron_offloader.onload_grad()
         torch.cuda.empty_cache()
 
     def reshard_to_infer_mode(self):
-        
+
         # 卸载训练态所需的相关参数
         if self.optimizer_offload:
             self.megatron_offloader.offload_optimizer()
         if self.grad_offload:
             self.megatron_offloader.offload_grad()
         torch.cuda.empty_cache()
-        
+
         # 训练态权重要在完成推理权重构建之后才能进行卸载
         # 这里是为了对应初始化后第一次推理时，训练态权重不在显存上的情况
         if self.train_param_offload:
-            self.megatron_offloader.onload_train_param()
-        
+            self.megatron_offloader.onload_param()
+
         # 根据训练态和推理态的切分策略，完成推理态权重的构建
         self.onload_infer_params()
         infer_params = self.vllm_weight_container.get_infer_params()
-        
+
         # 开始推理前，将训练态权重进行卸载
         if self.train_param_offload:
-            self.megatron_offloader.offload_train_param()
-            
+            self.megatron_offloader.offload_param()
+
         # 将推理态权重从 weight_buffer 绑定到推理引擎上
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
         torch.cuda.empty_cache()

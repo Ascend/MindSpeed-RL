@@ -47,7 +47,7 @@
 
 
 ## 公开接口声明
-MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功能均通过shell脚本调用。入口脚本皆放置于cli目录下，分别为  train_grpo.py, train_orm.py，train_sft.py, preprocess_data.py, convert_ckpt.py 和 infer_vllm.py。
+MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功能均通过shell脚本调用。入口脚本皆放置于cli目录下，分别为  train_grpo.py, train_orm.py, preprocess_data.py, convert_ckpt.py 和 infer_vllm.py。
 
 
 ## 公网地址声明

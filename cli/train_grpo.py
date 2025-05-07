@@ -31,6 +31,7 @@ from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 
 cur_file_dir = Path(__file__).absolute().parent.parent
 logger = Loggers("grpo_train")
@@ -45,47 +46,65 @@ def train(config):
 
     logger.info('start async initializing ray actor groups')
 
-    actor_worker = RayActorGroup(
-        worker=ActorHybridWorker,
-        placement_group=None,
-        megatron_config=actor_config,
-        rl_config=rl_config,
-        generate_config=generate_config,
-        model_provider=gpt_model_provider,
-        tokenizer=tokenizer,
-        initialize_func=initialize_megatron,
-        get_megatron_module=get_megatron_module,
-        global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
-    ).initialize()
-
-    reference_worker = RayActorGroup(
-        worker=ReferenceWorker,
-        placement_group=None,
-        megatron_config=ref_config,
-        rl_config=rl_config,
-        model_provider=gpt_model_provider,
-        tokenizer=tokenizer,
-        initialize_func=initialize_megatron,
-        get_megatron_module=get_megatron_module,
-        global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
-    ).initialize()
-
     reward_list = []
 
-    if rl_config.reward_resource:
-        reward_worker = RayActorGroup(
-            worker=RewardWorker,
+    if rl_config.use_integrated_worker:
+        integrated_worker = RayActorGroup(
+            worker=IntegratedWorker,
             placement_group=None,
-            megatron_config=reward_config,
+            megatron_config=actor_config,
             rl_config=rl_config,
-            model_provider=rm_model_provider,
+            generate_config=generate_config,
+            model_provider=gpt_model_provider,
+            tokenizer=tokenizer,
+            initialize_func=initialize_megatron,
+            get_megatron_module=get_megatron_module,
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
+        ).initialize()
+
+        actor_worker = integrated_worker
+        reference_worker = integrated_worker
+
+    else:
+        actor_worker = RayActorGroup(
+            worker=ActorHybridWorker,
+            placement_group=None,
+            megatron_config=actor_config,
+            rl_config=rl_config,
+            generate_config=generate_config,
+            model_provider=gpt_model_provider,
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
             global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 
-        reward_list.append(reward_worker)
+        reference_worker = RayActorGroup(
+            worker=ReferenceWorker,
+            placement_group=None,
+            megatron_config=ref_config,
+            rl_config=rl_config,
+            model_provider=gpt_model_provider,
+            tokenizer=tokenizer,
+            initialize_func=initialize_megatron,
+            get_megatron_module=get_megatron_module,
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+        ).initialize()
+
+        if rl_config.reward_resource:
+            reward_worker = RayActorGroup(
+                worker=RewardWorker,
+                placement_group=None,
+                megatron_config=reward_config,
+                rl_config=rl_config,
+                model_provider=rm_model_provider,
+                tokenizer=tokenizer,
+                initialize_func=initialize_megatron,
+                get_megatron_module=get_megatron_module,
+                global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+            ).initialize()
+
+            reward_list.append(reward_worker)
 
     if rl_config.rule_reward:
         rule_reward = RuleReward.options(num_cpus=rl_config.num_cpus_for_local_task).remote()
@@ -145,11 +164,25 @@ def parse_training_config(config: Dict):
     """
     actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
                                   config.get('model'))
-    ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
-                                config.get('model'))
-    reward_config = MegatronConfig({**config.get("megatron_training"), **config.get("reward_config")},
-                                   config.get('model'))
     rl_config = RLConfig(config.get("rl_config"))
+
+    if rl_config.use_integrated_worker:
+        if "ref_config" in config:
+            raise ValueError(
+                f"ref_config should not be set when use_integrated_worker mode is on.")
+        ref_config = actor_config
+
+        if "reward_config" in config:
+            raise ValueError(
+                f"reward_config should not be set when use_integrated_worker mode is on.")
+        reward_config = actor_config
+
+    else:
+        ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
+                                    config.get('model'))
+
+        reward_config = MegatronConfig({**config.get("megatron_training"), **config.get("reward_config")},
+                                       config.get('model'))
     generate_config = GenerateConfig(config.get("generate_config"))
 
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)

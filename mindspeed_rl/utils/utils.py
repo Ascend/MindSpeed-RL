@@ -222,7 +222,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     metrics["timing/all"] = time_all
 
     sort_metrics = dict(sorted(metrics.items()))
-    custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
+    custom_order = ['timing/all', 'timing/update', 'timing/rollout', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
     special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/rule_reward', 'timing/reward_model']
     keys_to_move = [key for key in sort_metrics.keys() if key in special_keys]
     remaining_keys = []
@@ -239,12 +239,13 @@ def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     actor_resource = compute_kwargs.get('actor_resource', {})
     reference_resource = compute_kwargs.get('reference_resource', {})
     reward_resource = compute_kwargs.get('reward_resource', None)
+    actor_resource_only = compute_kwargs.get('use_integrated_worker', False)
 
     actor_npus = actor_resource.get('num_npus', 0)
     reference_npus = reference_resource.get('num_npus', 0)
     reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
 
-    world_size = actor_npus + reference_npus + reward_npus
+    world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
     tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs * n_samples / world_size / time_all
     return tps
 

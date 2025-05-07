@@ -17,8 +17,7 @@ from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
-@ray.remote(resources={"NPU": 0.3})
-class ReferenceWorker(BaseWorker):
+class ReferenceWorkerBase(BaseWorker):
     """
     ReferenceWorker class. This class implements the worker logic for reference model inference.
 
@@ -82,7 +81,7 @@ class ReferenceWorker(BaseWorker):
     def init_transfer_dock(self, td):
         self.td = td
 
-    def compute_log_prob(self):
+    def compute_ref_log_prob(self):
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.rl_config.experience_count_ref // self.parallel_state.get_data_parallel_world_size()
@@ -126,8 +125,13 @@ class ReferenceWorker(BaseWorker):
             ref_end_time = time.time()
             ray.get(
                     self.td.update_metrics.remote(
-                        "end_time/reference", 
+                        "end_time/reference",
                         value=[round(ref_end_time, 4)]
                     )
             )
         self.empty_cache()
+
+
+@ray.remote(resources={"NPU": 0.3})
+class ReferenceWorker(ReferenceWorkerBase):
+    pass

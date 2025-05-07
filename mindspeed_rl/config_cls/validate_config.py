@@ -1,8 +1,29 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import os
+from mindspeed_rl.config_cls.rl_config import RLConfig
+from mindspeed_rl.config_cls.megatron_config import MegatronConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
 
 
-def validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config):
+def validate_rl_args(
+        actor_config: MegatronConfig,
+        ref_config: MegatronConfig,
+        reward_config: MegatronConfig,
+        rl_config: RLConfig,
+        generate_config: GenerateConfig
+    ):
+
+    # 检查全共卡情况下参数设置
+    if rl_config.use_integrated_worker:
+        if rl_config.reference_resource is not None:
+            raise ValueError(
+                f"reference_resource should not be set when use_integrated_worker mode is on.")
+        rl_config.reference_resource = rl_config.actor_resource
+
+        if rl_config.reward_resource is not None:
+            raise ValueError(
+                f" Reward model is not supported when use_integrated_worker mode is on.")
+
     # 校验序列长度与模型最大长度
     if generate_config.max_model_len < actor_config.seq_length:
         raise ValueError(
@@ -102,10 +123,11 @@ def validate_rl_args(actor_config, ref_config, reward_config, rl_config, generat
                           rl_config.n_samples_per_prompt,
                           "Reference")
 
-    _validate_batch_ratio(reward_config.global_batch_size,
-                          reward_config.micro_batch_size,
-                          rl_config.n_samples_per_prompt,
-                          "Reward")
+    if rl_config.reward_resource:
+        _validate_batch_ratio(reward_config.global_batch_size,
+                              reward_config.micro_batch_size,
+                              rl_config.n_samples_per_prompt,
+                              "Reward")
 
     # 校验经验计数与全局批次关系
     def _validate_experience_ratio(global_batch, experience_count, component):
@@ -122,9 +144,10 @@ def validate_rl_args(actor_config, ref_config, reward_config, rl_config, generat
                                rl_config.experience_count_ref,
                                "Reference")
 
-    _validate_experience_ratio(reward_config.global_batch_size,
-                               rl_config.experience_count_reward,
-                               "Reward")
+    if rl_config.reward_resource:
+        _validate_experience_ratio(reward_config.global_batch_size,
+                                   rl_config.experience_count_reward,
+                                   "Reward")
 
     _validate_experience_ratio(reward_config.global_batch_size,
                                rl_config.experience_count_rule_reward,

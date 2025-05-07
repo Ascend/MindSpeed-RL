@@ -25,8 +25,7 @@ from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
-@ray.remote(resources={"NPU": 0.7})
-class ActorHybridWorker(BaseWorker):
+class ActorHybridWorkerBase(BaseWorker):
     """
     ActorHybridWorker class. This class implements the hybrid worker logic for training and inference.
 
@@ -71,13 +70,13 @@ class ActorHybridWorker(BaseWorker):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
         self._set_no_sync_func()
-        self.megatron_offloader = MegatronOffLoader(self.optimizer, self.model)
+        self.actor_offloader = MegatronOffLoader(self.model, self.optimizer)
         if self.generate_config.offload_train_optimizer:
-            self.megatron_offloader.offload_optimizer()
+            self.actor_offloader.offload_optimizer()
         if self.generate_config.offload_train_grad:
-            self.megatron_offloader.offload_grad()
+            self.actor_offloader.offload_grad()
         if self.generate_config.offload_train_param:
-            self.megatron_offloader.offload_train_param()
+            self.actor_offloader.offload_param()
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
@@ -112,6 +111,8 @@ class ActorHybridWorker(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None):
+        self.sharding_manager.enter_train_mode()
+
         self.args.curr_iteration = self.iteration
 
         experience_consumer_stage = 'actor_train'
@@ -151,17 +152,19 @@ class ActorHybridWorker(BaseWorker):
 
         self.iteration += 1
 
+        self.sharding_manager.exit_train_mode()
+
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
+        self.sharding_manager.enter_infer_mode()
         experience_consumer_stage = 'actor_rollout'
         experience_colums = ['prompts', 'prompt_length']
         experience_count = self.rl_config.experience_count_actor // self.generate_config.data_parallel_size
 
         start_reshard_to_infer = time.time()
-        self.sharding_manager.reshard_to_infer_mode()
         end_reshard_to_infer = time.time()
         ray.get(
                 self.td.update_metrics.remote(
@@ -224,19 +227,22 @@ class ActorHybridWorker(BaseWorker):
                             cumulate=True
                         )
                 )
-        start_reshard_to_train = time.time()
-        self.sharding_manager.reshard_to_train_mode()
-        end_reshard_to_train = time.time()
-        ray.get(
-                self.td.update_metrics.remote(
-                    "timing/resharding_to_train", 
-                    value=[round(end_reshard_to_train, 4), round(start_reshard_to_train, 4)],
-                    cumulate=True
-                )
-        )
-        self.empty_cache()
+        generate_end_time = time.time()
+        parallel_state = get_parallel_state()
+        use_vllm = True
+        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
+            ray.get(
+                    self.td.update_metrics.remote(
+                        "end_time/generate",
+                        value=[round(generate_end_time, 4)],
+                        cumulate=True
+                    )
+            )
+
+        self.sharding_manager.exit_infer_mode()
 
     def compute_log_prob(self):
+        self.sharding_manager.enter_forward_mode()
         experience_consumer_stage = 'actor_log_prob'
         experience_colums = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.rl_config.experience_count_actor // self.parallel_state.get_data_parallel_world_size()
@@ -261,15 +267,15 @@ class ActorHybridWorker(BaseWorker):
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(
-                            "timing/old_log_p", 
-                            value=[round(end_time, 4), round(start_time, 4)], 
+                            "timing/old_log_p",
+                            value=[round(end_time, 4), round(start_time, 4)],
                             cumulate=True
                         )
                 )
                 ray.get(
                         self.td.update_metrics.remote(
-                            "end_time/old_log_p", 
-                            value=[round(end_time, 4)], 
+                            "end_time/old_log_p",
+                            value=[round(end_time, 4)],
                             cumulate=True
                         )
                 )
@@ -331,7 +337,7 @@ class ActorHybridWorker(BaseWorker):
             grad_offload=self.generate_config.offload_train_grad,
             train_param_offload=self.generate_config.offload_train_param,
             enable_validate=self.rl_config.enable_sharding_validate,
-            megatron_offloader=self.megatron_offloader
+            megatron_offloader=self.actor_offloader
         )
         return sharding_manager
 
@@ -343,3 +349,9 @@ class ActorHybridWorker(BaseWorker):
             config.no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
             if len(self.model) == 1:
                 config.no_sync_func = config.no_sync_func[0]
+
+
+
+@ray.remote(resources={"NPU": 0.7})
+class ActorHybridWorker(ActorHybridWorkerBase):
+    pass

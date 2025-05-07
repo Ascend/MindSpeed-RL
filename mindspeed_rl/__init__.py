@@ -11,7 +11,7 @@ from .models import (
     LossFuncFactory, GRPOActorLossFunc, ReferenceLossFunc, RewardLossFunc,
     Actor, ActorRolloutHybrid, Reference, Reward
 )
-from .trainer import SFTTrainer, RayGRPOTrainer
+from .trainer import RayGRPOTrainer
 from .workers import (
     ReferenceWorker, RewardWorker, ActorHybridWorker,
     RayActorGroup, MegatronShardingManager, RuleReward
@@ -27,8 +27,7 @@ __all__ = [
     'InstructionDataset', 'InstructionDataLoader', 'PromptDataset', 'PromptDataLoader',
     'build_train_valid_test_datasets', 'get_train_valid_test_num_samples',
     'LossFuncFactory', 'GRPOActorLossFunc', 'ReferenceLossFunc', 'RewardLossFunc',
-    'Actor', 'ActorRolloutHybrid', 'Reference', 'Reward',
-    'SFTTrainer', 'RayGRPOTrainer',
+    'Actor', 'ActorRolloutHybrid', 'Reference', 'Reward', 'RayGRPOTrainer',
     'get_tokenizer', 'WandbLogger', 'Metric',
     'get_batch_metrices_mean', 'num_floating_point_operations',
     'seed_all', 'synchronize_time', 'parse_args_from_config',

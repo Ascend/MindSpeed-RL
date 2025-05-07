@@ -86,6 +86,7 @@ class RLConfig(BaseConfig):
         self.n_samples_per_prompt = 1
         self.enable_sharding_validate = False
         self.tp_split_expert = False
+        self.update_micro_batch_size = None
 
         self.use_tensorboard = False
         self.use_wandb = False
@@ -94,5 +95,6 @@ class RLConfig(BaseConfig):
         self.wandb_save_dir = ""
         self.blocking = False
         self.num_cpus_for_local_task = 1
+        self.use_integrated_worker = False
 
         self.update(config_dict)

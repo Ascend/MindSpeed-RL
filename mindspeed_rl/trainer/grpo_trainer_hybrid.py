@@ -148,18 +148,18 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # generate sequences
                 self.actor_worker.generate_sequences(blocking=self.blocking)
 
-                # compute reference log_prob
-                self.ref_worker.compute_log_prob(blocking=self.blocking)
-
                 # compute rm scores.
                 for reward_worker in self.reward_list:
                     if isinstance(reward_worker, RayActorGroup):
                         reward_worker.compute_rm_score(blocking=self.blocking)
                     else:
-                        self.rule_reward_compute_rm_score(reward_worker, blocking=self.blocking)
+                        self.rule_reward_compute_rm_score(reward_worker, blocking=False)
 
                 # compute advantages, executed on the driver process
-                self.compute_advantage(blocking=self.blocking)
+                self.compute_advantage(blocking=False)
+
+                # compute reference log_prob
+                self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
 
                 # compute old log_prob
                 self.actor_worker.compute_log_prob(blocking=self.blocking)

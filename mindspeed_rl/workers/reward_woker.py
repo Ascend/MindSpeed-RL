@@ -17,8 +17,7 @@ from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
-@ray.remote(resources={"NPU": 0.1})
-class RewardWorker(BaseWorker):
+class RewardWorkerBase(BaseWorker):
     """
     RewardWorker class. This class implements the worker logic for reward model training and inference.
 
@@ -114,7 +113,7 @@ class RewardWorker(BaseWorker):
                 end_time = time.time()
                 ray.get(
                     self.td.update_metrics.remote(
-                        "timing/reward_model", 
+                        "timing/reward_model",
                         value=[round(end_time, 4), round(start_time, 4)],
                         cumulate=True
                     )
@@ -125,8 +124,13 @@ class RewardWorker(BaseWorker):
             rwd_end_time = time.time()
             ray.get(
                     self.td.update_metrics.remote(
-                        "end_time/reward_model", 
+                        "end_time/reward_model",
                         value=[round(rwd_end_time, 4)]
                     )
             )
         self.empty_cache()
+
+
+@ray.remote(resources={"NPU": 0.1})
+class RewardWorker(RewardWorkerBase):
+    pass

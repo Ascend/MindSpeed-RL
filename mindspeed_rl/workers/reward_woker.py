@@ -128,7 +128,6 @@ class RewardWorkerBase(BaseWorker):
                         value=[round(rwd_end_time, 4)]
                     )
             )
-        self.empty_cache()
 
 
 @ray.remote(resources={"NPU": 0.1})

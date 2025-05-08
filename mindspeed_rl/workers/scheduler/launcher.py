@@ -78,7 +78,7 @@ def get_device_information(num_npus: int) \
             (num_npus + num_devices_per_node - 1) // num_devices_per_node)
 
 
-def construct_placement_groups(num_npus, num_devices_per_node, num_nodes) \
+def construct_placement_groups(num_npus, num_cpus, num_devices_per_node, num_nodes) \
         -> List[PlacementGroup]:
     """
     构造ray placement group
@@ -87,18 +87,15 @@ def construct_placement_groups(num_npus, num_devices_per_node, num_nodes) \
         1 基于节点连续分配资源
         2 共置情形，相同rank索引使用相同placement group索引
         3 STRICT_PACK部署策略，强制一个placement group部署在同一节点上
-        4 默认运行环境CPU有192核，NPU卡数量为8/16，允许NPU:CPU为1:8
     """
     placement_groups = []
-    # default cpu 192 cores, npu 8/16
-    default_cpu_per_npu = 8
     for index in range(num_nodes):
         if (num_npus % num_devices_per_node != 0 and
                 index == num_nodes - 1):
-            bundles = [{"NPU": 1, "CPU": default_cpu_per_npu}
+            bundles = [{"NPU": 1, "CPU": num_cpus}
                        for _ in range(num_npus % num_devices_per_node)]
         else:
-            bundles = [{"NPU": 1, "CPU": default_cpu_per_npu}
+            bundles = [{"NPU": 1, "CPU": num_cpus}
                        for _ in range(num_devices_per_node)]
 
         placement_group = ray.util.placement_group(bundles, strategy="STRICT_PACK")
@@ -180,7 +177,8 @@ class RayActorGroup:
     def get_placement_group(self, placement_group: PlacementGroup = None) -> PlacementGroup:
         if placement_group is not None:
             return placement_group
-        return construct_placement_groups(self.num_npus, self.num_devices_per_node, self.num_nodes)
+        return construct_placement_groups(self.num_npus, self.rl_config.num_cpus_for_placement_group,
+                                          self.num_devices_per_node, self.num_nodes)
 
     def create_actor_handlers(self, param: ActorHandlerParams) \
             -> ray.actor.ActorHandle:

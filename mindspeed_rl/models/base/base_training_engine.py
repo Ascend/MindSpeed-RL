@@ -181,8 +181,6 @@ class BaseTrainingEngine(ABC):
                 for metric in metric_micro_batch:
                     append_to_dict(metrics, metric)  # append the metric from this micro-batch to global metrics.
 
-            # add empty cache after each compute
-            torch.cuda.empty_cache()
         grad_norm = sum(grad_norm_list) / len(grad_norm_list)
         metrics["grad_norm"] = grad_norm_list
         return metrics

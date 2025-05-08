@@ -91,6 +91,7 @@ rl_config:
   verifier_weight: [1.0]
   verifier_parallel: 4
   num_cpus_for_local_task: 1.0
+  num_cpus_for_placement_group: 8
   actor_resource:
     num_npus: 16
   reference_resource:

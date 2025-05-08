@@ -33,7 +33,8 @@ class MemoryBuffer:
         self.numel_padded = numel_padded
         self.dtype = dtype
         # Create a memory buffer with padding for alignment (e.g., 128-bit alignment)
-        self.data = torch.zeros(self.numel_padded, dtype=self.dtype, device='cpu', requires_grad=False)
+        self.data = torch.zeros(self.numel_padded, dtype=self.dtype,
+                                device=torch.cuda.current_device(), requires_grad=False)
         self.tensor_indices = {}  # Stores the mapping of parameter names to their position in the buffer
 
     def zero(self):
@@ -137,7 +138,8 @@ class ModelWeightBuffer:
         self.get_weight_buffer_meta = get_weight_buffer_meta
         self.weight_buffer_meta = self.get_weight_buffer_meta(self.model, weight_names)
         self.weight_names = list(self.weight_buffer_meta.keys())
-        self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)
+        self.memory_buffers = None
+        # self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)
 
     def __getitem__(self, weight_name: str) -> torch.Tensor:
         return self.get_weight_by_name(weight_name)
@@ -157,3 +159,12 @@ class ModelWeightBuffer:
     def onload(self):
         for memory_buffer in self.memory_buffers.values():
             memory_buffer.data = memory_buffer.data.to(torch.cuda.current_device(), non_blocking=False)
+
+    def destroy(self):
+        for memory_buffer in self.memory_buffers.values():
+            memory_buffer = None
+        self.memory_buffers = None
+
+    def rebuild(self):
+        if self.memory_buffers is None:
+            self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)

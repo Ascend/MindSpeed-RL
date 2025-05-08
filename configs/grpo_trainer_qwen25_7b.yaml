@@ -89,6 +89,7 @@ rl_config:
   n_samples_per_prompt: 2
   rule_reward: false
   num_cpus_for_local_task: 1.0
+  num_cpus_for_placement_group: 8
   actor_resource:
     num_npus: 4
   reference_resource:

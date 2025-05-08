@@ -39,12 +39,12 @@ class MegatronOffLoader:
     def offload_grad(self):
         for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_host(buffer.grad_data)
+                self.swap_tensors_to_host(buffer.grad_data, copy_data=False)
 
     def onload_grad(self):
         for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_device(buffer.grad_data)
+                self.swap_tensors_to_device(buffer.grad_data, copy_data=False)
 
     def offload_optimizer(self):
         for param_group in self.optimizer.optimizer.param_groups:
@@ -88,19 +88,21 @@ class MegatronOffLoader:
             for item in self.model:
                 item.to(torch.cuda.current_device())
 
-    def swap_tensors_to_host(self, tensor):
+    def swap_tensors_to_host(self, tensor, copy_data=True):
         if tensor not in self.tensor_to_cpu_states_map:
             self.tensor_to_cpu_states_map[tensor] = torch.empty_like(tensor, device='cpu')
         if tensor.storage().size() != 0:
-            cpu_state = self.tensor_to_cpu_states_map[tensor]
-            cpu_state.copy_(tensor, non_blocking=False)
+            if copy_data:
+                cpu_state = self.tensor_to_cpu_states_map[tensor]
+                cpu_state.copy_(tensor, non_blocking=False)
             tensor.storage().resize_(0)
 
-    def swap_tensors_to_device(self, tensor):
+    def swap_tensors_to_device(self, tensor, copy_data=True):
         if tensor.storage().size() == 0:
             cpu_state = self.tensor_to_cpu_states_map[tensor]
             tensor.storage().resize_(cpu_state.storage().size())
-            tensor.copy_(cpu_state, non_blocking=False)
+            if copy_data:
+                tensor.copy_(cpu_state, non_blocking=False)
 
 
 class MegatronShardingManager:
@@ -170,12 +172,12 @@ class MegatronShardingManager:
     def offload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
-            buffer.offload()
+            buffer.destroy()
 
     def onload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
-            buffer.onload()
+            buffer.rebuild()
 
     def enter_infer_mode(self):
         """
@@ -202,7 +204,6 @@ class MegatronShardingManager:
             self.megatron_offloader.offload_param()
 
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
-        torch.cuda.empty_cache()
 
     def exit_infer_mode(self):
         """
@@ -217,7 +218,6 @@ class MegatronShardingManager:
         """
         self.inference_engine.offload_model_weights()
         self.offload_infer_params()
-        torch.cuda.empty_cache()
 
     def enter_forward_mode(self):
         """
@@ -232,7 +232,6 @@ class MegatronShardingManager:
         """
         if self.train_param_offload:
             self.megatron_offloader.onload_param()
-        torch.cuda.empty_cache()
 
     def enter_train_mode(self):
         """
@@ -250,7 +249,6 @@ class MegatronShardingManager:
             self.megatron_offloader.onload_optimizer()
         if self.grad_offload:
             self.megatron_offloader.onload_grad()
-        torch.cuda.empty_cache()
 
     def exit_train_mode(self):
         """
@@ -268,5 +266,3 @@ class MegatronShardingManager:
             self.megatron_offloader.offload_optimizer()
         if self.grad_offload:
             self.megatron_offloader.offload_grad()
-        torch.cuda.empty_cache()
-

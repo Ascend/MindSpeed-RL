@@ -161,53 +161,6 @@ class MegatronStyleVllmWeightContainer:
             raise ValueError("num_layers % pp_size == 0, please specify num_layer_list")
         return [self._num_hidden_layers // self._pp_size for _ in range(self._pp_size)]
 
-    def _get_weight_names_per_pp(self):
-        end_layer = self.model_config.num_hidden_layers - 1
-
-        def get_weight_names_in_range(layer_range, names: list, layer_name='layers') -> list:
-            """
-            Extract weights in a given range and also include the weights before and after the range as needed.
-            """
-            start, end = layer_range
-            last_layer_index = end_layer
-            names_in_range = []
-
-            # add names before decoder layers
-            if start == 0:
-                for name in names:
-                    if layer_name not in name:
-                        names_in_range.append(name)
-                    else:
-                        break
-
-            for name in names:
-                # Extract layer number from weight
-                match = re.match(r'.*\.layers\.(\d+)', name)
-                if match:
-                    layer_num = int(match.group(1))
-                    if start <= layer_num <= end:
-                        names_in_range.append(name)
-
-            # add names after decode layers
-            if end == last_layer_index:
-                for name in reversed(names):
-                    if layer_name not in name:
-                        names_in_range.append(name)
-                    else:
-                        break
-            return names_in_range
-
-        pp_size = self._pp_size
-        vllm_names = list(dict(self.vllm_model.named_parameters()).keys())
-        num_layers = self.model_config.num_hidden_layers
-        pp_layers_range = []
-        start_layer = 0
-        for layers_in_pp_rank in self._num_layer_list:
-            pp_layers_range.append((start_layer, start_layer + layers_in_pp_rank - 1))
-            start_layer += layers_in_pp_rank
-        weight_names_per_pp = [get_weight_names_in_range(layer_range, vllm_names) for layer_range in pp_layers_range]
-        return weight_names_per_pp
-
     def _unwrap_megatron_model(self, model):
         """
         Remove consecutive 'module.' prefixes from the model based on the state_dict's first key.

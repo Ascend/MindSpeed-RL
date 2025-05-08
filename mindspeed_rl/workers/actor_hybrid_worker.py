@@ -136,7 +136,6 @@ class ActorHybridWorkerBase(BaseWorker):
                 start_time_defined = True
             if batch_data and index:
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
-                self.empty_cache()
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
@@ -176,7 +175,7 @@ class ActorHybridWorkerBase(BaseWorker):
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage) > 0:
+        while self.all_consumed(experience_consumer_stage, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
                 experience_colums,
@@ -279,9 +278,6 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
-
-
-        self.empty_cache()
 
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(

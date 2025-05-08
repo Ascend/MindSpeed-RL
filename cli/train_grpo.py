@@ -224,6 +224,7 @@ def get_megatron_module():
     from megatron.core.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
     from megatron.training.training import setup_model_and_optimizer
     from megatron.core.enums import ModelType
+    from megatron.core.distributed import finalize_model_grads
 
     return {
         'parallel_state': parallel_state,
@@ -241,7 +242,8 @@ def get_megatron_module():
         'vocab_parallel_cross_entropy': vocab_parallel_cross_entropy,
         'setup_model_and_optimizer': setup_model_and_optimizer,
         'model_type': ModelType,
-        'distributed_data_parallel': DistributedDataParallel
+        'distributed_data_parallel': DistributedDataParallel,
+        'finalize_model_grads': finalize_model_grads
     }
 
 

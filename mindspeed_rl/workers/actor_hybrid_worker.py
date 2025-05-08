@@ -159,8 +159,8 @@ class ActorHybridWorkerBase(BaseWorker):
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
-                            "timing/update", 
-                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            "timing/update",
+                            value=[round(time.time(), 4), round(start_time, 4)],
                             cumulate=True
                         )
                     )
@@ -240,7 +240,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(
-                            "timing/rollout", 
+                            "timing/rollout",
                             value=[round(end_time, 4), round(start_time, 4)],
                             cumulate=True
                         )
@@ -367,11 +367,17 @@ class ActorHybridWorkerBase(BaseWorker):
     def _set_no_sync_func(self):
         config = get_attr_wrapped_model(self.model[0], 'config', allow_none=False)
 
-        if isinstance(self.model[0], self.distributed_data_parallel) and config.no_sync_func is None:
-            # Megatron requires no_sync_func properly to correctly trigger DP reduce
+        config.grad_scale_func = self.optimizer.scale_loss
+
+        if isinstance(self.model[0], self.distributed_data_parallel) and self.megatron_config.overlap_grad_reduce:
+            if config.no_sync_func is not None:
+                raise ValueError('When overlap_grad_reduce is True, config.no_sync_func must be None; '
+                    'a custom no_sync_func is not supported when overlapping grad-reduce')
             config.no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
             if len(self.model) == 1:
                 config.no_sync_func = config.no_sync_func[0]
+
+        config.finalize_model_grads_func = self.finalize_model_grads
 
 
 @ray.remote(resources={"NPU": 0.7})

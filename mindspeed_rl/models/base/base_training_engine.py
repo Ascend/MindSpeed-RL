@@ -12,6 +12,7 @@ from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.utils.utils import (
     append_to_dict, generate_mask, generate_position_ids, get_tune_attention_mask
 )
+from mindspeed_rl.utils.compute import get_parallel_state
 
 
 class BaseTrainingEngine(ABC):
@@ -174,7 +175,8 @@ class BaseTrainingEngine(ABC):
                 update_successful, grad_norm, num_zeros_in_grad = self.optimizer.step()
 
                 if update_successful:
-                    increment = self.mini_batch_size_per_dp
+                    data_parallel_world_size = get_parallel_state().get_data_parallel_world_size()
+                    increment = self.mini_batch_size_per_dp * data_parallel_world_size
                     self.opt_param_scheduler.step(increment=increment)
                 grad_norm_list.append(grad_norm) 
 

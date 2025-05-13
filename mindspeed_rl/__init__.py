@@ -3,7 +3,7 @@
 
 from .config_cls import MegatronConfig, GenerateConfig, RLConfig
 from .datasets import (
-    InstructionDataLoader, InstructionDataset, build_train_valid_test_datasets,
+    build_train_valid_test_datasets,
     PromptDataLoader, PromptDataset, get_train_valid_test_num_samples, get_dataset_handler,
     build_dataset
 )
@@ -24,7 +24,7 @@ from .utils import (
 
 __all__ = [
     'MegatronConfig', 'GenerateConfig', 'RLConfig',
-    'InstructionDataset', 'InstructionDataLoader', 'PromptDataset', 'PromptDataLoader',
+    'PromptDataset', 'PromptDataLoader',
     'build_train_valid_test_datasets', 'get_train_valid_test_num_samples',
     'LossFuncFactory', 'GRPOActorLossFunc', 'ReferenceLossFunc', 'RewardLossFunc',
     'Actor', 'ActorRolloutHybrid', 'Reference', 'Reward', 'RayGRPOTrainer',

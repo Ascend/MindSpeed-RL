@@ -29,11 +29,13 @@ class RLConfig(BaseConfig):
     adv_estimator: Method for estimating advantages (e.g., 'group_norm', 'gae') (default: 'group_norm')
     kl_penalty: Type of KL penalty to apply (e.g., 'kl', 'reverse_kl') (default: 'kl')
 
-    experience_count: The batch size of prompts per pipeline stage in each data fetch operation from the TransferDock (TD). (default: 1)
-    experience_count_actor: experience count every forward step for actor (default: same as experience_count_all)
-    experience_count_reward: experience count every forward step for reward (default: same as experience_count_all)
-    experience_count_ref: experience count every forward step for reference (default: same as experience_count_all)
-    experience_count_rule_reward: experience count every forward step for rule reward (default: same as experience_count_all)
+    update_micro_batch_size: micro batch size for actor train
+    actor_rollout_dispatch_size: micro batch size for actor generate
+    actor_logprob_dispatch_size: experience count of origin prompts every forward step for actor
+    ref_dispatch_size: experience count of origin prompts every forward step for reference
+    reward_dispatch_size: experience count of origin prompts every forward step for reward
+    adv_dispatch_size: experience count of origin prompts every forward step for advantages
+    actor_update_dispatch_size: experience count every forward step for update
 
     shuffle_mini_batch: Whether to shuffle minibatch (default: False)
     n_samples_per_prompt: Number of samples per prompt (default: 1)
@@ -57,7 +59,6 @@ class RLConfig(BaseConfig):
         self.actor_resource = None
         self.reference_resource = None
         self.reward_resource = None
-        self.mini_batch_size = 1
         self.num_samples_per_step = 1
         self.max_prompt_length = 512
         self.epochs = 1
@@ -76,18 +77,11 @@ class RLConfig(BaseConfig):
         self.verifier_weight = [1.0, ]
         self.verifier_parallel = 1
         self.verifier_timeout = 30
-
-        self.experience_count = 1
-        self.experience_count_actor = None
-        self.experience_count_reward = None
-        self.experience_count_ref = None
-        self.experience_count_rule_reward = None
+        self.integrated_mode_config = None
 
         self.shuffle_mini_batch = False
-        self.n_samples_per_prompt = 1
         self.enable_sharding_validate = False
         self.tp_split_expert = False
-        self.update_micro_batch_size = None
 
         self.use_tensorboard = False
         self.use_wandb = False
@@ -95,8 +89,20 @@ class RLConfig(BaseConfig):
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
         self.blocking = False
+        self.guarantee_order = False
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8
         self.use_integrated_worker = False
+        self.update_micro_batch_size = None
+
+        self.actor_rollout_dispatch_size = None
+        self.actor_logprob_dispatch_size = None
+        self.ref_dispatch_size = None
+        self.reward_dispatch_size = None
+        self.adv_dispatch_size = None
+        self.actor_update_dispatch_size = None
 
         self.update(config_dict)
+
+        self.n_samples_per_prompt = config_dict.get('n_samples_per_prompt', 1)
+        self.mini_batch_size = config_dict.get('mini_batch_size', 1) * self.n_samples_per_prompt

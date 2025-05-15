@@ -43,7 +43,7 @@ class GenerateConfig(BaseConfig):
         self.tokenizer_name_or_path = "/path/to/tokenizer"
         # 是否信任远程代码，例如用于自定义 tokenizer，默认为 True
         self.trust_remote_code = True
-
+        
         # 推理时的张量并行大小，默认为 8
         self.infer_tensor_parallel_size = 8
 

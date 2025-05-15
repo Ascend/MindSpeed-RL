@@ -5,6 +5,7 @@ import os
 import sys
 
 import time
+import math
 import random
 from typing import Dict, List
 
@@ -13,6 +14,11 @@ import numpy as np
 import torch
 import torch_npu
 from torch import Tensor
+
+
+def get_current_dp_range_indexes(experience_count, assign_batch_size, current_dp_rank=0):
+    all_indexes = list(range(assign_batch_size * current_dp_rank, assign_batch_size * (current_dp_rank + 1)))
+    return [all_indexes[i:i + experience_count] for i in range(0, len(all_indexes), experience_count)]
 
 
 def synchronize_time():
@@ -250,9 +256,29 @@ def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     return tps
 
 
+def compute_vllm_throughput(compute_kwargs, metrics_result, gbs, n_samples, time_rollout):
+    actor_resource = compute_kwargs.get('actor_resource', {})
+    reference_resource = compute_kwargs.get('reference_resource', {})
+    reward_resource = compute_kwargs.get('reward_resource', None)
+    actor_resource_only = compute_kwargs.get('use_integrated_worker', False)
+
+    actor_npus = actor_resource.get('num_npus', 0)
+    reference_npus = reference_resource.get('num_npus', 0)
+    reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
+
+    world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
+    vllm_throughput = metrics_result['response_length/mean'] * gbs * n_samples / world_size / time_rollout
+    return vllm_throughput
+
+
 def seed_all(seed=1234):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['HCCL_DETERMINISTIC'] = str(True)
+    os.environ['LCCL_DETERMINISTIC'] = str(1)
+    os.environ['CLOSE_MATMUL_K_SHIFT'] = str(1)
+    os.environ['ATB_MATMUL_SHUFFLE_K_ENABLE'] = "0"
+    os.environ['ATB_LLM_LCOC_ENABLE'] = "0"
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True)
@@ -276,6 +302,10 @@ def parse_args_from_config(config):
             continue
         else:
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
+
+
+def get_least_common_multiple(num_1: int, num_2: int):
+    return abs(num_1 * num_2) // math.gcd(num_1, num_2)
 
 
 def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False):

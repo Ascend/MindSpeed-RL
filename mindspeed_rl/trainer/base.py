@@ -32,11 +32,12 @@ class RayBaseTrainer(object):
                  kl_target: float = 100.0,
                  init_kl_coef: float = 0.001,
                  global_batch_size: int = 32,
-                 experience_count: int = 1,
+                 micro_batch_size: int = 1,
                  n_samples_per_prompt: int = 1,
                  tokenizer: BaseTokenizer = None,
                  dataset_additional_keys: List[str] = None,
                  blocking: bool = False,
+                 guarantee_order: bool = False,
                  num_cpus_for_local_task: float = 0.1,
                  **kwargs):
 
@@ -55,11 +56,12 @@ class RayBaseTrainer(object):
         self.kl_target = kl_target
         self.init_kl_coef = init_kl_coef
         self.global_batch_size = global_batch_size
-        self.experience_count = experience_count
+        self.micro_batch_size = micro_batch_size
         self.n_samples_per_prompt = n_samples_per_prompt
         self.tokenizer = tokenizer
         self.dataset_additional_keys = dataset_additional_keys
         self.blocking = blocking
+        self.guarantee_order = guarantee_order
         self.num_cpus_for_local_task = num_cpus_for_local_task
         self.kwargs = kwargs
 

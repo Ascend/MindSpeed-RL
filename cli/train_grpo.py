@@ -20,7 +20,7 @@ from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
-from mindspeed_rl.config_cls.megatron_config import MegatronConfig
+from mindspeed_rl.config_cls.megatron_config import MegatronConfig, update_micro_batch_size
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
@@ -59,7 +59,7 @@ def train(config):
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
-            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 
         actor_worker = integrated_worker
@@ -145,6 +145,7 @@ def train(config):
         reward_list,
         tokenizer=tokenizer,
         global_batch_size=actor_config.global_batch_size,
+        micro_batch_size=rl_config.adv_dispatch_size,
         train_iters=actor_config.train_iters,
         save_interval=actor_config.save_interval,
         dataset_additional_keys=actor_config.dataset_additional_keys,
@@ -186,6 +187,11 @@ def parse_training_config(config: Dict):
     generate_config = GenerateConfig(config.get("generate_config"))
 
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
+    if rl_config.use_integrated_worker:
+        update_micro_batch_size(actor_config, n_samples_per_prompt=rl_config.n_samples_per_prompt)
+    else:
+        update_micro_batch_size(actor_config, ref_config, reward_config,
+                                n_samples_per_prompt=rl_config.n_samples_per_prompt)
 
     return actor_config, ref_config, reward_config, rl_config, generate_config
 
@@ -205,6 +211,7 @@ def get_megatron_module():
     from megatron.core.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
     from megatron.training.training import setup_model_and_optimizer
     from megatron.core.enums import ModelType
+    from megatron.core.distributed import finalize_model_grads
 
     return {
         'parallel_state': parallel_state,
@@ -222,7 +229,8 @@ def get_megatron_module():
         'vocab_parallel_cross_entropy': vocab_parallel_cross_entropy,
         'setup_model_and_optimizer': setup_model_and_optimizer,
         'model_type': ModelType,
-        'distributed_data_parallel': DistributedDataParallel
+        'distributed_data_parallel': DistributedDataParallel,
+        'finalize_model_grads': finalize_model_grads
     }
 
 

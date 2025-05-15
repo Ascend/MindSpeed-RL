@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 
 
-def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int) -> List[
+def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int, to_list: bool = False) -> List[
     torch.Tensor]:
     output = []
     for i in range(responses.shape[0]):
@@ -21,6 +21,8 @@ def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int,
             response = response[:first_pad_index + 1]
         else:
             response = response[:first_pad_index]
+        if to_list:
+            response = response[:-1].cpu().numpy().tolist()
         output.append(response)
     return output
 

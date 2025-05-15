@@ -10,6 +10,7 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reference import Reference
+from mindspeed_rl.utils.utils import get_least_common_multiple
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
@@ -84,13 +85,20 @@ class ReferenceWorkerBase(BaseWorker):
     def compute_ref_log_prob(self):
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
-        experience_count = self.rl_config.experience_count_ref // self.parallel_state.get_data_parallel_world_size()
+        experience_count = self.rl_config.ref_dispatch_size
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while self.all_consumed(experience_consumer_stage) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
-                                                                  experience_count, self.rl_config.n_samples_per_prompt,
-                                                                  tp_size=self.megatron_config.tensor_model_parallel_size)
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 get_n_samples=False)
+            
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -110,7 +118,7 @@ class ReferenceWorkerBase(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'ref_log_prob': log_probs}
-                    self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                    self.collect_transfer_dock_data(output, index)
                     end_time = time.time()
                     ray.get(
                         self.td.update_metrics.remote(
@@ -129,6 +137,9 @@ class ReferenceWorkerBase(BaseWorker):
                         value=[round(ref_end_time, 4)]
                     )
             )
+
+        print('finish calc log prob')
+
         self.empty_cache()
 
 

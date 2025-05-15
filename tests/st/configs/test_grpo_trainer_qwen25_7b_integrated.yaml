@@ -53,9 +53,9 @@ actor_config:
   no_load_rng: true
 
 rl_config:
+  update_micro_batch_size: 1
   use_integrated_worker: true
   blocking: true
-  update_micro_batch_size: 2
   experience_count: 4
   gamma: 1.0
   lam: 0.95
@@ -63,8 +63,8 @@ rl_config:
   kl_penalty: kl
   kl_ctrl_type: fixed
   init_kl_coef: 0.0001
-  mini_batch_size: 256
-  max_prompt_length: 2048
+  mini_batch_size: 64
+  max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
   entropy_coeff: 0.001
@@ -79,6 +79,7 @@ rl_config:
     num_npus: 8
 
 generate_config:
+  gen_micro_batch_size: 16
   trust_remote_code: true
   offload_train_optimizer: true
   offload_train_grad: true

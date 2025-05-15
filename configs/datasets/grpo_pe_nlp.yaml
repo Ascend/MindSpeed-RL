@@ -7,3 +7,4 @@ workers: 8
 log_interval: 1000
 prompt_type: qwen
 map_keys: {"prompt":"problem", "query":"", "response": "answer", "system":""}
+dataset_additional_keys: ["labels",]

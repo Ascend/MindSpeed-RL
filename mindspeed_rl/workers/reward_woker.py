@@ -11,6 +11,7 @@ from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reward import Reward
 from mindspeed_rl.trainer.utils.compute_utils import get_last_reward
+from mindspeed_rl.utils.utils import get_least_common_multiple
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.utils.compute import get_parallel_state
@@ -81,13 +82,27 @@ class RewardWorkerBase(BaseWorker):
         experience_consumer_stage = 'reward_scores'
         experience_columns = ['input_ids', 'prompt_length', "responses", "response_length",
                               *self.megatron_config.dataset_additional_keys]
-        experience_count = self.rl_config.experience_count_reward // self.parallel_state.get_data_parallel_world_size()
+
+        if self.rl_config.use_integrated_worker:
+            experience_count = (
+                    self.megatron_config.global_batch_size //
+                    self.parallel_state.get_data_parallel_world_size()
+            )
+        else:
+            experience_count = self.rl_config.reward_dispatch_size
+
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
 
         start_time_defined = False
-        while not ray.get(self.td.all_consumed.remote(experience_consumer_stage)):
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage, experience_columns,
-                                                                 experience_count, self.rl_config.n_samples_per_prompt,
-                                                                 tp_size=self.megatron_config.tensor_model_parallel_size)
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 )
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -109,7 +124,7 @@ class RewardWorkerBase(BaseWorker):
                         n_sample_batch=self.rl_config.n_samples_per_prompt
                     )
                     output = {'rm_scores': rm_score, 'token_level_rewards': last_rewards}
-                self.collect_transfer_dock_data(output, index, self.rl_config.n_samples_per_prompt)
+                self.collect_transfer_dock_data(output, index)
                 end_time = time.time()
                 ray.get(
                     self.td.update_metrics.remote(

@@ -21,8 +21,6 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.utils.utils import num_floating_point_operations, get_least_common_multiple, get_attr_wrapped_model
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
-from mindspeed_rl.utils.compute import get_parallel_state
-from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 
 
 class ActorHybridWorkerBase(BaseWorker):
@@ -111,7 +109,11 @@ class ActorHybridWorkerBase(BaseWorker):
         return self.args.consumed_train_samples
 
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
+        if skip_actor_log_prob:
+            self.sharding_manager.enter_forward_mode()
+        start_sharding_enter_train = time.time()
         self.sharding_manager.enter_train_mode()
+        sharding_train_interval = time.time() - start_sharding_enter_train
 
         self.args.curr_iteration = self.iteration
 
@@ -153,6 +155,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 start_time_defined = True
             if batch_data and index:
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
+
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
@@ -160,24 +163,36 @@ class ActorHybridWorkerBase(BaseWorker):
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
-                            "timing/update", 
-                            value=[round(time.time(), 4), round(start_time, 4)], 
+                            "timing/update",
+                            value=[round(time.time(), 4), round(start_time, 4)],
                             cumulate=True
                         )
                     )
 
         self.iteration += 1
-
+        start_sharding_exit_train = time.time()
         self.sharding_manager.exit_train_mode()
+        sharding_train_interval += (time.time() - start_sharding_exit_train)
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_train",
+                value=[sharding_train_interval],
+                cumulate=True
+            )
+        )
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
 
     def generate_sequences(self):
+        start_sharding_enter_infer = time.time()
         self.sharding_manager.enter_infer_mode()
+        sharding_infer_interval = time.time() - start_sharding_enter_infer
+
         experience_consumer_stage = 'actor_rollout'
         experience_columns = ['prompts', 'prompt_length']
+
         experience_count = self.rl_config.actor_rollout_dispatch_size
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
@@ -229,28 +244,26 @@ class ActorHybridWorkerBase(BaseWorker):
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(
-                            "timing/rollout", 
+                            "timing/rollout",
                             value=[round(end_time, 4), round(start_time, 4)],
                             cumulate=True
                         )
                 )
 
-        generate_end_time = time.time()
-        parallel_state = get_parallel_state()
-        use_vllm = True
-        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
-            ray.get(
-                    self.td.update_metrics.remote(
-                        "end_time/generate",
-                        value=[round(generate_end_time, 4)],
-                        cumulate=True
-                    )
-            )
-
+        start_sharding_exit_infer = time.time()
         self.sharding_manager.exit_infer_mode()
+        sharding_infer_interval += (time.time() - start_sharding_exit_infer)
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[sharding_infer_interval],
+                cumulate=True
+            )
+        )
 
     def compute_log_prob(self):
         self.sharding_manager.enter_forward_mode()
+
         experience_consumer_stage = 'actor_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         experience_count = self.rl_config.actor_logprob_dispatch_size
@@ -355,12 +368,17 @@ class ActorHybridWorkerBase(BaseWorker):
     def _set_no_sync_func(self):
         config = get_attr_wrapped_model(self.model[0], 'config', allow_none=False)
 
-        if isinstance(self.model[0], self.distributed_data_parallel) and config.no_sync_func is None:
-            # Megatron requires no_sync_func properly to correctly trigger DP reduce
+        config.grad_scale_func = self.optimizer.scale_loss
+
+        if isinstance(self.model[0], self.distributed_data_parallel) and self.megatron_config.overlap_grad_reduce:
+            if config.no_sync_func is not None:
+                raise ValueError('When overlap_grad_reduce is True, config.no_sync_func must be None; '
+                    'a custom no_sync_func is not supported when overlapping grad-reduce')
             config.no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
             if len(self.model) == 1:
                 config.no_sync_func = config.no_sync_func[0]
 
+        config.finalize_model_grads_func = self.finalize_model_grads
 
 
 @ray.remote(resources={"NPU": 0.7})

@@ -3,6 +3,7 @@
 import dataclasses
 from typing import Callable
 
+import time
 import ray
 import torch
 
@@ -66,7 +67,6 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.ref_model = None
         self.ref_manager = None
 
-
     def initialize(self):
 
         # Based on Actor
@@ -74,7 +74,10 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         # Add Reference
         self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
-        self.load_checkpoint(self.ref_model, None, None)
+        ref_model_load_path = getattr(
+            self.rl_config.integrated_mode_config, "ref_model_load_path", None
+        ) if self.rl_config.integrated_mode_config is not None else None
+        self.load_checkpoint_with_path(self.ref_model, ref_model_load_path, ckpt_only=True)
         self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
         self.ref_manager.offload_param()
         self.reference = Reference(
@@ -90,17 +93,36 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         )
 
     def compute_ref_log_prob(self):
+        start_onload_time = time.time()
         self.ref_manager.onload_param()
+        end_onload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/onload",
+                value=[round(end_onload_time, 4), round(start_onload_time, 4)],
+                cumulate=True
+            )
+        )
+
         ReferenceWorkerBase.compute_ref_log_prob(self)
+
+        start_offload_time = time.time()
         self.ref_manager.offload_param()
+        end_offload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/offload",
+                value=[round(end_offload_time, 4), round(start_offload_time, 4)],
+                cumulate=True
+            )
+        )
 
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
         # set update mbs
         update_mbs = self.update_micro_batch_size
         mbs = self.actor_hybrid.train_actor.micro_batch_size
 
-        from megatron.training import get_args
-        args = get_args()
+        args = self.get_args()
 
         if update_mbs is not None:
             self.actor_hybrid.train_actor.micro_batch_size = update_mbs
@@ -110,3 +132,47 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         args.micro_batch_size = mbs
         self.actor_hybrid.train_actor.micro_batch_size = mbs
+
+    def load_checkpoint_with_path(self, model, path, ckpt_only=False):
+        """Load model checkpoint from a specified path with flexible control.
+
+        Args:
+            model: The model to load checkpoint into.
+            path: Path to the checkpoint file/directory. If None, use the path in megatron args.
+            ckpt_only: If True, only loads model weights (skips optimizer/RNG states).
+        """
+
+        # Backup original arguments if needed
+        original_args = {
+            'no_load_optim': getattr(self.get_args(), "no_load_optim", None),
+            'no_load_rng': getattr(self.get_args(), "no_load_rng", None),
+            'load': getattr(self.get_args(), "load", None),
+            'iteration': getattr(self.get_args(), "iteration", None),
+            'finetune': getattr(self.get_args(), "finetune", None),
+            'consumed_train_samples': getattr(self.get_args(), "consumed_train_samples", None),
+            'consumed_valid_samples': getattr(self.get_args(), "consumed_valid_samples", None),
+        } if ckpt_only or path else {}
+
+        if ckpt_only:
+            self._set_args({
+                "no_load_optim": True,
+                "no_load_rng": True,
+                "finetune": True,
+                'consumed_train_samples': 0,
+                'consumed_valid_samples': 0
+            })
+
+        if path is not None:
+            self._set_args({"load": path})
+
+        self.load_checkpoint(model, None, None)
+
+        if original_args:
+            self._set_args(original_args)
+
+    def _set_args(self, arg_dict):
+        for key, value in arg_dict.items():
+            if hasattr(self.get_args(), key):
+                setattr(self.get_args(), key, value)
+
+

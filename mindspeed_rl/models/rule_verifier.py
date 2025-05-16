@@ -4,7 +4,6 @@ import multiprocessing as mp
 from multiprocessing import Process, Queue
 
 import torch
-from transformers import AutoTokenizer
 
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
@@ -71,9 +70,8 @@ def _validate_response_structure(processed_str: str) -> bool:
     return validation_passed
 
 
-def compute_verifier_score(batch, megatron_config, rl_config, ignore_token=-100):
+def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_token=-100):
     start_time = time.time()
-    tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path, trust_remote_code=True)
     question = batch["prompts"]
     indexes = [i for i in range(0, question.size(0), rl_config.n_samples_per_prompt)]
     question = question[indexes]

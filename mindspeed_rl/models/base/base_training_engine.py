@@ -175,8 +175,7 @@ class BaseTrainingEngine(ABC):
                 update_successful, grad_norm, num_zeros_in_grad = self.optimizer.step()
 
                 if update_successful:
-                    data_parallel_world_size = get_parallel_state().get_data_parallel_world_size()
-                    increment = self.mini_batch_size_per_dp * data_parallel_world_size
+                    increment = self.mini_batch_size_per_dp
                     self.opt_param_scheduler.step(increment=increment)
                 grad_norm_list.append(grad_norm) 
 

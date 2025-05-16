@@ -53,7 +53,6 @@ actor_config:
   no_load_rng: true
 
 rl_config:
-  update_micro_batch_size: 1
   use_integrated_worker: true
   blocking: true
   experience_count: 4
@@ -75,6 +74,11 @@ rl_config:
   verifier_parallel: 4
   verifier_timeout: 120
   use_tensorboard: true
+  actor_micro_batch_size: 1
+  ref_micro_batch_size: 1
+  rew_micro_batch_size: 1
+  adv_micro_batch_size: 1
+  update_micro_batch_size: 1
   actor_resource:
     num_npus: 8
 

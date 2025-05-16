@@ -46,7 +46,6 @@ actor_config:
   adam_beta1: 0.9
   adam_beta2: 0.95
   initial_loss_scale: 4096
-  finetune: false
   load: ./ckpt
   save: ./ckpt
   no_load_optim: true
@@ -55,13 +54,14 @@ actor_config:
 rl_config:
   use_integrated_worker: true
   blocking: true
+  update_micro_batch_size: 2
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
   init_kl_coef: 0.0001
-  mini_batch_size: 32
+  mini_batch_size: 256
   max_prompt_length: 2048
   epochs: 1
   clip_ratio: 0.2

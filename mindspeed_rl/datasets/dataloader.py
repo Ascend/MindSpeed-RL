@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from typing import Sequence, Dict, Any
 
 import torch
+from torch.utils.data import RandomSampler, SequentialSampler
 
-from .data_samplers import PromptSampler
+from .data_samplers import PretrainingSampler
 
 
 class PromptDataLoader(torch.utils.data.DataLoader):
@@ -22,18 +23,11 @@ class PromptDataLoader(torch.utils.data.DataLoader):
     """
     def __init__(self,
                  dataset,
-                 consumed_samples,
                  global_batch_size,
                  num_workers,
                  seed,
-                 dataset_additional_keys):
-
-
-        batch_sampler = PromptSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            batch_size=global_batch_size)
-
+                 dataset_additional_keys,
+                 no_shuffle):
         def collator(features, return_tensors=None):
             features_dict = {}
 
@@ -44,10 +38,18 @@ class PromptDataLoader(torch.utils.data.DataLoader):
 
             return features_dict
 
+        if not no_shuffle:
+            train_dataloader_generator = torch.Generator()
+            train_dataloader_generator.manual_seed(seed)
+            sampler = RandomSampler(data_source=dataset, generator=train_dataloader_generator)
+        else:
+            sampler = SequentialSampler(data_source=dataset)
+
         super().__init__(dataset,
-                        batch_sampler=batch_sampler,
                         num_workers=num_workers,
                         generator=torch.Generator().manual_seed(seed),
                         collate_fn=collator,
-                        pin_memory=True
-                         )
+                        pin_memory=True,
+                        sampler=sampler,
+                        batch_size=global_batch_size,
+                        drop_last=True)

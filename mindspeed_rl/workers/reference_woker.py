@@ -2,6 +2,7 @@
 
 import time
 from typing import Callable
+import logging as logger
 
 import ray
 import torch
@@ -137,9 +138,7 @@ class ReferenceWorkerBase(BaseWorker):
                         value=[round(ref_end_time, 4)]
                     )
             )
-
-        print('finish calc log prob')
-
+        logger.info("finish compute ref log prob")
         self.empty_cache()
 
 

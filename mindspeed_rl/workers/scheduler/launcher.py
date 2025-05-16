@@ -278,10 +278,10 @@ class RayActorGroup:
         if blocking:
             ray.get(self.temp_actor_ref_objs)
 
-    def update(self, kl_ctrl):
+    def update(self, kl_ctrl, skip_actor_log_prob):
         actor_train_objs = []
         for actor in self.actor_handlers:
-            actor_train_objs.append(actor.update.remote(kl_ctrl))
+            actor_train_objs.append(actor.update.remote(kl_ctrl, skip_actor_log_prob))
         return ray.get(actor_train_objs)
 
     def save_checkpoint(self, iteration):

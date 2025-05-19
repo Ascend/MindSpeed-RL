@@ -360,11 +360,3 @@ class MegatronConfig(BaseConfig):
         self.swap_attention = False
 
         self.update(training_config, model_config)
-
-
-def update_micro_batch_size(
-    *configs,
-    n_samples_per_prompt: int
-):
-    for config in configs:
-        config.micro_batch_size *= n_samples_per_prompt

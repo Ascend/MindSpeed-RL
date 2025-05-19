@@ -19,7 +19,7 @@ from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations, get_least_common_multiple, get_attr_wrapped_model
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 

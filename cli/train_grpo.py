@@ -21,7 +21,7 @@ from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
-from mindspeed_rl.config_cls.megatron_config import MegatronConfig, update_micro_batch_size
+from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
@@ -205,11 +205,6 @@ def parse_training_config(config: Dict):
     generate_config = GenerateConfig(config.get("generate_config"))
 
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
-    if rl_config.use_integrated_worker:
-        update_micro_batch_size(actor_config, n_samples_per_prompt=rl_config.n_samples_per_prompt)
-    else:
-        update_micro_batch_size(actor_config, ref_config, reward_config,
-                                n_samples_per_prompt=rl_config.n_samples_per_prompt)
 
     return actor_config, ref_config, reward_config, rl_config, generate_config
 

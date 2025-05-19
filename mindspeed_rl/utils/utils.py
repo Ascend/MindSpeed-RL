@@ -311,10 +311,6 @@ def parse_args_from_config(config):
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
 
 
-def get_least_common_multiple(num_1: int, num_2: int):
-    return abs(num_1 * num_2) // math.gcd(num_1, num_2)
-
-
 def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False):
     if isinstance(model, list):
         raise RuntimeError("_get_attr_wrapped_model given a list of models")

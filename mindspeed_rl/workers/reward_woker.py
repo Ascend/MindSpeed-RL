@@ -11,7 +11,6 @@ from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reward import Reward
 from mindspeed_rl.trainer.utils.compute_utils import get_last_reward
-from mindspeed_rl.utils.utils import get_least_common_multiple
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.utils.compute import get_parallel_state

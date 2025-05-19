@@ -14,6 +14,7 @@ class GRPOActorLossFunc(BaseLossFunc):
     def __init__(self):
         super().__init__()
         self.clip_ratio = 0.2
+        self.entropy_coeff = 0.0
 
     def add_loss_meta_info(self, meta_info: Dict):
         if meta_info is None:
@@ -22,6 +23,8 @@ class GRPOActorLossFunc(BaseLossFunc):
             self.clip_ratio = float(meta_info["clip_ratio"])
         if "kl_ctrl" in meta_info.keys():
             self.kl_ctrl = meta_info["kl_ctrl"]
+        if "entropy_coeff" in meta_info.keys():
+            self.entropy_coeff = meta_info["entropy_coeff"]
 
     @staticmethod
     def _get_policy_loss_input(batch: Dict[str, torch.Tensor]):
@@ -44,30 +47,34 @@ class GRPOActorLossFunc(BaseLossFunc):
         :return: 损失值和统计信息。
         """
         # compute log probs
-        log_probs = super().compute_log_probs(output=output, batch=batch)
         if forward_only:
+            log_probs = super().compute_log_probs(output=output, batch=batch)
             return log_probs
+        log_probs, entropy = super().compute_log_probs(output=output, batch=batch, update=True)
 
         response_mask, old_log_prob, advantages, ref_log_prob = self._get_policy_loss_input(batch=batch)
         # compute policy loss
-        pg_loss, pg_clipfrac, ppo_kl, kl_loss = self._compute_grpo_policy_loss(old_log_prob=old_log_prob,
+        pg_loss, pg_clipfrac, ppo_kl, kl_loss, entropy_loss = self._compute_grpo_policy_loss(old_log_prob=old_log_prob,
                                                                       log_prob=log_probs,
                                                                       ref_log_prob=ref_log_prob,
                                                                       advantages=advantages,
+                                                                      entropy=entropy,
                                                                       eos_mask=response_mask,
                                                                       cliprange=self.clip_ratio,
-                                                                      kl_ctrl=self.kl_ctrl)
+                                                                      kl_ctrl=self.kl_ctrl,
+                                                                      entropy_coeff=self.entropy_coeff)
         policy_loss = pg_loss
         stats = {
             'actor/pg_loss': abs(pg_loss.detach().item()),
             'actor/pg_clipfrac': pg_clipfrac.detach().item(),
             'actor/ppo_kl': ppo_kl.detach().item(),
-            'actor/kl_loss': kl_loss.detach().item()
+            'actor/kl_loss': kl_loss.detach().item(),
+            'actor/entropy': entropy_loss.detach().item()
         }
         return policy_loss, stats
 
     @staticmethod
-    def _compute_grpo_policy_loss(old_log_prob, log_prob, ref_log_prob, advantages, eos_mask, cliprange, kl_ctrl):
+    def _compute_grpo_policy_loss(old_log_prob, log_prob, ref_log_prob, advantages, entropy, eos_mask, cliprange, kl_ctrl, entropy_coeff):
         """
         Args:
             old_log_prob: `(torch.Tensor)`
@@ -99,6 +106,8 @@ class GRPOActorLossFunc(BaseLossFunc):
         ratio = torch.exp(negative_approx_kl)
         ppo_kl = F.masked_mean(-negative_approx_kl, eos_mask)
 
+        entropy_loss = F.masked_mean(entropy, eos_mask)
+
         pg_losses = -advantages * ratio
         pg_losses2 = -advantages * torch.clamp(ratio, 1.0 - cliprange, 1.0 + cliprange)
 
@@ -110,5 +119,5 @@ class GRPOActorLossFunc(BaseLossFunc):
         kl_losses = ratio_kl - ref_approx_kl - 1
         kl_mean_loss = F.masked_mean(kl_losses, eos_mask)
         kl_loss = kl_mean_loss * kl_ctrl.value
-        pg_loss = pg_mean_loss + kl_mean_loss * kl_ctrl.value
-        return pg_loss, pg_mean_clipfrac, ppo_kl, kl_loss
+        pg_loss = pg_mean_loss + kl_mean_loss * kl_ctrl.value - entropy_coeff * entropy_loss
+        return pg_loss, pg_mean_clipfrac, ppo_kl, kl_mean_loss, entropy_loss

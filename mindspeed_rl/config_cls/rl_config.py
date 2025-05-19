@@ -63,7 +63,7 @@ class RLConfig(BaseConfig):
         self.max_prompt_length = 512
         self.epochs = 1
         self.clip_ratio = 0.2
-        self.entropy_coeff = 0.001
+        self.entropy_coeff = 0.0
         self.gamma = 1.0
         self.lam = 0.95
         self.advantage_whiten = True

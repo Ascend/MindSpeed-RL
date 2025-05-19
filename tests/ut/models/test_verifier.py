@@ -1,5 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
-from mindspeed_rl.models.rule_verifier import math_equal_subprocess, format_reward, strict_format_reward, reasoning_steps_reward
+from mindspeed_rl.models.rule_verifier import format_reward, strict_format_reward, reasoning_steps_reward, base_model_accuracy_reward, accuracy_reward
 from tests.test_tools.dist_test import DistributedTest
 
 
@@ -17,10 +17,10 @@ class TestVerifier(DistributedTest):
         17 \\times 2 = 34\\]\n\nTherefore, the product of \\(x\\) and \\(y\\) is \\(\\boxed{34}\\).</answer>"""]
 
         label = ['34']
-        model_output = ['34']
 
-        assert math_equal_subprocess(model_output[0], label[0]), "math_equal_subprocess failed"
-        assert format_reward(None, text) == [1.0], "format_reward failed"
-        assert strict_format_reward(None, text) == [1.0], "strict_format_verifier failed"
-        assert reasoning_steps_reward(None, text) == [1.0], "strict_format_verifier failed"
+        assert format_reward(text) == [1.0], "format_reward failed"
+        assert strict_format_reward(text) == [1.0], "strict_format_verifier failed"
+        assert reasoning_steps_reward(text) == [1.0], "reasoning step failed"
+        assert base_model_accuracy_reward(text, label) == [1.0], "base acc failed"
+        assert accuracy_reward(text, label) == [1.0], "acc failed"
 

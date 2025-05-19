@@ -60,6 +60,8 @@ class Actor(BaseTrainingEngine):
             meta_info["beta"] = self.beta
         if self.kl_ctrl is not None:
             meta_info["kl_ctrl"] = self.kl_ctrl
+        if self.entropy_coeff is not None:
+            meta_info["entropy_coeff"] = self.entropy_coeff
         return meta_info
 
     def post_process_forward_backward_output(self, output: torch.Tensor,

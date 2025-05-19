@@ -27,10 +27,11 @@ class TestGRPOActorLossFunc(DistributedTest):
         batch = {'responses': torch.randn(10, 5), 'attention_mask': torch.randn(10, 5).zero_(),
                  'prompt_length': torch.randn(10, 5), 'response_length': torch.randn(10, 5)}
         log_probs = torch.randn(10, 5)
+        entropy = torch.randn(10, 5)
         response_mask, old_log_prob, advantages, ref_log_prob = torch.randn(10, 5), \
             torch.randn(10, 5), torch.randn(10, 5), torch.randn(10, 5)
         grpo_loss_func = GRPOActorLossFunc()
-        with patch.object(BaseLossFunc, "compute_log_probs", return_value=log_probs):
+        with patch.object(BaseLossFunc, "compute_log_probs", return_value=(log_probs, entropy)):
             with patch.object(GRPOActorLossFunc, "_get_policy_loss_input", return_value=(response_mask, old_log_prob, advantages, ref_log_prob)):
                 kl_ctrl_value = 0.1
                 meta_info = {'clip_ratio': 0.2,
@@ -40,5 +41,5 @@ class TestGRPOActorLossFunc(DistributedTest):
                 assert grpo_loss_func.kl_ctrl() == kl_ctrl_value
                 result = grpo_loss_func.compute_loss(output, batch, forward_only=False)
                 assert result[0] is not None
-                grpo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch)
+                grpo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch, update=True)
                 grpo_loss_func._get_policy_loss_input.assert_called_once_with(batch=batch)

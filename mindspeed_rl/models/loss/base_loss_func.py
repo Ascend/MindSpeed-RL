@@ -5,7 +5,7 @@ from typing import Dict, Tuple
 
 import torch
 
-from mindspeed_rl.utils.compute import compute_log_probs
+from mindspeed_rl.utils.compute import compute_log_probs, vocab_parallel_entropy
 from mindspeed_rl.utils.pad_process import truncate_middle_and_pad
 
 
@@ -42,7 +42,11 @@ class BaseLossFunc(ABC):
         logits = truncate_middle_and_pad(responses, output, truncate_lengths)
         return responses, logits
 
-    def compute_log_probs(self, output: torch.Tensor, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def compute_log_probs(self, output: torch.Tensor, batch: Dict[str, torch.Tensor], update=False) -> torch.Tensor:
         responses, logits = self._get_compute_log_probs_input(output, batch)
         log_probs = compute_log_probs(logits, responses)
-        return log_probs
+        if update:
+            entropy = vocab_parallel_entropy(logits)
+            return log_probs, entropy
+        else:
+            return log_probs

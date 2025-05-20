@@ -11,6 +11,7 @@ import torch
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 logger = Loggers("Rule verify")
 
@@ -72,6 +73,7 @@ class GlobalProcessPool:
 global_executor = GlobalProcessPool.get_instance(max_workers=16)
 
 
+@mstx_timer_decorator
 def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_token=-100):
     start_time = time.time()
     question = batch["prompts"]

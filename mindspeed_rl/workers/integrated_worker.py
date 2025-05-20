@@ -10,8 +10,10 @@ import torch
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.config_cls.profiler_config import ProfilerConfig   
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronOffLoader
+from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, profiler_step
 
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorkerBase
 from mindspeed_rl.workers.reference_woker import ReferenceWorkerBase
@@ -33,6 +35,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         initialize_func: Callable Function to initialize the model and environment.
         tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_megatron_module: Callable = megatron_module from get_megatron_module.
+        profiler_config: ProfilerConfig, Configuration for profiling.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -45,6 +48,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             initialize_func: Callable,
             tokenizer: BaseTokenizer = None,
             get_megatron_module: Callable = None,
+            profiler_config: ProfilerConfig = None,
             **kwargs
     ):
 
@@ -58,6 +62,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             initialize_func=initialize_func,
             tokenizer=tokenizer,
             get_megatron_module=get_megatron_module,
+            profiler_config=profiler_config,
             **kwargs
         )
 
@@ -66,11 +71,13 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.reference = None
         self.ref_model = None
         self.ref_manager = None
+        self.integrated_profiler = None
 
     def initialize(self):
 
         # Based on Actor
         ActorHybridWorkerBase.initialize(self)
+        self.integrated_profiler = profiler_start(self.profiler_config, "integrated")
 
         # Add Reference
         self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
@@ -92,6 +99,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             micro_batch_size=self.megatron_config.micro_batch_size
         )
 
+    @mstx_timer_decorator
     def compute_ref_log_prob(self):
         start_onload_time = time.time()
         self.ref_manager.onload_param()
@@ -103,9 +111,10 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
                 cumulate=True
             )
         )
-
+        compute_log_prob_profiler = profiler_start(self.profiler_config, role="reference_compute_log_prob",
+                                            profiler_iteration=self.prof_iteration)
         ReferenceWorkerBase.compute_ref_log_prob(self)
-
+        profiler_step(compute_log_prob_profiler)
         start_offload_time = time.time()
         self.ref_manager.offload_param()
         end_offload_time = time.time()
@@ -130,6 +139,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         ActorHybridWorkerBase.update(self, kl_ctrl, skip_actor_log_prob)
 
+        profiler_step(self.integrated_profiler)
         args.micro_batch_size = mbs
         self.actor_hybrid.train_actor.micro_batch_size = mbs
 

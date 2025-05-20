@@ -110,3 +110,21 @@ generate_config:
     min_p: 0.01
     temperature: 0.8
     detokenize: false
+
+profiler_config:
+  integrated:
+    profile: true
+    mstx: false
+    stage: actor_update
+    profile_save_path: ./profiler_data
+    profile_export_type: db
+    profile_step_start: 1
+    profile_step_end: 2
+    profile_level: level1
+    profile_with_memory: false
+    profile_record_shapes: false
+    profile_with_cpu: true
+    profile_with_npu: true
+    profile_with_module: false
+    profile_analysis: true
+    profile_ranks: [0, 1]

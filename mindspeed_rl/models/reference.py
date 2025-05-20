@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 
 from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class Reference(BaseTrainingEngine):
@@ -41,5 +42,6 @@ class Reference(BaseTrainingEngine):
                                              batch: Dict[str, torch.Tensor]) -> (Tensor, Dict):
         return output, batch
 
+    @mstx_timer_decorator
     def compute_log_prob(self, data: Dict) -> (Tensor, Dict):
         return super().forward(data)

@@ -11,6 +11,8 @@ import torch
 import torch.distributed
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoConfig
+from vllm import LLM, SamplingParams
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 def dummy_compile(*compile_args, **compile_kwargs):
@@ -25,7 +27,6 @@ def dummy_compile(*compile_args, **compile_kwargs):
 
 torch.jit.script = dummy_compile
 torch.compile = dummy_compile
-from vllm import LLM, SamplingParams
 
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
@@ -237,6 +238,7 @@ class VLLMInferEngine(BaseInferEngine):
                 mla.w_vc = None
 
     @torch.no_grad()
+    @mstx_timer_decorator
     def generate_sequences(self, idx_list, **kwargs):
         self.init_cache_engine()
         with self.update_sampling_params(**kwargs):

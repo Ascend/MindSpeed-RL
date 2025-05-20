@@ -6,6 +6,7 @@ from typing import Dict, List, Callable
 from torch import Tensor
 
 from mindspeed_rl.models.actor import Actor
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class ActorRolloutHybrid(ABC):
@@ -64,12 +65,15 @@ class ActorRolloutHybrid(ABC):
         self.inference_actor = inference_model
         self.sharding_manager = sharding_manager
 
+    @mstx_timer_decorator
     def generate_sequences(self, prompts_list: List[List[int]]) -> Tensor:
         responses = self.inference_actor.generate_sequences(prompts_list)[0]
         return responses
 
+    @mstx_timer_decorator
     def compute_log_prob(self, data: Dict) -> Tensor:
         return self.train_actor.compute_log_prob(data)
 
+    @mstx_timer_decorator
     def update_actor(self, data: Dict, kl_ctrl=None) -> Dict[str, Tensor]:
         return self.train_actor.update_actor(data, kl_ctrl)

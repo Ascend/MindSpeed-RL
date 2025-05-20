@@ -9,13 +9,14 @@ import torch
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
-from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.config_cls.generate_config import GenerateConfig  
 from mindspeed_rl.models.reference import Reference
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class ReferenceWorkerBase(BaseWorker):
@@ -82,6 +83,7 @@ class ReferenceWorkerBase(BaseWorker):
     def init_transfer_dock(self, td):
         self.td = td
 
+    @mstx_timer_decorator
     def compute_ref_log_prob(self):
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
@@ -127,6 +129,7 @@ class ReferenceWorkerBase(BaseWorker):
                             cumulate=True
                         )
                     )
+
         parallel_state = get_parallel_state()
         use_vllm = False
         if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:

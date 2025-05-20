@@ -25,6 +25,7 @@ import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.utils import generate_mask, get_current_dp_range_indexes
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class AdaptiveKLController:
@@ -125,6 +126,7 @@ def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_m
 
 
 @ray.remote
+@mstx_timer_decorator
 def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order):
     """
     Compute the advantage function based on different adv_estimator

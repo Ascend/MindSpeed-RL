@@ -18,6 +18,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
 from mindspeed_rl.trainer.utils.parallel_state import (
     get_pipeline_model_parallel_rank,
     get_pipeline_model_parallel_src_rank,
@@ -31,6 +32,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
 from mindspeed_rl.utils.utils import get_current_dp_range_indexes
 from mindspeed_rl.trainer.utils.transfer_dock import pack_experience_columns, unpack_pad_experience
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 logger = Loggers("base_worker")
 
@@ -129,6 +131,7 @@ class BaseWorker(BaseRayWorker, ABC):
             initialize_func: Callable = None,
             get_megatron_module: Callable = None,
             tokenizer: BaseTokenizer = None,
+            profiler_config: ProfilerConfig = None,
             **kwargs
     ):
         super().__init__()
@@ -136,6 +139,7 @@ class BaseWorker(BaseRayWorker, ABC):
         self.rl_config = rl_config
         self.megatron_config = megatron_config
         self.generate_config = generate_config
+        self.profiler_config = profiler_config
         self.model_provider = model_provider
         self.initialize_func = initialize_func
         self.get_megatron_module = get_megatron_module
@@ -151,6 +155,7 @@ class BaseWorker(BaseRayWorker, ABC):
         self.td = None
         self.args = None
 
+    @mstx_timer_decorator
     def all_consumed(self, experience_consumer_stage, sorted_indexes, use_vllm=False):
         if self.rl_config.guarantee_order and not sorted_indexes:
             return _DP_RANGE_DATA_CONSUMED_FLAG
@@ -209,10 +214,12 @@ class BaseWorker(BaseRayWorker, ABC):
     def td(self, value):
         self._td = value
 
+    @mstx_timer_decorator
     def empty_cache(self):
         """Clear GPU cache (can be overridden by subclasses)"""
         torch.cuda.empty_cache()
 
+    @mstx_timer_decorator
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
                                     experience_columns, experience_count, tp_size=1,
                                     use_vllm=False, indexes=None,
@@ -330,6 +337,7 @@ class BaseWorker(BaseRayWorker, ABC):
         else:
             return {}, []
 
+    @mstx_timer_decorator
     def collect_transfer_dock_data(self, output, index, use_vllm=False):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:

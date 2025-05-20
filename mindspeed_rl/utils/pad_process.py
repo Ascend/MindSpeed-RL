@@ -5,8 +5,10 @@ from torch import Tensor
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
+@mstx_timer_decorator
 def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int, to_list: bool = False) -> List[
     torch.Tensor]:
     output = []

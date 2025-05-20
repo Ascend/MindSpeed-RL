@@ -26,6 +26,7 @@ import torch.distributed
 
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
 from mindspeed_rl.workers.resharding.weight_adaptor import get_weight_adaptor
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class MegatronOffLoader:
@@ -36,22 +37,26 @@ class MegatronOffLoader:
 
         self.tensor_to_cpu_states_map = dict()
 
+    @mstx_timer_decorator
     def offload_grad(self):
         for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
                 self.swap_tensors_to_host(buffer.grad_data, copy_data=False)
 
+    @mstx_timer_decorator
     def onload_grad(self):
         for model in self.model:
             for buffer in chain(model.buffers, model.expert_parallel_buffers):
                 self.swap_tensors_to_device(buffer.grad_data, copy_data=False)
 
+    @mstx_timer_decorator
     def offload_optimizer(self):
         for param_group in self.optimizer.optimizer.param_groups:
             for param in param_group['params']:
                 param.data = param.data.to("cpu", non_blocking=False)
         self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, "cpu")
 
+    @mstx_timer_decorator
     def onload_optimizer(self):
         for param_group in self.optimizer.optimizer.param_groups:
             for param in param_group['params']:
@@ -59,6 +64,7 @@ class MegatronOffLoader:
         self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state,
                                                               torch.cuda.current_device())
 
+    @mstx_timer_decorator
     def _move_to_device(self, data, device):
         if isinstance(data, defaultdict):
             return defaultdict(data.default_factory,
@@ -70,6 +76,7 @@ class MegatronOffLoader:
         else:
             return data
 
+    @mstx_timer_decorator
     def offload_param(self):
         if self.wrap_with_ddp:
             for model in self.model:
@@ -79,6 +86,7 @@ class MegatronOffLoader:
             for item in self.model:
                 item.to('cpu')
 
+    @mstx_timer_decorator
     def onload_param(self):
         if self.wrap_with_ddp:
             for model in self.model:
@@ -88,6 +96,7 @@ class MegatronOffLoader:
             for item in self.model:
                 item.to(torch.cuda.current_device())
 
+    @mstx_timer_decorator
     def swap_tensors_to_host(self, tensor, copy_data=True):
         if tensor not in self.tensor_to_cpu_states_map:
             self.tensor_to_cpu_states_map[tensor] = torch.empty_like(tensor, device='cpu')
@@ -97,6 +106,7 @@ class MegatronOffLoader:
                 cpu_state.copy_(tensor, non_blocking=False)
             tensor.storage().resize_(0)
 
+    @mstx_timer_decorator
     def swap_tensors_to_device(self, tensor, copy_data=True):
         if tensor.storage().size() == 0:
             cpu_state = self.tensor_to_cpu_states_map[tensor]
@@ -169,16 +179,19 @@ class MegatronShardingManager:
         self.inference_engine.offload_model_weights()
         self.megatron_offloader = megatron_offloader
 
+    @mstx_timer_decorator
     def offload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
             buffer.destroy()
 
+    @mstx_timer_decorator
     def onload_infer_params(self):
         infer_weight_buffers = self.vllm_weight_container.weight_buffers
         for buffer in infer_weight_buffers:
             buffer.rebuild()
 
+    @mstx_timer_decorator
     def enter_infer_mode(self):
         """
         Before:
@@ -205,6 +218,7 @@ class MegatronShardingManager:
 
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
 
+    @mstx_timer_decorator
     def exit_infer_mode(self):
         """
         Before:
@@ -219,6 +233,7 @@ class MegatronShardingManager:
         self.inference_engine.offload_model_weights()
         self.offload_infer_params()
 
+    @mstx_timer_decorator
     def enter_forward_mode(self):
         """
         Before:
@@ -233,6 +248,7 @@ class MegatronShardingManager:
         if self.train_param_offload:
             self.megatron_offloader.onload_param()
 
+    @mstx_timer_decorator
     def enter_train_mode(self):
         """
         Before:
@@ -250,6 +266,7 @@ class MegatronShardingManager:
         if self.grad_offload:
             self.megatron_offloader.onload_grad()
 
+    @mstx_timer_decorator
     def exit_train_mode(self):
         """
         Before:

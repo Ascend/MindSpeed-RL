@@ -14,12 +14,13 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.utils.optimizer_module import OptimizerConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
 from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 
@@ -35,6 +36,7 @@ class ActorHybridWorkerBase(BaseWorker):
         initialize_func: Callable Function to initialize the model and environment.
         tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_megatron_module: Callable = megatron_module from get_megatron_module.
+        profiler_config: ProfilerConfig, Configuration for profiling.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -47,6 +49,7 @@ class ActorHybridWorkerBase(BaseWorker):
             initialize_func: Callable,
             tokenizer: BaseTokenizer = None,
             get_megatron_module: Callable = None,
+            profiler_config: ProfilerConfig = None,
             **kwargs
     ):
         super().__init__(
@@ -57,12 +60,14 @@ class ActorHybridWorkerBase(BaseWorker):
             initialize_func=initialize_func,
             tokenizer=tokenizer,
             get_megatron_module=get_megatron_module,
+            profiler_config=profiler_config,
             **kwargs
         )
 
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
         self.actor_offloader = None
+        self.prof_iteration = 1
 
     def initialize(self):
         self.setup_distributed_rank()
@@ -110,6 +115,7 @@ class ActorHybridWorkerBase(BaseWorker):
     def get_consumed_train_samples(self):
         return self.args.consumed_train_samples
 
+    @mstx_timer_decorator
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
         if skip_actor_log_prob:
             self.sharding_manager.enter_forward_mode()
@@ -142,6 +148,8 @@ class ActorHybridWorkerBase(BaseWorker):
         ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate))
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=False) if self.rl_config.guarantee_order else None
+        actor_update_profiler = profiler_start(self.profiler_config, role="actor_update",
+                                               profiler_iteration=self.prof_iteration)
         start_time_defined = False
 
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
@@ -172,6 +180,8 @@ class ActorHybridWorkerBase(BaseWorker):
                     )
 
         self.iteration += 1
+        profiler_step(actor_update_profiler)
+        self.prof_iteration += 1
         start_sharding_exit_train = time.time()
         self.sharding_manager.exit_train_mode()
         sharding_train_interval += (time.time() - start_sharding_exit_train)
@@ -187,6 +197,7 @@ class ActorHybridWorkerBase(BaseWorker):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
 
+    @mstx_timer_decorator
     def generate_sequences(self):
         start_sharding_enter_infer = time.time()
         self.sharding_manager.enter_infer_mode()
@@ -201,6 +212,8 @@ class ActorHybridWorkerBase(BaseWorker):
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=True) if self.rl_config.guarantee_order else None
 
+        actor_generate_profiler = profiler_start(self.profiler_config, role="actor_generate",
+                                                 profiler_iteration=self.prof_iteration)
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
@@ -251,7 +264,7 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
-
+        profiler_step(actor_generate_profiler)
         start_sharding_exit_infer = time.time()
         self.sharding_manager.exit_infer_mode()
         sharding_infer_interval += (time.time() - start_sharding_exit_infer)
@@ -263,6 +276,7 @@ class ActorHybridWorkerBase(BaseWorker):
             )
         )
 
+    @mstx_timer_decorator
     def compute_log_prob(self):
         self.sharding_manager.enter_forward_mode()
 
@@ -272,6 +286,8 @@ class ActorHybridWorkerBase(BaseWorker):
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=False) if self.rl_config.guarantee_order else None
 
+        actor_compute_log_prob_profiler = profiler_start(self.profiler_config, role="actor_compute_log_prob",
+                                                         profiler_iteration=self.prof_iteration)
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
@@ -308,6 +324,8 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
+
+        profiler_step(actor_compute_log_prob_profiler)
 
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(

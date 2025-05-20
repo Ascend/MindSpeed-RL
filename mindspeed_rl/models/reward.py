@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 
 from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
+from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class Reward(BaseTrainingEngine):
@@ -42,5 +43,6 @@ class Reward(BaseTrainingEngine):
         torch.Tensor, Dict[str, torch.Tensor]]:
         return output, batch
 
+    @mstx_timer_decorator
     def compute_rm_score(self, data: Dict) -> Tensor:
         return super().forward(data)

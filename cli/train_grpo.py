@@ -24,6 +24,7 @@ from mindspeed_rl.utils.utils import parse_args_from_config
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 from mindspeed_rl.workers.rule_reward import RuleReward
@@ -40,7 +41,7 @@ logger = Loggers("grpo_train")
 
 @ray.remote
 def train(config):
-    actor_config, ref_config, reward_config, rl_config, generate_config = parse_training_config(config)
+    actor_config, ref_config, reward_config, rl_config, generate_config, profiler_config = parse_training_config(config).values()
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
                               prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
@@ -57,6 +58,7 @@ def train(config):
             rl_config=rl_config,
             generate_config=generate_config,
             model_provider=gpt_model_provider,
+            profiler_config=profiler_config["integrated"],
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
@@ -176,10 +178,10 @@ def train(config):
 
 def parse_training_config(config: Dict):
     """
-    解析训练配置，提取 actor、ref、reward、rl 和 generate 的配置。
+    解析训练配置，提取 actor、ref、reward、rl、generate、profiler 的配置。
 
     :param config: 输入的全局配置字典。
-    :return: 包含 actor_config、ref_config、reward_config、rl_config 和 generate_config 的实例。
+    :return: 包含 actor_config、ref_config、reward_config、rl_config、generate_config、profiler_config 的字典。
     """
     actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
                                   config.get('model'))
@@ -206,7 +208,22 @@ def parse_training_config(config: Dict):
 
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
 
-    return actor_config, ref_config, reward_config, rl_config, generate_config
+    profiler_config = {}
+    profiler_config.update({
+        "integrated": ProfilerConfig(
+            config.get("profiler_config", {}).get("integrated", {}),
+            role="integrated"
+        ),
+    })
+
+    return {
+        "actor_config": actor_config,
+        "ref_config": ref_config,
+        "reward_config": reward_config,
+        "rl_config": rl_config,
+        "generate_config": generate_config,
+        "profiler_config": profiler_config
+    }
 
 
 def get_megatron_module():

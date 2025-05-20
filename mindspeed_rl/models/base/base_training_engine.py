@@ -52,6 +52,7 @@ class BaseTrainingEngine(ABC):
             micro_batch_size: int = 1,
             forward_backward_func: Callable = None,
             entropy_coeff: float = 0.0,
+            kl_penalty: str = "low_var_kl",
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
@@ -65,6 +66,7 @@ class BaseTrainingEngine(ABC):
         self.stage = stage
         self.role = role
         self.kl_ctrl = kl_ctrl
+        self.kl_penalty = kl_penalty
         self.clip_ratio = clip_ratio
         self.entropy_coeff = entropy_coeff
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)

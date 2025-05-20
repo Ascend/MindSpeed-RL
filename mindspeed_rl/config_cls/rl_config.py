@@ -67,12 +67,12 @@ class RLConfig(BaseConfig):
         self.gamma = 1.0
         self.lam = 0.95
         self.advantage_whiten = True
+        self.kl_penalty = "low_var_kl"
         self.kl_ctrl_type = 'fixed'
         self.init_kl_coef = 0.01
         self.kl_horizon = 1000
         self.kl_target = 100.0
         self.adv_estimator = 'group_norm'
-        self.kl_penalty = 'kl'
         self.verifier_function = ["base_acc", ]
         self.verifier_weight = [1.0, ]
         self.verifier_parallel = 1

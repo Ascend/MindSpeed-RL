@@ -26,7 +26,7 @@ class RayBaseTrainer(object):
                  lam: float = 0.95,
                  adv_estimator: str = "group_norm",
                  missing_eos_penalty: float = 1.0,
-                 kl_penalty: str = 'kl',
+                 kl_penalty: str = 'low_var_kl',
                  kl_ctrl_type: str = 'fixed',
                  kl_horizon: int = 1000,
                  kl_target: float = 100.0,

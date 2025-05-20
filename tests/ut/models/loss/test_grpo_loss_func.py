@@ -35,7 +35,9 @@ class TestGRPOActorLossFunc(DistributedTest):
             with patch.object(GRPOActorLossFunc, "_get_policy_loss_input", return_value=(response_mask, old_log_prob, advantages, ref_log_prob)):
                 kl_ctrl_value = 0.1
                 meta_info = {'clip_ratio': 0.2,
-                             'kl_ctrl': MagicMock(return_value=kl_ctrl_value)}
+                             'kl_ctrl': MagicMock(return_value=kl_ctrl_value),
+                             'kl_penalty': 'low_var_kl',
+                             'entropy_coeff': 0.0}
                 grpo_loss_func.add_loss_meta_info(meta_info)
                 assert grpo_loss_func.clip_ratio == 0.2
                 assert grpo_loss_func.kl_ctrl() == kl_ctrl_value

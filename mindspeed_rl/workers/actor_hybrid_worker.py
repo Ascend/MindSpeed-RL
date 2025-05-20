@@ -95,7 +95,8 @@ class ActorHybridWorkerBase(BaseWorker):
             forward_backward_func=self.forward_backward_func,
             clip_ratio=self.rl_config.clip_ratio,
             micro_batch_size=self.megatron_config.micro_batch_size,
-            entropy_coeff=self.rl_config.entropy_coeff
+            entropy_coeff=self.rl_config.entropy_coeff,
+            kl_penalty=self.rl_config.kl_penalty
         )
         self.empty_cache()
 

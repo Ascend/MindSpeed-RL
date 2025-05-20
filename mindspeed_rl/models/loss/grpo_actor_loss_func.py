@@ -5,6 +5,7 @@ import torch
 
 from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
+from mindspeed_rl.utils.compute import compute_kl_penalty
 from mindspeed_rl.utils.utils import generate_mask
 import mindspeed_rl.utils.torch_functional as F
 
@@ -25,6 +26,8 @@ class GRPOActorLossFunc(BaseLossFunc):
             self.kl_ctrl = meta_info["kl_ctrl"]
         if "entropy_coeff" in meta_info.keys():
             self.entropy_coeff = meta_info["entropy_coeff"]
+        if "kl_penalty" in meta_info.keys():
+            self.kl_penalty = meta_info["kl_penalty"]
 
     @staticmethod
     def _get_policy_loss_input(batch: Dict[str, torch.Tensor]):
@@ -62,6 +65,7 @@ class GRPOActorLossFunc(BaseLossFunc):
                                                                       eos_mask=response_mask,
                                                                       cliprange=self.clip_ratio,
                                                                       kl_ctrl=self.kl_ctrl,
+                                                                      kl_penalty=self.kl_penalty,
                                                                       entropy_coeff=self.entropy_coeff)
         policy_loss = pg_loss
         stats = {
@@ -74,7 +78,7 @@ class GRPOActorLossFunc(BaseLossFunc):
         return policy_loss, stats
 
     @staticmethod
-    def _compute_grpo_policy_loss(old_log_prob, log_prob, ref_log_prob, advantages, entropy, eos_mask, cliprange, kl_ctrl, entropy_coeff):
+    def _compute_grpo_policy_loss(old_log_prob, log_prob, ref_log_prob, advantages, entropy, eos_mask, cliprange, kl_ctrl, kl_penalty, entropy_coeff):
         """
         Args:
             old_log_prob: `(torch.Tensor)`
@@ -114,10 +118,7 @@ class GRPOActorLossFunc(BaseLossFunc):
         pg_mean_loss = F.masked_mean(torch.max(pg_losses, pg_losses2), eos_mask)
         pg_mean_clipfrac = F.masked_mean(torch.gt(pg_losses2, pg_losses).float(), eos_mask)
 
-        ref_approx_kl = ref_log_prob - log_prob
-        ratio_kl = torch.exp(ref_approx_kl)
-        kl_losses = ratio_kl - ref_approx_kl - 1
+        kl_losses = compute_kl_penalty(log_prob, ref_log_prob, kl_penalty)
         kl_mean_loss = F.masked_mean(kl_losses, eos_mask)
-        kl_loss = kl_mean_loss * kl_ctrl.value
         pg_loss = pg_mean_loss + kl_mean_loss * kl_ctrl.value - entropy_coeff * entropy_loss
         return pg_loss, pg_mean_clipfrac, ppo_kl, kl_mean_loss, entropy_loss

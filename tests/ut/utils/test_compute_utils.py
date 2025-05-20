@@ -80,3 +80,22 @@ class TestGetLastReward(DistributedTest):
         n_sample_batch = 2
         expected_output = torch.tensor([-0.7071, 0.7071, -0.7071, 0.7071])
         assert torch.allclose(get_last_reward(rm_scores, n_sample_batch), expected_output, atol=1e-4)
+
+
+class TestKlPenalty(DistributedTest):
+    world_size = 1
+
+    def test_kl_penalty(self):
+        import torch
+        from mindspeed_rl.utils.compute import compute_kl_penalty
+        logp = torch.tensor([[0.5, 1.0]])
+        ref_logp = torch.tensor([[1.0, 0.5]])
+        expected_output_kl = torch.tensor([[-0.5000, 0.5000]])
+        expected_output_abs = torch.tensor([[0.5000, 0.5000]])
+        expected_output_mse = torch.tensor([[0.1250, 0.1250]])
+        expected_output_low = [[0.14872121810913086, 0.10653066635131836]]
+        assert torch.allclose(compute_kl_penalty(logp, ref_logp, 'kl'), expected_output_kl)
+        assert torch.allclose(compute_kl_penalty(logp, ref_logp, 'abs'), expected_output_abs)
+        assert torch.allclose(compute_kl_penalty(logp, ref_logp, 'mse'), expected_output_mse)
+        assert compute_kl_penalty(logp, ref_logp, 'low_var_kl').tolist() == expected_output_low
+        

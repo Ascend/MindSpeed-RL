@@ -31,12 +31,12 @@ class RLConfig(BaseConfig):
 
     actor_forward_micro_batch_size: micro batch size for actor log_p calculation
     ref_forward_micro_batch_size: micro batch size for ref log_p calculation
-    actor_rollout_dispatch_size: micro batch size for actor generate
-    actor_logprob_dispatch_size: experience count of origin prompts every forward step for actor
-    ref_dispatch_size: experience count of origin prompts every forward step for reference
-    reward_dispatch_size: experience count of origin prompts every forward step for reward
-    adv_dispatch_size: experience count of origin prompts every forward step for advantages
-    actor_update_dispatch_size: experience count every forward step for update
+    actor_rollout_dispatch_size: experience count every forward step for generate (default: same as experience_count_all)
+    actor_logprob_dispatch_size: experience count every forward step for actor_logprob (default: same as experience_count_all)
+    ref_dispatch_size: experience count every forward step for reference (default: same as experience_count_all)
+    reward_dispatch_size: experience count every forward step for reward (default: same as experience_count_all)
+    adv_dispatch_size: experience count every forward step for advantages (default: same as experience_count_all)
+    actor_update_dispatch_size: experience count every forward step for actor update (default: same as experience_count_all)
 
     shuffle_mini_batch: Whether to shuffle minibatch (default: False)
     n_samples_per_prompt: Number of samples per prompt (default: 1)
@@ -89,11 +89,11 @@ class RLConfig(BaseConfig):
         self.wandb_project = ""
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
-        self.blocking = False
+        self.blocking = True
         self.guarantee_order = False
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8
-        self.use_integrated_worker = False
+        self.use_integrated_worker = True
         self.ref_forward_micro_batch_size = None
         self.actor_forward_micro_batch_size = None
 

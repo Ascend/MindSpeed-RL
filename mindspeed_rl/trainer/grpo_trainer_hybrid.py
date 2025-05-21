@@ -192,6 +192,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                 self.save_checkpoint(iteration)
 
         logger.info('after grpo training is done')
+        ray.shutdown()
 
     def compute_advantage(self, blocking=False, guarantee_order=False):
         experience_count = self.micro_batch_size

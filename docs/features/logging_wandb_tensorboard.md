@@ -1,12 +1,12 @@
-# MindSpeed-RL 训练指标可视化
+# MindSpeed RL 训练指标可视化
 ## 简介
 
 - Weights & Biases（WandB）和 TensorBoard 都是机器学习领域广泛使用的实验跟踪与可视化工具。wandb功能更全面，可以展示丰富的数据类型，包括训练曲线，图片，视频，表格，html，matplotlib图像等，但是需要联网使用。而TensorBoard可以离线使用。
-- MindSpeed-RL支持训练指标的可视化：WandB和TensorBoard二选一使用。
+- MindSpeed RL支持训练指标的可视化：WandB和TensorBoard二选一使用。
 
 ## 使用示例
 ### TensorBoard使用
-MindSpeed-RL使用PyTorch原生的TensorBoard能力
+MindSpeed RL使用PyTorch原生的TensorBoard能力
 
 #### 参数配置
 **在训练yaml文件的rl_config字段中添加：**
@@ -24,7 +24,7 @@ tensorboard可视化训练指标效果示例：
 ![ScreenShot_20250320113451](../../sources/images/logging/logging_1.PNG)
 
 ### WandB使用
-MindSpeed-RL使用开源库WandB能力
+MindSpeed RL使用开源库WandB能力
 #### 前置准备
 1. 官网注册wandb账号，获取wandb login key
 2. 确保训练环境能联网

@@ -1,5 +1,6 @@
-# pkill -9 python
-# ray stop --force
+pkill -9 python
+ray stop --force
+export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1 
 
 DEFAULT_YAML="grpo_trainer_qwen25_32b_A3"

@@ -2,7 +2,7 @@
 # ray stop --force
 export HYDRA_FULL_ERROR=1 
 
-DEFAULT_YAML="grpo_trainer_qwen25_7b_A3"
+DEFAULT_YAML="grpo_trainer_qwen25_32b_A3"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
 

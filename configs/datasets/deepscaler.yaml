@@ -1,0 +1,10 @@
+input: ./dataset/deepscaler.json
+tokenizer_name_or_path: ./model_from_hf/qwen25-7b
+output_prefix: .dataset/deepscaler/data
+handler_name: R1AlpacaStyleInstructionHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 8
+log_interval: 1000
+prompt_type: qwen
+map_keys: {"prompt":"problem", "query":"", "response": "answer", "system":""}
+dataset_additional_keys: ["labels"]

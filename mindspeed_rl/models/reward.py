@@ -26,6 +26,7 @@ class Reward(BaseTrainingEngine):
             model,
             beta: float = 0,
             stage: str = None,
+            temperature: float = 1.0,
             forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -34,6 +35,7 @@ class Reward(BaseTrainingEngine):
             beta=beta,
             stage=stage,
             role='reward',
+            temperature=temperature,
             forward_backward_func=forward_backward_func,
             **kwargs
         )

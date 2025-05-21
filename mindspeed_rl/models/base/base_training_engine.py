@@ -48,6 +48,7 @@ class BaseTrainingEngine(ABC):
             stage: str = None,
             kl_ctrl: float = 0.0,
             clip_ratio: float = 0.1,
+            temperature: float = 1.0,
             role: str = None,
             micro_batch_size: int = 1,
             forward_backward_func: Callable = None,
@@ -69,6 +70,7 @@ class BaseTrainingEngine(ABC):
         self.kl_penalty = kl_penalty
         self.clip_ratio = clip_ratio
         self.entropy_coeff = entropy_coeff
+        self.temperature = temperature
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)
         self.kwargs = kwargs
 
@@ -96,6 +98,7 @@ class BaseTrainingEngine(ABC):
         def forward_step(batch_iter, model):
             input_ids, attention_mask, position_ids, process_batch = self._get_forward_batch_info(batch_iter)
             output = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
+            output.div_(self.temperature)
             return output, partial(self.loss_func.compute_loss, batch=process_batch, forward_only=forward_only)
 
         # batch should be a list of batches inside micro-batches

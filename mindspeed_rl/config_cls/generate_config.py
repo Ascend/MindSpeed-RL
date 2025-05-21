@@ -81,7 +81,8 @@ class GenerateConfig(BaseConfig):
             "top_k": 50,  # 采样时考虑的最高概率 token 的数量
             "min_p": 0.0,  # token 选择的最小概率阈值
             "temperature": 0.2,  # 控制预测随机性的温度参数
-            "detokenize": False  # 是否将生成的 token 转换回可读字符串
+            "detokenize": False,  # 是否将生成的 token 转换回可读字符串
+            "seed": None # 随机种子
         }
 
         # 如果提供了配置字典，则更新默认值

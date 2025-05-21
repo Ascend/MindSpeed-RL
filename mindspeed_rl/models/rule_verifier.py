@@ -106,13 +106,19 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
 
     scores = torch.tensor(
         scores,
-        dtype=torch.float32,
+        dtype=torch.float64,
         device=reward_index.device
     )
 
     scores = scores.reshape(-1, rl_config.n_samples_per_prompt)
-    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-8)
+    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-6)
     scores = scores.reshape(reward_index.shape)
+
+    scores = torch.tensor(
+        scores,
+        dtype=torch.float32,
+        device=reward_index.device
+    )
 
     end_time = time.time()
     metrics["timing/rule_reward"] = [round(end_time, 4), round(start_time, 4)]

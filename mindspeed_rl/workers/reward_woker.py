@@ -71,7 +71,8 @@ class RewardWorkerBase(BaseWorker):
             beta=self.rl_config.beta,
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
-            micro_batch_size=self.megatron_config.micro_batch_size
+            micro_batch_size=self.megatron_config.micro_batch_size,
+            temperature=self.generate_config.sampling_config["temperature"]
         )
 
     def init_transfer_dock(self, td):

@@ -36,6 +36,7 @@ class Actor(BaseTrainingEngine):
             shuffle_mini_batch: bool = False,
             stage: str = None,
             clip_ratio: float = 0.1,
+            temperature: float = 1.0,
             forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -49,6 +50,7 @@ class Actor(BaseTrainingEngine):
             shuffle_mini_batch=shuffle_mini_batch,
             stage=stage,
             clip_ratio=clip_ratio,
+            temperature=temperature,
             role='actor',
             forward_backward_func=forward_backward_func,
             **kwargs)

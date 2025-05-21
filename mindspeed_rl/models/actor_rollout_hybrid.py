@@ -43,6 +43,7 @@ class ActorRolloutHybrid(ABC):
             shuffle_mini_batch: bool = False,
             stage: str = None,
             clip_ratio: float = 0.1,
+            temperature: float = 1.0,
             forward_backward_func: Callable = None,
             micro_batch_size: int = 1,
             **kwargs
@@ -57,6 +58,7 @@ class ActorRolloutHybrid(ABC):
             epochs=epochs,
             shuffle_mini_batch=shuffle_mini_batch,
             clip_ratio=clip_ratio,
+            temperature=temperature,
             stage=stage,
             forward_backward_func=forward_backward_func,
             micro_batch_size=micro_batch_size,

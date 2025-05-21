@@ -26,6 +26,7 @@ class Reference(BaseTrainingEngine):
             model,
             beta=0,
             stage=None,
+            temperature: float = 1.0,
             forward_backward_func: Callable = None,
             **kwargs
     ):
@@ -34,6 +35,7 @@ class Reference(BaseTrainingEngine):
             beta=beta,
             stage=stage,
             role='reference',
+            temperature=temperature,
             forward_backward_func=forward_backward_func,
             **kwargs
         )

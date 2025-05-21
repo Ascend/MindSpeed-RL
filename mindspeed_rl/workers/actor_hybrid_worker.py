@@ -102,7 +102,8 @@ class ActorHybridWorkerBase(BaseWorker):
             clip_ratio=self.rl_config.clip_ratio,
             micro_batch_size=self.megatron_config.micro_batch_size,
             entropy_coeff=self.rl_config.entropy_coeff,
-            kl_penalty=self.rl_config.kl_penalty
+            kl_penalty=self.rl_config.kl_penalty,
+            temperature=self.generate_config.sampling_config["temperature"]
         )
         self.empty_cache()
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)

@@ -67,6 +67,7 @@ class ActorHybridWorkerBase(BaseWorker):
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
         self.actor_offloader = None
+        self.actor_profiler = None
         self.prof_iteration = 1
 
     def initialize(self):
@@ -104,6 +105,7 @@ class ActorHybridWorkerBase(BaseWorker):
             kl_penalty=self.rl_config.kl_penalty
         )
         self.empty_cache()
+        self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
 
     def init_transfer_dock(self, td):
         self.td = td
@@ -192,6 +194,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 cumulate=True
             )
         )
+        profiler_step(self.actor_profiler)
 
     def save_ckpt(self, iteration: int):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,

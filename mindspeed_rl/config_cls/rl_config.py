@@ -29,7 +29,8 @@ class RLConfig(BaseConfig):
     adv_estimator: Method for estimating advantages (e.g., 'group_norm', 'gae') (default: 'group_norm')
     kl_penalty: Type of KL penalty to apply (e.g., 'kl', 'reverse_kl') (default: 'kl')
 
-    update_micro_batch_size: micro batch size for actor train
+    actor_forward_micro_batch_size: micro batch size for actor log_p calculation
+    ref_forward_micro_batch_size: micro batch size for ref log_p calculation
     actor_rollout_dispatch_size: micro batch size for actor generate
     actor_logprob_dispatch_size: experience count of origin prompts every forward step for actor
     ref_dispatch_size: experience count of origin prompts every forward step for reference
@@ -93,7 +94,8 @@ class RLConfig(BaseConfig):
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8
         self.use_integrated_worker = False
-        self.update_micro_batch_size = None
+        self.ref_forward_micro_batch_size = None
+        self.actor_forward_micro_batch_size = None
 
         self.actor_rollout_dispatch_size = None
         self.actor_logprob_dispatch_size = None

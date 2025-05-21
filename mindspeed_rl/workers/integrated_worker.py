@@ -2,6 +2,7 @@
 
 import dataclasses
 from typing import Callable
+from contextlib import contextmanager
 
 import time
 import ray
@@ -10,7 +11,7 @@ import torch
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig   
+from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronOffLoader
 from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, profiler_step
@@ -66,7 +67,8 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             **kwargs
         )
 
-        self.update_micro_batch_size = rl_config.update_micro_batch_size
+        self.actor_forward_micro_batch_size = rl_config.actor_forward_micro_batch_size
+        self.ref_forward_micro_batch_size = rl_config.ref_forward_micro_batch_size
 
         self.reference = None
         self.ref_model = None
@@ -113,7 +115,15 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         )
         compute_log_prob_profiler = profiler_start(self.profiler_config, role="reference_compute_log_prob",
                                             profiler_iteration=self.prof_iteration)
-        ReferenceWorkerBase.compute_ref_log_prob(self)
+        if self.ref_forward_micro_batch_size is not None:
+            with temporary_micro_batch_size(
+                    worker=self.reference,
+                    args=self.get_args(),
+                    new_mbs=self.ref_forward_micro_batch_size
+            ):
+                ReferenceWorkerBase.compute_ref_log_prob(self)
+        else:
+            ReferenceWorkerBase.compute_ref_log_prob(self)
         profiler_step(compute_log_prob_profiler)
         start_offload_time = time.time()
         self.ref_manager.offload_param()
@@ -126,22 +136,16 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             )
         )
 
-    def update(self, kl_ctrl=None, skip_actor_log_prob=False):
-        # set update mbs
-        update_mbs = self.update_micro_batch_size
-        mbs = self.actor_hybrid.train_actor.micro_batch_size
-
-        args = self.get_args()
-
-        if update_mbs is not None:
-            self.actor_hybrid.train_actor.micro_batch_size = update_mbs
-            args.micro_batch_size = update_mbs
-
-        ActorHybridWorkerBase.update(self, kl_ctrl, skip_actor_log_prob)
-
-        profiler_step(self.integrated_profiler)
-        args.micro_batch_size = mbs
-        self.actor_hybrid.train_actor.micro_batch_size = mbs
+    def compute_log_prob(self):
+        if self.actor_forward_micro_batch_size is not None:
+            with temporary_micro_batch_size(
+                    worker=self.actor_hybrid.train_actor,
+                    args=self.get_args(),
+                    new_mbs=self.actor_forward_micro_batch_size
+            ):
+                ActorHybridWorkerBase.compute_log_prob(self)
+        else:
+            ActorHybridWorkerBase.compute_log_prob(self)
 
     def load_checkpoint_with_path(self, model, path, ckpt_only=False):
         """Load model checkpoint from a specified path with flexible control.
@@ -186,3 +190,13 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
                 setattr(self.get_args(), key, value)
 
 
+@contextmanager
+def temporary_micro_batch_size(worker, args, new_mbs):
+    original_mbs = args.micro_batch_size
+    try:
+        worker.micro_batch_size = new_mbs
+        args.micro_batch_size = new_mbs
+        yield
+    finally:
+        worker.micro_batch_size = original_mbs
+        args.micro_batch_size = original_mbs

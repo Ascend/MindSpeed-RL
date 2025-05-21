@@ -55,6 +55,8 @@ actor_config:
 rl_config:
   use_integrated_worker: true
   blocking: true
+  actor_forward_micro_batch_size: 8
+  ref_forward_micro_batch_size: 8
   experience_count: 4
   gamma: 1.0
   lam: 0.95

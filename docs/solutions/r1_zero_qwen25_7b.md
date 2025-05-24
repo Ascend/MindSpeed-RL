@@ -112,7 +112,7 @@ DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）
 
 ### 配置准备
 
-模型结构的配置文件位于configs/model下，训练配置文件位于configs/目录下，我们以qwen2.5-7b的A3配置为例[grpo_trainer_qwen25_7b_A3.yaml]，该配置用到了16die，为了进一步加速可以不断增加推理DP的数量。[**参数配置具体含义参考**](../algorithms/grpo.md)
+模型结构的配置文件位于configs/model下，训练配置文件位于configs/目录下，我们以qwen2.5-7b的A3配置为例[grpo_qwen25_7b_A3.yaml]，该配置用到了16die，为了进一步加速可以不断增加推理DP的数量。[**参数配置具体含义参考**](../algorithms/grpo.md)
 
 ### 手动启动训练
 与基于ray的其他强化训练一样，我们多机需要先在主节点初始化ray：
@@ -133,7 +133,7 @@ ray start --address="IP_ADDRESS:6344"
 export HCCL_CONNECT_TIMEOUT=1800
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-python cli/train_grpo.py --config-name grpo_trainer_qwen25_7b_A3.yaml | tee logs/r1_zero_qwen25_7b_full.log
+python cli/train_grpo.py --config-name grpo_qwen25_7b_A3.yaml | tee logs/r1_zero_qwen25_7b_full.log
 ```
 
 ### 脚本启动训练

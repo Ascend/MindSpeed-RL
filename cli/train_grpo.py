@@ -523,7 +523,7 @@ def _initialize_distributed():
                 )
 
 
-@hydra.main(config_path='../configs', config_name='grpo_trainer_qwen25_7b', version_base=None)
+@hydra.main(config_path='../configs', config_name='grpo_qwen25_7b_A3', version_base=None)
 def main(config):
     if not ray.is_initialized():
         # this is for local ray cluster

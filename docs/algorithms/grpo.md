@@ -18,7 +18,7 @@
 
 ```shell
 cd dataset/
-wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/blob/main/deepscaler.json --no-check
+wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json --no-check
 cd ..
 ```
 

@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig
 from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_grpo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup

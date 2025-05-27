@@ -48,3 +48,31 @@ class ProfilerConfig(BaseConfig):
         self.profile_ranks = "all"
 
         self.update(config_dict)
+
+
+class MsprobeConfig(BaseConfig):
+    '''
+    Msprobe configuration class.
+
+    Parameters:
+        config_dict: Dictionary containing the msprobe configuration parameters
+        role: String identifier for the Msprobe role
+
+    Attributes:
+        role (str): Identifier for the msprobe role.
+        msprobe (bool): Enable/disable the msprobe. Set to True to enable msprobe.
+    '''
+
+    def __init__(self, config_dict, role=""):
+        self.role = role
+        self.msprobe = False
+        self.dump_path = "./msprobe_dump"
+        self.key_data_dump = False
+        self.configurations_dump = False
+        self.actor_train_dump = False
+        self.actor_infer_dump = False
+        self.reference_dump = False
+        self.step_start = 0
+        self.step_end = 0
+
+        self.update(config_dict)

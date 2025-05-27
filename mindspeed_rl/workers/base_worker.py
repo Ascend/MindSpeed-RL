@@ -18,7 +18,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.trainer.utils.parallel_state import (
     get_pipeline_model_parallel_rank,
     get_pipeline_model_parallel_src_rank,
@@ -132,6 +132,7 @@ class BaseWorker(BaseRayWorker, ABC):
             get_megatron_module: Callable = None,
             tokenizer: BaseTokenizer = None,
             profiler_config: ProfilerConfig = None,
+            msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
         super().__init__()
@@ -140,6 +141,7 @@ class BaseWorker(BaseRayWorker, ABC):
         self.megatron_config = megatron_config
         self.generate_config = generate_config
         self.profiler_config = profiler_config
+        self.msprobe_config = msprobe_config
         self.model_provider = model_provider
         self.initialize_func = initialize_func
         self.get_megatron_module = get_megatron_module

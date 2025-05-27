@@ -11,10 +11,11 @@ import torch
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronOffLoader
 from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, profiler_step
+from mindspeed_rl.utils.utils import MsProbe
 
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorkerBase
 from mindspeed_rl.workers.reference_woker import ReferenceWorkerBase
@@ -37,6 +38,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_megatron_module: Callable = megatron_module from get_megatron_module.
         profiler_config: ProfilerConfig, Configuration for profiling.
+        msprobe_config: MsprobeConfig, Configuration for msprobe.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -50,6 +52,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             tokenizer: BaseTokenizer = None,
             get_megatron_module: Callable = None,
             profiler_config: ProfilerConfig = None,
+            msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
 
@@ -64,6 +67,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             tokenizer=tokenizer,
             get_megatron_module=get_megatron_module,
             profiler_config=profiler_config,
+            msprobe_config=msprobe_config,
             **kwargs
         )
 
@@ -101,6 +105,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             micro_batch_size=self.megatron_config.micro_batch_size,
             temperature=self.generate_config.sampling_config["temperature"],
         )
+        MsProbe.config_init(self.msprobe_config)
 
     @mstx_timer_decorator
     def compute_ref_log_prob(self):
@@ -116,6 +121,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         )
         compute_log_prob_profiler = profiler_start(self.profiler_config, role="reference_compute_log_prob",
                                             profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(model=self.ref_model, tag="reference_compute_log_prob")
         if self.ref_forward_micro_batch_size is not None:
             with temporary_micro_batch_size(
                     worker=self.reference,
@@ -126,6 +132,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         else:
             ReferenceWorkerBase.compute_ref_log_prob(self)
         profiler_step(compute_log_prob_profiler)
+        MsProbe.debugger_stop("reference_compute_log_prob")
         start_offload_time = time.time()
         self.ref_manager.offload_param()
         end_offload_time = time.time()

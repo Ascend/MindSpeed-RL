@@ -19,12 +19,13 @@ from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
+from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 from mindspeed_rl.workers.rule_reward import RuleReward
@@ -41,7 +42,16 @@ logger = Loggers("grpo_train")
 
 @ray.remote
 def train(config):
-    actor_config, ref_config, reward_config, rl_config, generate_config, profiler_config = parse_training_config(config).values()
+    actor_config, ref_config, reward_config, rl_config, generate_config, profiler_config, msprobe_config = parse_training_config(config).values()
+
+    MsProbe.config_init(msprobe_config)
+    MsProbe.save_configs({
+        'actor': eval(str(actor_config.dict())), 
+        'ref': eval(str(ref_config.dict())), 
+        'reward': eval(str(reward_config.dict())), 
+        'rl': eval(str(rl_config.dict())), 
+        'generate': eval(str(generate_config.dict()))
+        })
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
                               prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
@@ -59,6 +69,7 @@ def train(config):
             generate_config=generate_config,
             model_provider=gpt_model_provider,
             profiler_config=profiler_config["integrated"],
+            msprobe_config=msprobe_config,
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
@@ -183,7 +194,7 @@ def parse_training_config(config: Dict):
     解析训练配置，提取 actor、ref、reward、rl、generate、profiler 的配置。
 
     :param config: 输入的全局配置字典。
-    :return: 包含 actor_config、ref_config、reward_config、rl_config、generate_config、profiler_config 的字典。
+    :return: 包含 actor_config、ref_config、reward_config、rl_config、generate_config、profiler_config、msprobe_config 的字典。
     """
     actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
                                   config.get('model'))
@@ -218,13 +229,19 @@ def parse_training_config(config: Dict):
         ),
     })
 
+    msprobe_config = MsprobeConfig(
+            config.get("msprobe_config", {}),
+            role="integrated"
+        )
+
     return {
         "actor_config": actor_config,
         "ref_config": ref_config,
         "reward_config": reward_config,
         "rl_config": rl_config,
         "generate_config": generate_config,
-        "profiler_config": profiler_config
+        "profiler_config": profiler_config,
+        "msprobe_config": msprobe_config
     }
 
 

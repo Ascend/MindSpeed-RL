@@ -14,10 +14,11 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.utils.optimizer_module import OptimizerConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
+from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step
@@ -37,6 +38,7 @@ class ActorHybridWorkerBase(BaseWorker):
         tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
         get_megatron_module: Callable = megatron_module from get_megatron_module.
         profiler_config: ProfilerConfig, Configuration for profiling.
+        msprobe_config: MsprobeConfig, Configuration for msprobe.
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -50,6 +52,7 @@ class ActorHybridWorkerBase(BaseWorker):
             tokenizer: BaseTokenizer = None,
             get_megatron_module: Callable = None,
             profiler_config: ProfilerConfig = None,
+            msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
         super().__init__(
@@ -61,6 +64,7 @@ class ActorHybridWorkerBase(BaseWorker):
             tokenizer=tokenizer,
             get_megatron_module=get_megatron_module,
             profiler_config=profiler_config,
+            msprobe_config=msprobe_config,
             **kwargs
         )
 
@@ -107,6 +111,7 @@ class ActorHybridWorkerBase(BaseWorker):
         )
         self.empty_cache()
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
+        MsProbe.config_init(self.msprobe_config)
 
     def init_transfer_dock(self, td):
         self.td = td
@@ -153,6 +158,7 @@ class ActorHybridWorkerBase(BaseWorker):
                                                    use_vllm=False) if self.rl_config.guarantee_order else None
         actor_update_profiler = profiler_start(self.profiler_config, role="actor_update",
                                                profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(self.model[0], tag='actor_update')
         start_time_defined = False
 
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
@@ -184,6 +190,8 @@ class ActorHybridWorkerBase(BaseWorker):
 
         self.iteration += 1
         profiler_step(actor_update_profiler)
+        MsProbe.debugger_stop(tag='actor_update')
+        MsProbe.step()
         self.prof_iteration += 1
         start_sharding_exit_train = time.time()
         self.sharding_manager.exit_train_mode()
@@ -218,6 +226,8 @@ class ActorHybridWorkerBase(BaseWorker):
 
         actor_generate_profiler = profiler_start(self.profiler_config, role="actor_generate",
                                                  profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(self.inference_model.model, tag='actor_generate_sequences')
+        
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
@@ -261,6 +271,9 @@ class ActorHybridWorkerBase(BaseWorker):
                 }
                 self.collect_transfer_dock_data(outputs, index, use_vllm=True)
                 end_time = time.time()
+
+                MsProbe.save_data({"responses": responses, "prompts": prompts})
+
                 ray.get(
                         self.td.update_metrics.remote(
                             "timing/rollout",
@@ -269,6 +282,8 @@ class ActorHybridWorkerBase(BaseWorker):
                         )
                 )
         profiler_step(actor_generate_profiler)
+        MsProbe.debugger_stop('actor_generate_sequences')
+
         start_sharding_exit_infer = time.time()
         self.sharding_manager.exit_infer_mode()
         sharding_infer_interval += (time.time() - start_sharding_exit_infer)
@@ -292,6 +307,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
         actor_compute_log_prob_profiler = profiler_start(self.profiler_config, role="actor_compute_log_prob",
                                                          profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(self.model[0], tag='actor_compute_log_prob')
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
@@ -330,6 +346,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 )
 
         profiler_step(actor_compute_log_prob_profiler)
+        MsProbe.debugger_stop('actor_compute_log_prob')
 
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(

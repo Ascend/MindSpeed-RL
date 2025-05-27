@@ -34,7 +34,7 @@ megatron_training:
 
 actor_config:
   model: qwen25_7b
-  micro_batch_size: 2
+  micro_batch_size: 1
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
   lr: 5e-7
@@ -106,7 +106,7 @@ generate_config:
   # 采样配置
   sampling_config:
     logprobs: 1
-    max_tokens: 2048
+    max_tokens: 64
     top_p: 0.9
     top_k: 50
     min_p: 0.01
@@ -130,3 +130,13 @@ profiler_config:
     profile_with_module: false
     profile_analysis: true
     profile_ranks: [0, 1]
+
+msprobe_config:
+  msprobe: true
+  dump_path: "./msprobe_dump"
+  key_data_dump: true
+  configurations_dump: true
+  actor_train_dump: true
+  reference_dump: true
+  step_start: 0
+  step_end: 0

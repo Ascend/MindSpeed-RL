@@ -3,6 +3,7 @@
 
 import os
 import sys
+import json
 
 import time
 import math
@@ -310,6 +311,102 @@ def parse_args_from_config(config):
             continue
         else:
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
+
+
+class MsProbe:
+    config = None
+    enabled = False
+    debugger = None
+    saver = None
+    hooked_model = []
+
+    @classmethod
+    def config_init(cls, msprobe_config):
+        if not msprobe_config.msprobe:
+            return
+        cls.config = msprobe_config
+        
+        try:
+            from msprobe.core import SingleSave
+            from msprobe.pytorch import PrecisionDebugger
+        except Exception as e:
+            print("import msprobe error, msprobe not enabled")
+            return
+        
+        cls.saver = SingleSave(cls.config.dump_path)
+        if cls.need_debugger():
+            step = [f"{cls.config.step_start}-{cls.config.step_end}"]
+            cls.debugger = PrecisionDebugger(task="statistics", level="L0", step=step, dump_path=cls.config.dump_path)
+
+        cls.enabled = True
+        print("msprobe enabled")
+        
+    @classmethod
+    def save_configs(cls, data):
+        if not cls.enabled:
+            return
+        if not cls.config.configurations_dump:
+            return
+        cls.saver.save_config(data)
+    
+    @classmethod
+    def save_data(cls, data):
+        if not cls.enabled:
+            return
+        if not cls.config.key_data_dump:
+            return
+        cls.saver.save(data)
+    
+    @classmethod
+    def need_debugger(cls):
+        if cls.config.reference_dump or cls.config.actor_train_dump or cls.config.actor_infer_dump:
+            return True
+        return False
+
+    @classmethod
+    def need_debugger_start(cls, tag):
+        if tag == "reference_compute_log_prob" and cls.config.reference_dump:
+            return True
+        if tag == "actor_update" and cls.config.actor_train_dump:
+            return True
+        if tag == "actor_compute_log_prob" and cls.config.actor_train_dump:
+            return True
+        if tag == "actor_generate_sequences" and cls.config.actor_infer_dump:
+            return True
+        return False
+    
+    @classmethod
+    def debugger_start(cls, model=None, tag=None):
+        if not cls.enabled:
+            return
+        if not cls.debugger:
+            return
+        if not cls.need_debugger_start(tag):
+            return
+        cls.debugger.service.first_start = True if model not in cls.hooked_model else False
+        cls.debugger.service.config.dump_path = os.path.join(cls.config.dump_path, tag)
+        cls.debugger.start(model=model)
+        if model not in cls.hooked_model:
+            cls.hooked_model.append(model)
+
+    @classmethod
+    def debugger_stop(cls, tag=None):
+        if not cls.enabled:
+            return
+        if not cls.debugger:
+            return
+        if not cls.need_debugger_start(tag):
+            return
+        cls.debugger.stop()
+        cls.debugger.service.reset_status()
+
+    @classmethod
+    def step(cls):
+        if not cls.enabled:
+            return
+        cls.saver.step()
+        if cls.debugger and cls.need_debugger():
+            cls.debugger.step()
 
 
 def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False):

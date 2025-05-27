@@ -30,7 +30,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.profiler_config import ProfilerConfig
+from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
@@ -126,6 +126,7 @@ class RayActorGroup:
             model_provider: Callable,
             initialize_func: Callable,
             profiler_config: Optional[ProfilerConfig] = None,
+            msprobe_config: Optional[MsprobeConfig] = None,
             tokenizer: BaseTokenizer = None,
             generate_config: GenerateConfig = None,
             resources: Dict[str, float] = None,
@@ -155,6 +156,7 @@ class RayActorGroup:
         self.rl_config = rl_config
         self.generate_config = generate_config
         self.profiler_config = profiler_config
+        self.msprobe_config = msprobe_config
         self.model_provider = model_provider
         self.initialize_func = initialize_func
         self.tokenizer = tokenizer
@@ -207,6 +209,7 @@ class RayActorGroup:
             get_megatron_module=self.get_megatron_module,
             initialize_func=self.initialize_func,
             profiler_config=self.profiler_config,
+            msprobe_config=self.msprobe_config,
             tokenizer=self.tokenizer,
             **self.kwargs
         )

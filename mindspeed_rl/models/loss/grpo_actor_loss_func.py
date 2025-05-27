@@ -8,6 +8,7 @@ from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.utils.compute import compute_kl_penalty
 from mindspeed_rl.utils.utils import generate_mask
 import mindspeed_rl.utils.torch_functional as F
+from mindspeed_rl.utils.utils import MsProbe
 
 
 @LossFuncFactory.register_loss('ray_grpo', 'actor')
@@ -68,6 +69,17 @@ class GRPOActorLossFunc(BaseLossFunc):
                                                                       kl_penalty=self.kl_penalty,
                                                                       entropy_coeff=self.entropy_coeff)
         policy_loss = pg_loss
+
+        data_tobe_saved = {
+            "old_log_prob": old_log_prob,
+            "log_prob": log_probs,
+            "ref_log_prob": ref_log_prob,
+            "advantages": advantages,
+            "loss": pg_loss,
+            "kl_loss": kl_loss,
+        }
+        MsProbe.save_data(data_tobe_saved)
+
         stats = {
             'actor/pg_loss': abs(pg_loss.detach().item()),
             'actor/pg_clipfrac': pg_clipfrac.detach().item(),

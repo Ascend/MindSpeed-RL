@@ -25,8 +25,21 @@ TEMPLATES_DIR = os.path.join(cur_file_dir, "./configs/model/templates.json")
 config_name = sys.argv.pop(1)
 
 
+def resolve_relative_path(args):
+    if not args.input.startswith('/'):
+        temp = "../" + args.input
+        args.input = os.path.normpath(os.path.join(cur_file_dir, temp))
+    if not args.tokenizer_name_or_path.startswith('/'):
+        temp = "../" + args.tokenizer_name_or_path
+        args.tokenizer_name_or_path = os.path.normpath(os.path.join(cur_file_dir, temp))
+    if not args.output_prefix.startswith('/'):
+        temp = "../" + args.output_prefix
+        args.output_prefix = os.path.normpath(os.path.join(cur_file_dir, temp))
+
+
 def preprocess(config):
     args = DataHandlerConfig(config)
+    resolve_relative_path(args)
     validate_data_handler_config(args)
 
     if args.merge_group_keys is not None:

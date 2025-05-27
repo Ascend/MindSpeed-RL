@@ -17,6 +17,7 @@
 以 [**DeepScaler**](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/tree/main) 为例。
 
 ```shell
+mkdir dataset
 cd dataset/
 wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json --no-check
 cd ..

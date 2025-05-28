@@ -228,6 +228,7 @@ def parse_training_config(config: Dict):
             role="integrated"
         ),
     })
+    actor_config.max_prompt_length = rl_config.max_prompt_length
 
     msprobe_config = MsprobeConfig(
             config.get("msprobe_config", {}),

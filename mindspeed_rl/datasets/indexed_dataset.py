@@ -20,7 +20,7 @@ import numpy
 _INDEX_HEADER = b"MMIDIDX\x00\x00"
 
 
-def get_packed_indexed_dataset(data_prefix: str):
+def get_packed_indexed_dataset(data_prefix: str, filter_length: Optional[int] = None):
     index_dataset_name = f"{data_prefix}_packed_*_document*"
     names = glob.glob(index_dataset_name)
     template = f"{data_prefix}_packed_(.*)_document(.*)"
@@ -29,8 +29,16 @@ def get_packed_indexed_dataset(data_prefix: str):
         fields = re.match(template, name)
         all_field.add(fields.group(1))
     packed_dataset = dict()
+
     for field in all_field:
-        packed_dataset[field] = IndexedDataset(f"{data_prefix}_packed_{field}_document")
+        # We only do filter for input_ids when filter_length is specified
+        max_len = filter_length if filter_length and field == 'input_ids' else None
+        packed_dataset[field] = IndexedDataset(f"{data_prefix}_packed_{field}_document", max_len=max_len)
+
+    if filter_length:
+        filter_mask = packed_dataset['input_ids'].get_filter_mask()
+        for field in packed_dataset:
+            packed_dataset[field].do_filter(filter_mask)
 
     combine_dataset = CombinedDataset(packed_dataset)
     return combine_dataset
@@ -52,6 +60,7 @@ class IndexedDataset(torch.utils.data.Dataset):
             path_prefix: str,
             multimodal: bool = False,
             mmap: bool = True,
+            max_len: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.path_prefix = None
@@ -61,6 +70,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.index = None
         self.bin_reader = None
 
+        self.max_len = max_len
         self.initialize(path_prefix, multimodal, mmap)
 
     def initialize(
@@ -94,7 +104,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         else:
             self.bin_reader = _FileBinReader(bin_path)
 
-        self.index = _IndexReader(idx_path, self.multimodal)
+        self.index = _IndexReader(idx_path, self.multimodal, self.max_len)
 
     def __getstate__(self) -> Tuple[str, bool, bool]:
         """Get the state during pickling
@@ -193,6 +203,12 @@ class IndexedDataset(torch.utils.data.Dataset):
             dtype=self.index.dtype, count=length, offset=sequence_pointer
         )
         return (sequence, sequence_mode) if sequence_mode is not None else sequence
+
+    def get_filter_mask(self):
+        return self.index.filter_mask
+
+    def do_filter(self, mask):
+        self.index.do_filter(mask)
 
     @property
     def sequence_lengths(self) -> numpy.ndarray:
@@ -472,7 +488,7 @@ class _IndexReader(object):
         multimodal (bool): Whether the dataset is multimodal
     """
 
-    def __init__(self, idx_path: str, multimodal: bool) -> None:
+    def __init__(self, idx_path: str, multimodal: bool, max_len: Optional[int]) -> None:
 
         with open(idx_path, "rb") as stream:
             header = stream.read(9)
@@ -525,6 +541,18 @@ class _IndexReader(object):
                        + self.document_indices.nbytes,
             )
 
+        if max_len:
+            length_mask = self.sequence_lengths < max_len
+            self.sequence_lengths = self.sequence_lengths[length_mask]
+            self.sequence_pointers = self.sequence_pointers[length_mask]
+            self.sequence_count = len(self.sequence_lengths)
+
+            self.sequence_modes = self.sequence_modes[length_mask] if self.sequence_modes else None
+            # document_indices is not used in training, it is ok to bypass the following check
+            self.document_indices = [self.sequence_lengths.shape[0]]
+
+            self.filter_mask = length_mask
+
         if self.sequence_lengths.shape[0] != len(self) or self.sequence_lengths.shape[0] != self.sequence_count \
                 or self.sequence_lengths.shape[0] != self.document_indices[-1]:
             raise ValueError("sequence_lengths is error")
@@ -542,6 +570,15 @@ class _IndexReader(object):
             int: The length of the dataset
         """
         return self.sequence_count
+
+    def do_filter(self, mask):
+        if hasattr(self, "filter_mask"):
+            return
+
+        self.sequence_lengths = self.sequence_lengths[mask]
+        self.sequence_pointers = self.sequence_pointers[mask]
+        self.sequence_count = len(self.sequence_lengths)
+        self.sequence_modes = self.sequence_modes[mask] if self.sequence_modes else None
 
     @lru_cache(maxsize=8)
     def __getitem__(self, idx: int) -> Tuple[numpy.int32, numpy.int64, Optional[numpy.int8]]:

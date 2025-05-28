@@ -24,6 +24,7 @@ class TestPromptDataset(DistributedTest):
         dummy_config.full_shuffle_instruction_dataset = False
         dummy_config.global_batch_size = 1
         dummy_config.no_shuffle = True
+        dummy_config.max_prompt_length = 150
         documents = np.arange(start=0, stop=3000, step=1, dtype=np.int32)
         dataset = PromptDataset(
             data_prefix=packed_data_prefix,

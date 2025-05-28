@@ -45,7 +45,8 @@ class PromptDataset(BaseDataset):
         self.args = extra_param
 
         if self.is_packed_data:
-            self.res_dataset = get_packed_indexed_dataset(data_prefix=self.data_prefix)
+            self.res_dataset = get_packed_indexed_dataset(data_prefix=self.data_prefix,
+                                                          filter_length=getattr(extra_param, 'max_prompt_length', None))
             self.shuffle_index = _build_index_mappings(name=name,
                                                        data_prefix=self.data_prefix,
                                                        start_index=documents[0],

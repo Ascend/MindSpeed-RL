@@ -79,7 +79,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 
 
 ## 数据集
-对于32B模型我们使用DeepScale 40K来训练
+对于32B模型我们使用DeepScaler 40K来训练
 
 * [**DeepScaler**](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/tree/main)
 
@@ -114,7 +114,7 @@ DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）
 
 ### 配置准备
 
-模型结构的配置文件位于configs/model下，训练配置文件位于configs/目录下，我们以qwen2.5-32b的A3配置为例[grpo_qwen25_32b_A3.yaml]，该配置用到了16die，为了进一步加速可以不断增加推理DP的数量。[**参数配置具体含义参考**](../algorithms/grpo.md)
+模型结构的配置文件位于configs/model下，训练配置文件位于configs/目录下，我们以qwen2.5-32b的A3配置为例[grpo_qwen25_32b_A3.yaml]，该配置用到了16die，为了进一步加速可以不断增加推理DP的数量。[**参数配置具体含义参考**](../features/grpo_yaml.md)
 
 ### 手动启动训练
 与基于ray的其他强化训练一样，我们多机需要先在主节点初始化ray：

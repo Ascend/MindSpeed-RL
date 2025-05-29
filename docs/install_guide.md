@@ -1,6 +1,67 @@
-## 安装指导
+# 安装指南
 
-请参考首页[安装教程](../README.md)选择下载对应依赖版本。
+##  版本配套表
+
+MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套表如下：
+
+| MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本 | Python版本 |
+| ---------------- | ------------ | ----------- | ------------- | -------- | ---------- |
+| master（主线）   | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.1.RC1  | Python3.10 |
+| 2.0.0（预览）    | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.1.RC1  | Python3.10 |
+
+[昇腾辅助软件](https://gitee.com/ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
+
+## 安装依赖的软件
+
+在安装MindSpeed RL之前，请参考[版本配套表](#版本配套表)，安装配套的昇腾软件栈，软件列表如下：
+
+<table>
+  <tr>
+    <th>依赖软件</th>
+    <th>版本</th>
+  </tr>
+  <tr>
+    <td>昇腾NPU驱动</td>
+    <td rowspan="2">25.0.RC1</td>
+  <tr>
+    <td>昇腾NPU固件</td>
+  </tr>
+  <tr>
+    <td>Toolkit（开发套件）</td>
+      <td rowspan="3">8.1.RC1</td>
+  </tr>
+  <tr>
+    <td>Kernel（算子包）</td>
+  </tr>
+  <tr>
+    <td>NNAL（Ascend Transformer Boost加速库）</td>
+  </tr>
+  <tr>
+  </tr>
+  <tr>
+    <td>Python</td>
+    <td>3.10</td>
+  </tr>
+  <tr>
+    <td>torch</td>
+    <td rowspan="2">2.5.1</td>
+  </tr>
+  <tr>
+    <td>torch_npu</td>
+  </tr>
+  <tr>
+    <td>apex</td>
+    <td rowspan="1">0.1</td>
+  </tr>
+  <tr>
+    <td>ray</td>
+    <td>2.42.1</td>
+  </tr>
+  <tr>
+    <td>vllm</td>
+    <td>0.7.3</td>
+  </tr>
+</table>
 
 ### 驱动固件安装
 
@@ -50,7 +111,10 @@ git checkout 0713836e95fe993feefe334945b5b273e4add1f1
 pip install -e .
 ```
 
-### 准备源码
+> 如以上安装过程出现错误，可以通过提出issue获得更多解决建议。
+
+## 准备源码
+
 ```shell
 git clone https://gitee.com/ascend/MindSpeed-RL.git 
 

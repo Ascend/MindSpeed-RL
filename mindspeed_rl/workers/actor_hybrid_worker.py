@@ -206,8 +206,10 @@ class ActorHybridWorkerBase(BaseWorker):
         profiler_step(self.actor_profiler)
 
     def save_ckpt(self, iteration: int):
+        self.sharding_manager.enter_train_mode()
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
+        self.sharding_manager.exit_train_mode()
 
     @mstx_timer_decorator
     def generate_sequences(self):

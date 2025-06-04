@@ -168,6 +168,16 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       </td>
       <td> Preview</td>
     </tr>
+    <tr>
+      <td>确定性计算</td>
+      <td>  <a href="docs/features/deterministic_computation.md">Doc</a> </td>
+      <td  rowspan="1">GRPO</td>
+      <td  rowspan="1">
+        Qwen2.5-7B <br>
+        Qwen2.5-32B <br>
+      </td>
+      <td> Preview</td>
+    </tr>
   </tbody>
 </table>
 注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 

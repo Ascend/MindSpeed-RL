@@ -83,6 +83,7 @@ bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
 1. 权重转换转回 Hugging Face 格式时，tp 和 pp 配置需配置为1；
 2. load-model-type 参数配置为 mg，save-model-type 参数配置为 hf ;
 3. save-dir 路径需要填入原始 HF 模型路径，新权重会存于 HF 原始权重文件下的 mg2hg 目录下，如/qwen2.5_7b_hf/mg2hg/
+
 ## 启动训练
 
 以 Qwen25 7B 模型为例,在启动训练之前，需要修改[ 启动脚本 ](../../examples/grpo/grpo_trainer_qwen25_7b.sh)的配置：
@@ -95,6 +96,21 @@ bash examples/grpo/grpo_trainer_qwen25_7b.sh
 ```
 
 ***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+
+## 断点续训
+进行断点续训时，需要注意配置以下参数：
+  ```yaml
+actor_config:
+    finetune: false       <------- 断点续训时 finetune 参数设置为 false
+    load: ./ckpt-32b      <------- 断点续训时 load 路径应为之前保存的权重路径
+    save: ./ckpt
+    no_load_optim: false  <------- 断点续训时 no_load_optim 应为 false
+    no_load_rng: false    <------- 断点续训时 no_load_rng 应为 false
+  
+rl_config:
+    integrated_mode_config:
+      ref_model_load_path: ./Qwen2.5-7B-tp4 <------- 断点续训时，应在 ref_model_load_path 中配置原始模型权重路径，供 reference model 加载
+  ```
 
 
 ## 实践效果

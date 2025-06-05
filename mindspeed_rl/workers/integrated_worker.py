@@ -77,13 +77,11 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.reference = None
         self.ref_model = None
         self.ref_manager = None
-        self.integrated_profiler = None
 
     def initialize(self):
 
         # Based on Actor
         ActorHybridWorkerBase.initialize(self)
-        self.integrated_profiler = profiler_start(self.profiler_config, "integrated")
 
         # Add Reference
         self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)

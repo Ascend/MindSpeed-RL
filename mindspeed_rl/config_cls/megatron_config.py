@@ -119,6 +119,7 @@ class MegatronConfig(BaseConfig):
     tensor_model_parallel_size: Size of tensor model parallelism (default: 1)
     pipeline_model_parallel_size: Size of pipeline model parallelism (default: 1)
     expert_model_parallel_size: Degree of expert model parallelism (default: 1)
+    num_layers_per_virtual_pipeline_stage: Degree of vpp (default: None)
     lr: Learning rate (default: None)
     lr_decay_style: Learning rate decay style (default: 'linear')
     min_lr: Minimum learning rate (default: 0.0)
@@ -198,6 +199,7 @@ class MegatronConfig(BaseConfig):
     reuse_fp32_param: The distributed training optimizer frees up 'param copies of FP32 to save memory. (default: False)
     moe_tp_extend_ep: use tp group to extend experts parallelism instead of sharding weight tensor of experts in tp group
     moe_alltoall_overlap_comm: moe_alltoall_overlap_comm
+    noop_layers:  noop layers string
     '''
 
     def __init__(self, training_config: Dict, model_config: Dict):
@@ -305,6 +307,7 @@ class MegatronConfig(BaseConfig):
         self.tensor_model_parallel_size = 1
         self.pipeline_model_parallel_size = 1
         self.expert_model_parallel_size = 1
+        self.num_layers_per_virtual_pipeline_stage = None
         self.lr = None
         self.lr_decay_style = 'linear'
         self.min_lr = 0.0
@@ -358,5 +361,6 @@ class MegatronConfig(BaseConfig):
         self.overlap_param_gather = False
         self.recompute_activation_function = False
         self.swap_attention = False
+        self.noop_layers = None
 
         self.update(training_config, model_config)

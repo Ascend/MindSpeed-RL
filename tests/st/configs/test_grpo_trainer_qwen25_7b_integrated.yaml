@@ -85,6 +85,7 @@ rl_config:
     num_npus: 8
 
 generate_config:
+  enforce_eager: True
   gen_micro_batch_size: 16
   trust_remote_code: true
   offload_train_optimizer: true

@@ -29,6 +29,7 @@ def validate_rl_args(
             raise ValueError(
                 f"integrated_mode_config should not be set when use_integrated_worker mode is off.")
 
+
     # 校验序列长度与模型最大长度
     if generate_config.max_model_len < actor_config.seq_length:
         raise ValueError(

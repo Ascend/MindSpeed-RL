@@ -158,3 +158,6 @@ cython_debug/
 /logs/
 /model_from_hf/
 /model_weights/
+/outputs/
+/vllm/
+/vllm_ascend/

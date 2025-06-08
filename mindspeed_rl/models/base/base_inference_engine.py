@@ -17,6 +17,7 @@ class BaseInferEngine(ABC):
             prompt_type: str = None,
             prompt_type_path: str = None,
             train_expert_parallel_size: int = 1,
+            train_context_parallel_size: int = 1,
             infer_tensor_parallel_size: int = 8,
             infer_pipeline_parallel_size: int = 1,
             infer_expert_parallel_size: int = 1,
@@ -34,6 +35,7 @@ class BaseInferEngine(ABC):
             train_tensor_parallel_size (int): Tensor parallel size during training.
             train_pipeline_parallel_size (int): Pipeline parallel size during training.
             train_expert_parallel_size (int): Expert parallel size during training.
+            train_context_parallel_size (int): Context parallel size during training.
             infer_tensor_parallel_size (int): Tensor parallel size during inference.
             infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
             infer_expert_parallel_size (int): Expert parallel size during inference.
@@ -49,6 +51,7 @@ class BaseInferEngine(ABC):
         self.train_tensor_parallel_size = train_tensor_parallel_size
         self.train_pipeline_parallel_size = train_pipeline_parallel_size
         self.train_expert_parallel_size = train_expert_parallel_size
+        self.train_context_parallel_size = train_context_parallel_size
         self.infer_tensor_parallel_size = infer_tensor_parallel_size
         self.infer_pipeline_parallel_size = infer_pipeline_parallel_size
         self.infer_expert_parallel_size = infer_expert_parallel_size

@@ -259,8 +259,8 @@ class _HuggingFaceTokenizer(BaseTokenizer):
     def tokenize(self, text):
         return self.tokenizer(text).input_ids
 
-    def detokenize(self, token_ids):
-        return self.tokenizer.decode(token_ids)
+    def detokenize(self, token_ids, **kwargs):
+        return self.tokenizer.decode(token_ids, **kwargs)
 
     @property
     def eod(self):

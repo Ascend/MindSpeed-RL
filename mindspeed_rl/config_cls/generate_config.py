@@ -25,6 +25,9 @@ class GenerateConfig(BaseConfig):
     dtype: Data type for model weights. Default is "bfloat16".
     gpu_memory_utilization: GPU memory utilization factor. Default is 0.5.
 
+    enforce_eager: Whether to always use eager-mode PyTorch. If True, we will disable ACL graph and always execute the model in eager mode. 
+                   If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility. 
+
     sampling_config: Configuration for text generation sampling. Default values are set for various sampling parameters.
         - num_completions: The number of independent completions to generate for each input prompt. Default is 1.
         - logprobs: The number of top tokens to return log probabilities for. Default is 1.
@@ -72,6 +75,7 @@ class GenerateConfig(BaseConfig):
 
         self.enable_prefix_caching = False
         self.num_scheduler_steps = 1
+        self.enforce_eager = False
 
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {

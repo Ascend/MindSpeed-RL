@@ -98,16 +98,16 @@ pip install apex-0.1.dev*.whl
 ```shell
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout v0.7.3
+git checkout 5bc1ad6cee754405464a9957e86cf3a9302e4986
 pip install -r requirements-build.txt
 VLLM_TARGET_DEVICE=empty pip install .
 ```
 
 ### vllm_ascend安装
 ```shell
-git clone -b v0.7.3-dev https://github.com/vllm-project/vllm-ascend.git
+git clone -b main https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout 0713836e95fe993feefe334945b5b273e4add1f1
+git checkout 908a851
 pip install -e .
 ```
 

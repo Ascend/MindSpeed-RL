@@ -92,6 +92,9 @@ class BaseTrainingEngine(ABC):
                                       shuffle_mini_batch=self.shuffle_mini_batch)
         n_micro_batch = len(batches)
         seq_len = batches[0]['input_ids'].shape[1]
+        data_iter = iter(batches)
+        if len(self.model) > 1:
+            data_iter = [iter(batches) for _ in self.model]
 
         self.loss_func.add_loss_meta_info(self.get_loss_meta_func())
 
@@ -104,7 +107,7 @@ class BaseTrainingEngine(ABC):
         # batch should be a list of batches inside micro-batches
         losses_reduced = self.forward_backward_func(
             forward_step_func=forward_step,
-            data_iterator=iter(batches),
+            data_iterator=data_iter,
             model=self.model,
             num_microbatches=n_micro_batch,
             seq_length=seq_len,

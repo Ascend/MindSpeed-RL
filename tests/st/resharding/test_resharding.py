@@ -306,6 +306,7 @@ class TestActor():
             train_tensor_parallel_size=args.train_tp,
             train_pipeline_parallel_size=args.train_pp,
             train_expert_parallel_size=args.train_ep,
+            train_context_parallel_size=args.train_cp,
             infer_tensor_parallel_size=args.infer_tp,
             infer_pipeline_parallel_size=args.infer_pp,
             infer_expert_parallel_size=args.infer_ep,
@@ -315,6 +316,7 @@ class TestActor():
             dtype="bfloat16",
             gpu_memory_utilization=0.6,
             trust_remote_code=True,
+            enforce_eager=True,
             megatron_config=megatron_config
         )
         self.megatron_offloader = MegatronOffLoader(self.model, self.optimizer)
@@ -364,6 +366,7 @@ def parse_args():
     parser.add_argument("--train-tp", type=int, default=2)
     parser.add_argument("--train-pp", type=int, default=2)
     parser.add_argument("--train-ep", type=int, default=1)
+    parser.add_argument("--train_cp", type=int, default=1)
     parser.add_argument("--infer-tp", type=int, default=4)
     parser.add_argument("--infer-pp", type=int, default=1)
     parser.add_argument("--infer-ep", type=int, default=1)

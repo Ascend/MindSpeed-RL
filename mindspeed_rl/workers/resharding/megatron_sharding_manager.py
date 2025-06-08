@@ -21,12 +21,20 @@ Manager used to shard weight and offload/onload optimizer from training stage to
 from itertools import chain
 from collections import defaultdict
 
+import os
 import torch
-import torch.distributed
+import torch.distributed as dist
+import vllm.distributed.parallel_state as ps
+from mindspeed_rl.utils.loggers import Loggers
 
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
 from mindspeed_rl.workers.resharding.weight_adaptor import get_weight_adaptor
 from mindspeed_rl.utils.utils import mstx_timer_decorator
+
+logger = Loggers(
+    name="vllm_engine_inference",
+)
+
 
 
 class MegatronOffLoader:
@@ -34,7 +42,6 @@ class MegatronOffLoader:
         self.optimizer = optimizer
         self.model = megatron_model
         self.wrap_with_ddp = wrap_with_ddp
-
         self.tensor_to_cpu_states_map = dict()
 
     @mstx_timer_decorator
@@ -51,18 +58,29 @@ class MegatronOffLoader:
 
     @mstx_timer_decorator
     def offload_optimizer(self):
-        for param_group in self.optimizer.optimizer.param_groups:
-            for param in param_group['params']:
-                param.data = param.data.to("cpu", non_blocking=False)
-        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state, "cpu")
+        if hasattr(self.optimizer, "chained_optimizers"):
+            optimizers = self.optimizer.chained_optimizers
+        else:
+            optimizers = [self.optimizer]
+        for optimizer in optimizers:
+            for param_group in optimizer.optimizer.param_groups:
+                for param in param_group['params']:
+                    param.data = param.data.to("cpu", non_blocking=False)
+            optimizer.optimizer.state = self._move_to_device(optimizer.optimizer.state,
+                                                                  "cpu")
 
     @mstx_timer_decorator
     def onload_optimizer(self):
-        for param_group in self.optimizer.optimizer.param_groups:
-            for param in param_group['params']:
-                param.data = param.data.to(torch.cuda.current_device(), non_blocking=False)
-        self.optimizer.optimizer.state = self._move_to_device(self.optimizer.optimizer.state,
-                                                              torch.cuda.current_device())
+        if hasattr(self.optimizer, "chained_optimizers"):
+            optimizers = self.optimizer.chained_optimizers
+        else:
+            optimizers = [self.optimizer]
+        for optimizer in optimizers:
+            for param_group in optimizer.optimizer.param_groups:
+                for param in param_group['params']:
+                    param.data = param.data.to(torch.cuda.current_device(), non_blocking=False)
+            optimizer.optimizer.state = self._move_to_device(optimizer.optimizer.state,
+                                                                  torch.cuda.current_device())
 
     @mstx_timer_decorator
     def _move_to_device(self, data, device):
@@ -133,7 +151,8 @@ class MegatronShardingManager:
             num_layer_list=None,
             moe_tp_extend_ep=None,
             parallel_state=None,
-            megatron_offloader=None
+            megatron_offloader=None,
+            noop_layers=None
     ):
         """Megatron Sharding Manager initialization.
 
@@ -169,13 +188,13 @@ class MegatronShardingManager:
             moe_tp_extend_ep=moe_tp_extend_ep,
             parallel_state=parallel_state,
             weight_adaptor=self.weight_adaptor,
-            enable_validate=enable_validate)
+            enable_validate=enable_validate,
+            noop_layers=noop_layers)
 
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload
         self.train_param_offload = train_param_offload
         self.enable_validate = enable_validate
-        self.use_distributed_optimizer = self.optimizer.config.use_distributed_optimizer
         self.inference_engine.offload_model_weights()
         self.megatron_offloader = megatron_offloader
 
@@ -206,8 +225,6 @@ class MegatronShardingManager:
             3. do resharding
             4. offload training param
         """
-        if self.train_param_offload:
-            self.megatron_offloader.onload_param()
 
         self.onload_infer_params()
 
@@ -215,8 +232,8 @@ class MegatronShardingManager:
 
         if self.train_param_offload:
             self.megatron_offloader.offload_param()
-
         self.inference_engine.sync_model_weights(infer_params, load_format='megatron')
+
 
     @mstx_timer_decorator
     def exit_infer_mode(self):

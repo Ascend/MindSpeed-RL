@@ -25,12 +25,16 @@ import torch.distributed as dist
 import numpy as np
 
 from torch.distributed import new_group
+import vllm.distributed.parallel_state as ps
 
-from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer
+from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer, calc_padded_numel
 import mindspeed_rl.workers.resharding.utils
 from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, tp_md5_validate, \
     update_md5_by_rank, compute_md5, validate_md5, _build_infer_param_dict, get_tp_allgather_group, \
     get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group, is_fake_tp_param
+from mindspeed_rl.utils.loggers import Loggers
+
+logger = Loggers(__name__)
 
 
 class MegatronStyleVllmWeightContainer:
@@ -42,7 +46,8 @@ class MegatronStyleVllmWeightContainer:
                  moe_tp_extend_ep=False,
                  parallel_state=None,
                  weight_adaptor=None,
-                 enable_validate=False) -> None:
+                 enable_validate=False,
+                 noop_layers=None) -> None:
         """ Megatron style vllm weight container.
 
         Arguments:
@@ -64,16 +69,26 @@ class MegatronStyleVllmWeightContainer:
         self.megatron_model = megatron_model
         self.parallel_state = parallel_state
         self.weight_adaptor = weight_adaptor
-        self._num_hidden_layers = self.model_config.num_hidden_layers
+        self._num_hidden_layers = self.model_config.num_hidden_layers # 通过tokenier路径下的config.json获取hf的模型
+        self._noop_layers = None
+        if noop_layers is not None:
+            self._noop_layers = [int(layer_idx) for layer_idx in noop_layers.split(',')]
+            self._num_hidden_layers += len(self._noop_layers)
 
         # pp configs
         self._pp_rank = self.parallel_state.get_pipeline_model_parallel_rank()
         self._pp_group = self.parallel_state.get_pipeline_model_parallel_group()
         self._pp_size = self.parallel_state.get_pipeline_model_parallel_world_size()
+        self._world_size = dist.get_world_size()
+        self.pp_group_size = self._world_size // self._pp_size
+        ## vpp
         self._num_layer_list = self._build_num_layer_list(num_layer_list)
-        self._vpp_size = self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK if self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK else 1
-        self._vpp_rank = self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE if self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE else 0
-
+        self._vpp_rank = self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK if self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK else 0
+        self._vpp_size = self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE if self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE else 1
+        self._vpp_layer_list = self._build_vpp_layer_list(self._num_layer_list)
+        ## _noop_layers
+        self._global2local_map = self._build_global2local_map(self._vpp_layer_list, self._vpp_size, self._noop_layers) if self._noop_layers is not None else None
+        
         # tp configs
         self._tp_size = self.parallel_state.get_tensor_model_parallel_world_size()
         self._tp_group = self.parallel_state.get_tensor_model_parallel_group()
@@ -97,7 +112,11 @@ class MegatronStyleVllmWeightContainer:
         self._infer_ep_size = infer_expert_parallel_size
         self.moe_tp_extend_ep = moe_tp_extend_ep
 
-        self._world_size = dist.get_world_size()
+        # TODO: infer_expert_tensor_parallel_size and num_process is fixed.
+        self.infer_expert_tensor_parallel_size = 1
+        self.num_process = 1
+        self._infer_ep_size = self._infer_ep_size * self._infer_tp_size
+        self.experts_memory_expend_N = self._infer_ep_size // self._ep_size
 
         # validate parallel configs
         self._validate_parallel_config()
@@ -116,10 +135,9 @@ class MegatronStyleVllmWeightContainer:
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
             raise ValueError("infer_pp_size != 1 not supported yet")
-        if self._infer_ep_size != 1:
-            raise ValueError("infer_ep_size != 1 not supported yet")
-        if self._ep_size > 1 and self._ep_size != self._infer_tp_size:
-            raise ValueError("For training EP, supports EP -> TP only currently.")
+        
+        if self._infer_ep_size % self._ep_size != 0:
+            raise ValueError("The training expert size should be divisibled by the inference expert size.")
         if self._ep_size > 1 and not self.moe_tp_extend_ep:
             raise ValueError("To enable training EP, you need to enable moe_tp_extend_ep and use GroupedMLP.")
         if self._pp_size < self._infer_pp_size:
@@ -149,6 +167,12 @@ class MegatronStyleVllmWeightContainer:
 
         self._update_weight_buffers_intra_pp()
         self._update_weight_buffers_inter_pp()
+
+        # 执行_update_weight_buffers_ep+_send_receive_experts的前提条件
+        if(self.moe_tp_extend_ep and self._infer_ep_size >= self._ep_size):
+            self._update_weight_buffers_ep()
+            self._send_receive_experts()
+
         params = self._get_all_params()
 
         params = _build_infer_param_dict(params=params)
@@ -161,27 +185,55 @@ class MegatronStyleVllmWeightContainer:
             raise ValueError("num_layers % pp_size == 0, please specify num_layer_list")
         return [self._num_hidden_layers // self._pp_size for _ in range(self._pp_size)]
 
+    def _build_vpp_layer_list(self, num_layer_list):
+        if self._vpp_size <= 1:
+            return num_layer_list
+        for layers_in_pp_rank in num_layer_list:
+            if layers_in_pp_rank % self._vpp_size != 0:
+                raise ValueError("num_layers_per_pp % vpp_size != 0, please specify pp_size and vpp_size")
+        return [int(layers_in_pp_rank / self._vpp_size) for layers_in_pp_rank in num_layer_list]
+
+    def _build_global2local_map(self, layer_list, vpp_size, noop_layers):
+        stage_layers_num = sum(layer_list)
+        glb2local_map = []
+        for vpp_rank in range(vpp_size):
+            start_layer = vpp_rank * stage_layers_num
+            for _, layers_in_vpp_rank in enumerate(layer_list):
+                layer_idx_list = [
+                    layer_idx for layer_idx in range(start_layer, start_layer + layers_in_vpp_rank)
+                    if layer_idx not in noop_layers
+                ]
+                glb2local_map += [layer_idx % layers_in_vpp_rank for layer_idx in layer_idx_list]
+                start_layer += layers_in_vpp_rank
+
+        return glb2local_map
+    
     def _unwrap_megatron_model(self, model):
         """
         Remove consecutive 'module.' prefixes from the model based on the state_dict's first key.
         This method only removes 'module.' from the beginning of the key and ignores other occurrences.
         """
-        model = model[0]
-        first_key = list(dict(model.named_parameters()).keys())[0]
-        while first_key.startswith("module."):
-            model = model.module
-            first_key = first_key[len("module."):]  # 更新键，去掉一个module.
-        return model
+        unwraped_model = []
+        for model_chunk in model:
+            first_key = list(dict(model_chunk.named_parameters()).keys())[0]
+            while first_key.startswith("module."):
+                model_chunk = model_chunk.module
+                first_key = first_key[len("module."):]
+            unwraped_model.append(model_chunk)
+        return unwraped_model
 
     def _init_weight_buffers(self):
         """
         Build buffers from vllm state dict. Totally build train pp_size buffers, each buffer corresponds to a pack of megatron weight.
         Return a list of buffers, and a reference dict megatron_param_name->buffer.
         """
-        vllm_names = list(dict(self.vllm_model.named_parameters()).keys())
-        self.weight_names_per_pp = self.weight_adaptor.get_weight_names_per_pp(self._num_layer_list, vllm_names)
+        vllm_names = list(dict(self.vllm_model.named_parameters()).keys()) # 获取每个pp内部的weights name
+        self.weight_names_per_pp = self.weight_adaptor.get_weight_names_per_pp(self._vpp_layer_list, vllm_names,
+                                                                               sum(self._num_layer_list), self._vpp_size, self._noop_layers)
+        
         self.weight_buffers = build_model_weight_buffer(self.vllm_model, self.weight_names_per_pp,
-                                                        self.weight_adaptor.get_weight_buffer_meta)
+                                                        self.weight_adaptor.get_weight_buffer_meta
+                                                        )
 
     def trans_ep_params_to_tp(self, megatron_param, name):
         """
@@ -264,7 +316,11 @@ class MegatronStyleVllmWeightContainer:
             async_op=False
         )
         total_experts = self.num_local_experts * tp_size
-        return torch.cat(output_tensor_list, dim=1).reshape(hidden_size, total_experts, -1).permute(1, 0, 2)
+        res = torch.cat(output_tensor_list, dim=1).reshape(hidden_size, total_experts, -1)
+        if 'weight2' in name:
+            return res.permute(1, 2, 0).contiguous()
+        return res.permute(1, 0, 2).contiguous()
+
 
     def _update_weight_buffers_intra_pp(self):
         """
@@ -281,34 +337,106 @@ class MegatronStyleVllmWeightContainer:
             return infer_param
 
         pp_rank = self._pp_rank
-        weight_buffer = self.weight_buffers[pp_rank]
+        weight_names = self.weight_names_per_pp[pp_rank]
+        weight_names_meta = self.weight_adaptor.convert_weight_name_meta(weight_names)
         true_megatron_model = self._unwrap_megatron_model(self.megatron_model)
-        normal_layer_func = partial(self.weight_adaptor.global2local_layer, num_layer_list=self._num_layer_list)
-        name_pairs = sorted(list(set([(name, self.weight_adaptor.replace_name_i2t(normal_layer_func(name)))
-                                      for name in weight_buffer.weight_names])))
+        normal_layer_func = partial(self.weight_adaptor.global2local_layer, num_layer_list=self._vpp_layer_list, global2local_map=self._global2local_map)
+        name_pairs = sorted(list(set([(name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
+                                    for vpp_rank, names_per_vpp in enumerate(weight_names_meta) for name in names_per_vpp])))
+        
         if self.enable_validate:
             self.origin_params_for_md5 = hashlib.md5()
             self.infer_params_for_md5 = [hashlib.md5() for _ in range(get_tp_allgather_world_size())]
-        for hf_name, megatron_name in name_pairs:
+        
+        # 检查 linear_fc1 和 linear_fc2 权重形状是否符合特定关系（fc1 包含门控和扩展参数，因此大小是 fc2 的两倍）。不符合条件的模型不被支持。
+        for _, vpp_rank, megatron_name in name_pairs:
             if megatron_name.endswith("linear_fc1.weight"):
                 fc2_name = megatron_name.replace("linear_fc1", "linear_fc2")
-                megatron_param_fc1 = dict(true_megatron_model.named_parameters())[megatron_name]
-                megatron_param_fc2 = dict(true_megatron_model.named_parameters())[fc2_name]
+                megatron_param_fc1 = dict(true_megatron_model[vpp_rank].named_parameters())[megatron_name]
+                megatron_param_fc2 = dict(true_megatron_model[vpp_rank].named_parameters())[fc2_name]
                 if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * \
                         megatron_param_fc2.shape[1] * 2:
                     raise ValueError("Only implemented for Llama model which linear_fc1 contains gate and up params.")
 
-        megatron_params_dict = dict(true_megatron_model.named_buffers())
-        megatron_params_dict.update(true_megatron_model.named_parameters())
-        for hf_name, megatron_name in name_pairs:
-            megatron_param = megatron_params_dict[megatron_name]
-            param = _transfer_from_megatron_division(megatron_param, megatron_name)
-            weight_buffer.copy_by_name(hf_name, param)
+        weight_buffer = self.weight_buffers[pp_rank]
+        megatron_params_dict = {}
+        for vpp_rank in range(self._vpp_size):
+            megatron_params_dict.update({vpp_rank: dict(true_megatron_model[vpp_rank].named_buffers())})
+            megatron_params_dict[vpp_rank].update(true_megatron_model[vpp_rank].named_parameters())
+
+        for hf_name, vpp_rank, megatron_name in name_pairs:
+            if((self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name):
+                pass
+            else:
+                megatron_param = megatron_params_dict[vpp_rank][megatron_name]
+                param = _transfer_from_megatron_division(megatron_param, megatron_name)
+                weight_buffer.copy_by_name(hf_name, param)
 
         # tp md5 validate
         if self.enable_validate:
             tp_md5_validate(self.infer_params_for_md5, self.origin_params_for_md5,
                             f"rank[{self._rank}] tp params allgather")
+
+    def _update_weight_buffers_ep(self):
+        # 构造临时的experts_memory_buffers
+        for cur_pp_rank in range(self._pp_size):
+            pp_rank = self._pp_rank
+            from mindspeed_rl.workers.resharding.memory_buffer import build_experts_memory_buffer, get_weight_buffer_meta_from_buffer
+            # Step1 在当前的PP_rank中，设置一个临时的exprts_buffer
+            combined_names_per_pp = []
+            vpp_stages = self.weight_names_per_pp[cur_pp_rank]
+            for weight_names_per_stage in vpp_stages:
+                combined_names_per_pp.extend(weight_names_per_stage)
+            self.weight_buffer_meta = self.weight_adaptor.get_weight_buffer_meta(self.vllm_model, combined_names_per_pp)
+            self.experts_weight_buffer_meta = get_weight_buffer_meta_from_buffer(self.weight_buffer_meta)
+            self.experts_memory_buffers = build_experts_memory_buffer(self.experts_weight_buffer_meta, self.experts_memory_expend_N)
+            
+            # Step2 将weights_buffer上对应的权重放到experts_buffer中
+            if(cur_pp_rank == pp_rank):
+                weight_names = self.weight_names_per_pp[pp_rank]
+                weight_names_meta = self.weight_adaptor.convert_weight_name_meta(weight_names)
+                normal_layer_func = partial(self.weight_adaptor.global2local_layer, num_layer_list=self._vpp_layer_list, global2local_map=self._global2local_map)
+                name_pairs = sorted(list(set([(name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
+                                      for vpp_rank, names_per_vpp in enumerate(weight_names_meta) for name in names_per_vpp])))
+                true_megatron_model = self._unwrap_megatron_model(self.megatron_model)
+                
+                megatron_params_dict = {}
+                # 拿到当前pp的所有权重
+                for vpp_rank in range(self._vpp_size):
+                    megatron_params_dict.update({vpp_rank: dict(true_megatron_model[vpp_rank].named_buffers())})
+                    megatron_params_dict[vpp_rank].update(true_megatron_model[vpp_rank].named_parameters())
+
+                for hf_name, vpp_rank, megatron_name in name_pairs:
+                    if((self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name):
+                        megatron_param = megatron_params_dict[vpp_rank][megatron_name]
+                        dtype = self.experts_weight_buffer_meta[hf_name]['dtype']
+                        self.experts_memory_buffers[dtype].copy_by_name(hf_name, megatron_param)
+
+            # Step3 后续的操作可以复用
+            global_src = dist.get_global_rank(group=self._pp_group, group_rank=cur_pp_rank)
+            
+            # broadcast专家权重（experts memory buffer中的）
+            for dtype, experts_memory_buffer in self.experts_memory_buffers.items():
+                dist.broadcast(tensor=experts_memory_buffer.data, src=global_src, group=self._pp_group, async_op=False)
+                pp_group_rank = self._rank // self.pp_group_size
+               
+                # 获取对应的dtype
+                for name, tensor_indices_value in sorted(experts_memory_buffer.tensor_indices.items()):
+                    shape = tensor_indices_value[1]  # 是*N的
+                    index = pp_group_rank % self.experts_memory_expend_N
+                    experts_tensor = experts_memory_buffer.get_by_name(name)
+                    experts_tensor_reshape = experts_tensor.view(shape)
+                    weight_tensor_infer = experts_tensor_reshape[index]
+                    self.weight_buffers[cur_pp_rank].copy_by_name(name, weight_tensor_infer)
+
+            # 卸载专家的buffer
+                experts_memory_buffer = None
+                self.experts_memory_buffers[dtype] = None
+
+            for memory_buffer in self.experts_memory_buffers.values():
+                memory_buffer = None
+            self.experts_memory_buffers = None
+
 
     def _update_weight_buffers_inter_pp(self):
         """
@@ -327,6 +455,36 @@ class MegatronStyleVllmWeightContainer:
                     md5_tensor_src = torch.zeros_like(md5_tensor, dtype=torch.int64, device=torch.cuda.current_device())
                     dist.broadcast(md5_tensor_src, group=self._pp_group, src=global_src, async_op=False)
                     validate_md5(md5_tensor_src, md5_tensor, f"rank[{self._rank}] pp resharding params")
+
+
+    def get_expert_router(self, cur_rank, train_tp_ep_size, infer_tp_ep_size, world_size):
+        for tp_ep_group_id in range(world_size // infer_tp_ep_size):
+            tp_ep_group = [i for i in range(tp_ep_group_id * infer_tp_ep_size, (tp_ep_group_id + 1) * infer_tp_ep_size)]
+            if cur_rank in tp_ep_group:
+                self.INFER_TP_EP_GROUP = tp_ep_group
+        stride = infer_tp_ep_size // train_tp_ep_size
+        dev_array = np.array(self.INFER_TP_EP_GROUP).reshape(stride, train_tp_ep_size)
+        src_router = np.squeeze(dev_array.transpose().reshape(1, infer_tp_ep_size)).tolist()
+        src = src_router[cur_rank % infer_tp_ep_size]
+        dst = self.INFER_TP_EP_GROUP[src_router.index(cur_rank)]
+        return src, dst
+
+    def _send_receive_experts(self):
+        cur_rank = dist.get_rank()
+        src_rank, dst_rank = self.get_expert_router(cur_rank, self._ep_size, self._infer_ep_size, self._world_size)
+        for cur_pp_rank in range(self._pp_size):
+            for memory_buffer in self.weight_buffers[cur_pp_rank].memory_buffers.values():
+                for name in sorted(memory_buffer.tensor_indices.keys()):
+                    if "mlp.experts" in name:
+                        # 做收发
+                        tensor_to_send = memory_buffer.get_by_name(name)
+                        tensor_to_replace = torch.empty_like(tensor_to_send)
+                        send_op = dist.P2POp(dist.isend, tensor_to_send, dst_rank)
+                        recv_op = dist.P2POp(dist.irecv, tensor_to_replace, src_rank)
+                        reqs = dist.batch_isend_irecv([send_op, recv_op])
+                        for req in reqs:
+                            req.wait()
+                        memory_buffer.copy_by_name(name, tensor_to_replace)
 
     def _get_all_params(self):
         """Get all the parameters of the models in all pp ranks
@@ -353,7 +511,7 @@ class MegatronStyleVllmWeightContainer:
             return
         if self._tp_size % self._infer_tp_size != 0:
             raise ValueError("self._tp_size must be divisible by self._infer_tp_size")
-        tp_allgather_size = self._tp_size // self._infer_tp_size
+        tp_allgather_size = self._tp_size
         if mindspeed_rl.workers.resharding.utils._TP_ALLGATHER_GROUP is not None:
             raise RuntimeError("Group for allgather tensor model parallel weight is already initialized")
         num_groups = self._world_size // tp_allgather_size
@@ -432,7 +590,7 @@ class MegatronStyleVllmWeightContainer:
         2. split train_tp params into groups (size: infer_tp_size)
         3. return the corresponding param from group based on infer tp rank
         """
-        if self._infer_tp_size <= self._tp_size:
+        if self._infer_tp_size <= self._tp_size or is_fake_tp_param(name, self.moe_tp_extend_ep):
             return param
 
         tp_group = get_tp_group()
@@ -494,6 +652,9 @@ class MegatronStyleVllmWeightContainer:
             torch.distributed.all_gather(infer_param, param, group=tp_allgather_group)
             if self.enable_validate:
                 update_md5_by_rank(infer_param, param, self.origin_params_for_md5, self.infer_params_for_md5)
-            infer_param = self._default_tp_concat_fn(name, param, infer_param)
+            part_len = len(infer_param) // self._infer_tp_size
+            start = self._rank % self._infer_tp_size
+            part_param = infer_param[part_len * start:part_len * (start + 1)]
+            infer_param = self._default_tp_concat_fn(name, param, part_param)
 
         return infer_param

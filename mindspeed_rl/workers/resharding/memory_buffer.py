@@ -71,7 +71,7 @@ class MemoryBuffer:
         if param_name not in self.tensor_indices:
             raise KeyError(f"Parameter {param_name} not found in the buffer.")
 
-        start_index, shape = self.tensor_indices[param_name]
+        start_index, shape = self.tensor_indices[param_name] # weight_name -- index shape
         return self.get(shape, start_index)
 
 
@@ -80,6 +80,15 @@ def calc_padded_numel(shape: torch.Size, dtype: torch.dtype):
     align_numel = 128 // torch.finfo(dtype).bits
     numel = shape.numel()
     return (numel + align_numel - 1) // align_numel * align_numel
+
+
+# 构建EP增大的buffer———构造一个experts_weight_buffer_meta
+def get_weight_buffer_meta_from_buffer(weight_buffer_meta) -> Dict[str, Dict]:
+    experts_weight_buffer_meta = {}
+    for name, meta_info in sorted(weight_buffer_meta.items()):
+        if "mlp.experts" in name:
+            experts_weight_buffer_meta[name] = meta_info
+    return experts_weight_buffer_meta
 
 
 def build_memory_buffer(weight_buffer_meta: Dict[str, Dict]) -> Dict[torch.dtype, MemoryBuffer]:
@@ -123,8 +132,61 @@ def build_memory_buffer(weight_buffer_meta: Dict[str, Dict]) -> Dict[torch.dtype
     return memory_buffers
 
 
+def build_experts_memory_buffer(experts_weight_buffer_meta: Dict[str, Dict], experts_memory_expend_N) -> Dict[torch.dtype, MemoryBuffer]:
+    """Build the experts memory buffer given experts_weight_buffer_meta
+
+    Args:
+        weight_buffer_meta: contains mapping from name to a dictionary containing shape and dtype of the tensors
+
+    Returns: a large memory buffer for each dtype that can hold all the tensors
+
+    """
+    experts_memory_buffers = {}
+    total_numel_map = {}  # map from dtype to the total numel
+
+    for _, meta_info in sorted(experts_weight_buffer_meta.items()):
+        shape = meta_info['shape']
+        shape = torch.Size([experts_memory_expend_N, shape[0], shape[1], shape[2]])
+        dtype = meta_info['dtype']
+
+        if not isinstance(shape, torch.Size):
+            raise TypeError("Shape must be an instance of torch.Size")
+        if not isinstance(dtype, torch.dtype):
+            raise TypeError("dtype must be an instance of torch.dtype")
+        if dtype not in total_numel_map:
+            total_numel_map[dtype] = 0
+
+        tmp_numel = calc_padded_numel(shape, dtype)
+        total_numel_map[dtype] += tmp_numel
+
+
+    for dtype, total_numel in total_numel_map.items():
+        # Create a buffer for each dtype with the total numel
+        experts_memory_buffers[dtype] = MemoryBuffer(total_numel, total_numel, dtype)
+
+    # Now, insert each tensor's index and shape for later retrieval by name
+    current_index_map = {}  # This keeps track of the current memory index for each dtype
+    for name, meta_info in sorted(experts_weight_buffer_meta.items()):
+        shape = meta_info['shape']
+        shape = torch.Size([experts_memory_expend_N, shape[0], shape[1], shape[2]])
+        dtype = meta_info['dtype']
+        buffer = experts_memory_buffers[dtype]
+        tensor_size = calc_padded_numel(shape, dtype)
+
+        start_index = current_index_map.get(dtype, 0)
+        current_index_map[dtype] = start_index + tensor_size
+
+        buffer.tensor_indices[name] = (start_index, shape)
+
+    return experts_memory_buffers   
+
+
 def build_model_weight_buffer(model: nn.Module, names_per_pp: List[str], get_weight_buffer_meta):
-    memory_buffers = [ModelWeightBuffer(model, weight_names, get_weight_buffer_meta) for weight_names in names_per_pp]
+    combined_names_per_pp = [[] for _ in names_per_pp]
+    for pp_rank, vpp_stages in enumerate(names_per_pp):
+        for weight_names_per_stage in vpp_stages:
+            combined_names_per_pp[pp_rank].extend(weight_names_per_stage)
+    memory_buffers = [ModelWeightBuffer(model, weight_names, get_weight_buffer_meta) for weight_names in combined_names_per_pp]
     return memory_buffers
 
 
@@ -139,7 +201,7 @@ class ModelWeightBuffer:
         self.weight_buffer_meta = self.get_weight_buffer_meta(self.model, weight_names)
         self.weight_names = list(self.weight_buffer_meta.keys())
         self.memory_buffers = None
-        # self.memory_buffers = build_memory_buffer(self.weight_buffer_meta)
+
 
     def __getitem__(self, weight_name: str) -> torch.Tensor:
         return self.get_weight_by_name(weight_name)

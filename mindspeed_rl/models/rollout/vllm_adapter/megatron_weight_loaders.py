@@ -7,13 +7,6 @@ import torch
 import torch.nn as nn
 from transformers.configuration_utils import PretrainedConfig
 
-from vllm.model_executor.layers.linear import (
-    ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear, 
-    RowParallelLinear, ReplicatedLinear)
-from vllm.model_executor.layers.fused_moe.layer import FusedMoE 
-from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead, VocabParallelEmbedding
-from vllm.model_executor.models import ModelRegistry
-
 
 class InferParallelConfig:
     def __init__(self, infer_tensor_parallel_size: int, infer_pipeline_parallel_size: int, infer_expert_parallel_size: int):
@@ -88,14 +81,15 @@ def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
         if name not in params_dict.keys():
             raise ValueError(f"unexpected key {name} in deepseek_megatron_weight_loader")
         if "mlp.experts.w13_weight" in name:
-            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
+            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
         if "mlp.experts.w2_weight" in name:
-            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
+            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 
 
 def _get_model_weight_loader(arch: str):
+    from vllm.model_executor.models import ModelRegistry
     if arch in MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY:
         return MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY[arch]
     raise ValueError(f"Model architectures {arch} are not supported for now. "
@@ -146,6 +140,23 @@ def load_single_weight(params_dict, name, loaded_weight):
 
 
 def update_megatron_weight_loader():
+    from vllm.model_executor.layers.linear import (
+    ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear,
+    RowParallelLinear, ReplicatedLinear)
+    from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+    from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead, VocabParallelEmbedding
+
+    LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY = {
+        ColumnParallelLinear: parallel_weight_loader,
+        MergedColumnParallelLinear: parallel_weight_loader,
+        QKVParallelLinear: parallel_weight_loader,
+        RowParallelLinear: parallel_weight_loader,
+        VocabParallelEmbedding: parallel_weight_loader,
+        ParallelLMHead: parallel_weight_loader,
+        ReplicatedLinear: parallel_weight_loader,
+        FusedMoE: parallel_weight_loader
+    }
+
     for layer_class, weight_loader in LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY.items():
         layer_class.weight_loader = weight_loader
 
@@ -176,16 +187,6 @@ MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "LlamaForCausalLM": llama_megatron_core_weight_loader,
     "Qwen2ForCausalLM": qwen_megatron_weight_loader,
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
-}
-
-
-LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY = {
-    ColumnParallelLinear: parallel_weight_loader,
-    MergedColumnParallelLinear: parallel_weight_loader,
-    QKVParallelLinear: parallel_weight_loader,
-    RowParallelLinear: parallel_weight_loader,
-    VocabParallelEmbedding: parallel_weight_loader,
-    ParallelLMHead: parallel_weight_loader,
-    ReplicatedLinear: parallel_weight_loader,
-    FusedMoE: parallel_weight_loader
+    "DeepseekV2ForCausalLM": deepseek_megatron_weight_loader,
+    "CustomDeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
 }

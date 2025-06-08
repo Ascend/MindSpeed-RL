@@ -88,6 +88,9 @@ class ActorHybridWorkerBase(BaseWorker):
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
+        
+        if self.generate_config.offload_train_param:
+            self.actor_offloader.onload_param()
 
         self.actor_hybrid = ActorRolloutHybrid(
             self.model,
@@ -178,7 +181,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
-                if self.parallel_state.is_pipeline_last_stage() and self.parallel_state.get_tensor_model_parallel_rank() == 0:
+                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.parallel_state.get_tensor_model_parallel_rank() == 0:
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
@@ -371,6 +374,7 @@ class ActorHybridWorkerBase(BaseWorker):
             train_tensor_parallel_size=self.megatron_config.tensor_model_parallel_size,
             train_pipeline_parallel_size=self.megatron_config.pipeline_model_parallel_size,
             train_expert_parallel_size=self.megatron_config.expert_model_parallel_size,
+            train_context_parallel_size=self.megatron_config.context_parallel_size,
             infer_tensor_parallel_size=self.generate_config.infer_tensor_parallel_size,
             infer_pipeline_parallel_size=self.generate_config.infer_pipeline_parallel_size,
             infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
@@ -382,9 +386,9 @@ class ActorHybridWorkerBase(BaseWorker):
             max_model_len=self.generate_config.max_model_len,
             dtype=self.generate_config.dtype,
             gpu_memory_utilization=self.generate_config.gpu_memory_utilization,
-            trust_remote_code=self.generate_config.trust_remote_code
+            trust_remote_code=self.generate_config.trust_remote_code,
+            enforce_eager=self.generate_config.enforce_eager,
         )
-
         return rollout
 
     def _build_sharding_manager(self):
@@ -404,7 +408,8 @@ class ActorHybridWorkerBase(BaseWorker):
             grad_offload=self.generate_config.offload_train_grad,
             train_param_offload=self.generate_config.offload_train_param,
             enable_validate=self.rl_config.enable_sharding_validate,
-            megatron_offloader=self.actor_offloader
+            megatron_offloader=self.actor_offloader,
+            noop_layers=self.megatron_config.noop_layers
         )
         return sharding_manager
 

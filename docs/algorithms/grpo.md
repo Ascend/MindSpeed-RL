@@ -1,7 +1,7 @@
-# 后训练方法 Ray GRPO
+# GRPO
 
 ## 简介
-[Group Relative Policy Optimization (GRPO) ](https://arxiv.org/pdf/2402.03300)是 Deepseek-Math中提出的训练方法，它移除了 PPO 中对 Critic 模型的依赖，而是通过计算同一prompt多次重复采样输出的相对奖励来估计优势函数，这一创新大大减少了显存占用，提高了算法在强化学习任务中的效率。MindSpeed RL 仓库复现 GRPO 训练方法，前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
+以 MindSpeed RL 仓库复现 [Group Relative Policy Optimization (GRPO) ](https://arxiv.org/pdf/2402.03300) 后训练方法为例来帮助用户快速入门，前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
 配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)
@@ -112,10 +112,3 @@ rl_config:
       ref_model_load_path: ./Qwen2.5-7B-tp4 <------- 断点续训时，应在 ref_model_load_path 中配置原始模型权重路径，供 reference model 加载
   ```
 
-
-## 实践效果
-当前已成功复现DeepSeekR1-ZERO训练流程以及训练效果，详细的复现流程以及效果图展示在以下文档：
-
-[DeepSeekR1-ZERO-Qwen2.5-7B](../solutions/r1_zero_qwen25_7b.md)
-
-[DeepSeekR1-ZERO-Qwen2.5-32B](../solutions/r1_zero_qwen25_32b.md)

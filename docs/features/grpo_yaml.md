@@ -22,6 +22,12 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 * `tokenizer_name_or_path`: 分词器路径配置，可以配置为 Hugging Face 权重文件的文件夹路径，例如 /ckpt/qwen2.5_7b_hf/ ;
 * `其余参数`: 其余参数为Megatron训练中的特性配置；
 
+#### 全量重计算
+* `recompute-granularity`: 对于内存非常有限的情况，全量重计算只保存 Transformer 层或层组的输入激活值，其他部分全部重新计算，设置该属性为 full；
+* `recompute-num-layers`: 指定重计算分组层数 or 指定重计算层数；
+* `recompute-method`: 在全量重计算的前提下，设置 recompute-method 为 uniform 代表将Transformer 层均匀划分组（每组大小 recompute-num-layers），按组存储输入和激活值；设置为 block 代表将前 recompute-num-layers 个 Transformer 层重计算，剩余层不进行重计算；
+
+
 ### `actor_config：`
 配置 GRPO 训练中 Actor 模型、Reference 模型和 Reward 模型的配置参数；当前支持不开启 Reward 模型，开启规则奖励进行打分，开启参数详见rl_config中的rule_reward参数。
 * `micro_batch_size`：梯度累积的 mbs 大小;
@@ -95,6 +101,7 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `max_model_len`：vllm 能够处理的最大输入序列长度(prompt+response)；
 * `dtype`：vllm 推理所使用的数据类型；
 * `gpu_memory_utilization`：GPU 内存利用率，指定推理时使用 GPU 内存的比例；
+* `num_scheduler_steps `：指的是在一个完整的调度周期内，调度器会将批处理请求分成多少个子步骤来执行；
 #### 采样配置
 * `logprobs`：是否生成logprobs；
 * `max_tokens`：单条response最大生成token数量；

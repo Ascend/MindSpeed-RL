@@ -19,6 +19,12 @@ def validate_rl_args(
         if ai_framework is not None and ai_framework != "mindspore":
             raise ValueError(f"Invalid value for ai_framework: '{ai_framework}'. Only None or mindspore are allowed")
 
+    #检查训推数据类型是否合规
+    if actor_config.bf16 is False or generate_config.dtype != "bfloat16":
+        raise ValueError(
+                f" megatron_config.bf16 should be true and generate_config.dtype should be bfloat16.")
+
+
     # 检查全共卡情况下参数设置
     if rl_config.use_integrated_worker:
         if rl_config.reference_resource is not None:

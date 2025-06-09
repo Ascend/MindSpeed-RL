@@ -282,7 +282,7 @@ class MegatronConfig(BaseConfig):
         self.no_masked_softmax_fusion = False
         self.attention_softmax_in_fp32 = False
         self.no_gradient_accumulation_fusion = False
-        self.bf16 = False
+        self.bf16 = True
         self.use_distributed_optimizer = False
         self.global_batch_size = None
         self.seq_length = None

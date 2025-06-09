@@ -97,7 +97,7 @@ def append_to_dict(data: Dict, new_data: Dict):
 def num_floating_point_operations(args, batch_size):
     """
     Calculate the number of floating-point operations for a given model configuration and batch size.
-    
+
     Args:
         args (object): An object containing various model configuration parameters, including:
             - kv_channels: The number of key-value channels in attention layers.
@@ -160,7 +160,7 @@ def get_batch_metrices_mean(metrics_list: List[Dict]) -> Dict[str, Tensor]:
         metrics_list: A list of dictionaries, where each dictionary contains metrics as key-value pairs.
 
     Returns:
-        metrics_mean: A dictionary where each key is a metric name and 
+        metrics_mean: A dictionary where each key is a metric name and
                       each value is the mean of that metric across all batches.
     """
     batch_metrics = {}
@@ -179,7 +179,7 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
         metrics_list: A list of dictionaries, where each dictionary contains metrics as key-value pairs.
 
     Returns:
-        metrics_mean: A dictionary where each key is a metric name and 
+        metrics_mean: A dictionary where each key is a metric name and
                       each value is the mean of that metric across all batches.
     """
     new_metrics = {}
@@ -214,7 +214,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
 
     reference_start_time = metrics.pop('start_time/reference_model', None)
     reference_end_time = metrics.pop('end_time/reference', None)
-    
+
     if old_log_p_end_time is None:
         old_log_p_end_time = reference_end_time
         custom_order.remove('timing/old_log_p')
@@ -224,14 +224,14 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     if "timing/rule_reward" in metrics.keys():
         reward_start_time = metrics.pop('start_time/rule_reward', None)
         reward_end_time = metrics.pop('end_time/rule_reward', None)
-        non_overlap_rule_reward_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)   
+        non_overlap_rule_reward_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)
         metrics["timing/non_overlap_rule_reward"] = non_overlap_rule_reward_time
     if "timing/reward_model" in metrics.keys():
         reward_start_time = metrics.pop('start_time/reward_model', None)
         reward_end_time = metrics.pop('end_time/reward_model', None)
-        non_overlap_reward_model_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)  
+        non_overlap_reward_model_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)
         metrics["timing/non_overlap_reward_model"] = non_overlap_reward_model_time
- 
+
 
     metrics["timing/non_overlap_reference_model"] = non_overlap_reference_model_time
     metrics["timing/non_overlap_adv"] = non_overlap_adv_time
@@ -250,7 +250,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
 
 
 def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
-    
+
     actor_resource = compute_kwargs.get('actor_resource', {})
     reference_resource = compute_kwargs.get('reference_resource', {})
     reward_resource = compute_kwargs.get('reward_resource', None)
@@ -325,14 +325,14 @@ class MsProbe:
         if not msprobe_config.msprobe:
             return
         cls.config = msprobe_config
-        
+
         try:
             from msprobe.core import SingleSave
             from msprobe.pytorch import PrecisionDebugger
         except Exception as e:
             print("import msprobe error, msprobe not enabled")
             return
-        
+
         cls.saver = SingleSave(cls.config.dump_path)
         if cls.need_debugger():
             step = [f"{cls.config.step_start}-{cls.config.step_end}"]
@@ -340,7 +340,7 @@ class MsProbe:
 
         cls.enabled = True
         print("msprobe enabled")
-        
+
     @classmethod
     def save_configs(cls, data):
         if not cls.enabled:
@@ -348,7 +348,7 @@ class MsProbe:
         if not cls.config.configurations_dump:
             return
         cls.saver.save_config(data)
-    
+
     @classmethod
     def save_data(cls, data):
         if not cls.enabled:
@@ -356,7 +356,7 @@ class MsProbe:
         if not cls.config.key_data_dump:
             return
         cls.saver.save(data)
-    
+
     @classmethod
     def need_debugger(cls):
         if cls.config.reference_dump or cls.config.actor_train_dump or cls.config.actor_infer_dump:
@@ -374,7 +374,7 @@ class MsProbe:
         if tag == "actor_generate_sequences" and cls.config.actor_infer_dump:
             return True
         return False
-    
+
     @classmethod
     def debugger_start(cls, model=None, tag=None):
         if not cls.enabled:
@@ -524,7 +524,7 @@ def profiler_start(profiler_config, role="profiler_data", profiler_iteration=Non
     if not profiler_config:
         return None
     if profiler_iteration is not None and (
-            profiler_iteration < profiler_config.profile_step_start or 
+            profiler_iteration < profiler_config.profile_step_start or
             profiler_iteration >= profiler_config.profile_step_end):
         return None
     if profiler_config.stage == "all" and role != profiler_config.role:
@@ -541,3 +541,7 @@ def profiler_start(profiler_config, role="profiler_data", profiler_iteration=Non
 def profiler_step(profiler):
     if profiler:
         profiler.step()
+
+
+def is_multimodal():
+    return eval(os.getenv("IS_MULTIMODAL", "False"))

@@ -7,6 +7,7 @@ import threading
 import logging
 
 import torch
+from mathruler.grader import extract_boxed_content, grade_answer
 
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
@@ -19,7 +20,7 @@ logger = Loggers("Rule verify")
 class GlobalProcessPool:
     _instance = None
     _lock = threading.Lock()
-    
+
     def __init__(self, max_workers=16, reset_threshold=100000):
         self.max_workers = max_workers
         self.reset_threshold = reset_threshold
@@ -27,17 +28,17 @@ class GlobalProcessPool:
         self.executor = None
         self.logger = logging.getLogger(__name__)
         self._initialize_executor()
-    
+
     def _initialize_executor(self):
         """Initialize a new ProcessPoolExecutor and reset task counter."""
         if self.executor is not None:
             self.executor.shutdown(wait=False)
             self.executor = None
-            gc.collect() 
+            gc.collect()
         self.executor = ProcessPoolExecutor(max_workers=self.max_workers)
         self.task_counter = 0
         self.logger.warning(f"Initialized ProcessPoolExecutor with {self.max_workers} workers")
-    
+
     @classmethod
     def get_instance(cls, max_workers=16, reset_threshold=100000) -> 'GlobalProcessPool':
         """Get or create the singleton instance of GlobalProcessPool."""
@@ -46,16 +47,16 @@ class GlobalProcessPool:
                 if cls._instance is None:
                     cls._instance = cls(max_workers=max_workers, reset_threshold=reset_threshold)
         return cls._instance
-    
+
     def submit(self, fn, *args, **kwargs):
         """
         Submit a task to the executor with automatic recovery and periodic reset.
-        
+
         Args:
             fn: Function to execute
             *args: Positional arguments for the function
             **kwargs: Keyword arguments for the function
-            
+
         Returns:
             Future object representing the computation
         """
@@ -379,3 +380,27 @@ def reasoning_steps_reward(sequences, *args, **kwargs):
     scores = [min(1.0, count / 3) for count in matches]
 
     return scores
+
+
+def math_format_reward(predict_str: str) -> float:
+    """
+    Reward function that checks if the completion has a specific format for math questions.
+    """
+    pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}.*", re.DOTALL)
+    format_match = re.fullmatch(pattern, predict_str)
+    return 1.0 if format_match else 0.0
+
+
+def math_acc_reward(predict_str: str, ground_truth: str) -> float:
+    """
+    Reward function that checks if the answer is right by `mathruler`.
+    """
+    answer = extract_boxed_content(predict_str)
+    return 1.0 if grade_answer(answer, ground_truth) else 0.0
+
+
+def math_compute_score(predict_str: str, ground_truth: str, acc_ratio=0.9, format_ratio=0.1) -> float:
+    """
+    Compute score for math questions by format and accuary reward.
+    """
+    return acc_ratio * math_acc_reward(predict_str, ground_truth) + format_ratio * math_format_reward(predict_str)

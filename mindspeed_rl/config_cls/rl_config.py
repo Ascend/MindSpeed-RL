@@ -50,6 +50,8 @@ class RLConfig(BaseConfig):
     blocking: Whether to enable blocking mode (default: False)
     num_cpus_for_local_task: Number of CPUs for local ray task (default: 1)
     num_cpus_for_placement_group: Number of CPUs for ray worker placement group
+
+    is_multimodal: Whether base model is a multimodal model or not (default: False)
     # Default values can still be defined if no config is provided
     '''
 
@@ -103,6 +105,8 @@ class RLConfig(BaseConfig):
         self.reward_dispatch_size = None
         self.adv_dispatch_size = None
         self.actor_update_dispatch_size = None
+
+        self.is_multimodal = False
 
         self.update(config_dict)
 

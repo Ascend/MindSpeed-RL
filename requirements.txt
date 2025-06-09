@@ -16,3 +16,4 @@ wandb
 pillow==11.2.1
 av==14.3.0
 qwen_vl_utils==0.0.11
+mathruler

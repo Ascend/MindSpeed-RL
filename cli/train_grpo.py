@@ -46,10 +46,10 @@ def train(config):
 
     MsProbe.config_init(msprobe_config)
     MsProbe.save_configs({
-        'actor': eval(str(actor_config.dict())), 
-        'ref': eval(str(ref_config.dict())), 
-        'reward': eval(str(reward_config.dict())), 
-        'rl': eval(str(rl_config.dict())), 
+        'actor': eval(str(actor_config.dict())),
+        'ref': eval(str(ref_config.dict())),
+        'reward': eval(str(reward_config.dict())),
+        'rl': eval(str(rl_config.dict())),
         'generate': eval(str(generate_config.dict()))
         })
 
@@ -549,6 +549,7 @@ def main(config):
         rl_config = RLConfig(config.get("rl_config"))
         with open(os.path.join(cur_file_dir, rl_config.runtime_env_path)) as file:
             runtime_env = yaml.safe_load(file)
+        runtime_env["env_vars"]["IS_MULTIMODAL"] = str(rl_config.is_multimodal)
         logger.info(f"ray init with runtime_env: {runtime_env}")
         ray.init(runtime_env=runtime_env)
 

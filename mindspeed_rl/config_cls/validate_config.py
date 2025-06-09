@@ -12,6 +12,12 @@ def validate_rl_args(
         rl_config: RLConfig,
         generate_config: GenerateConfig
     ):
+    
+    #检查后端参数设置
+    if hasattr(actor_config, "ai_framework"):
+        ai_framework = actor_config.ai_framework
+        if ai_framework is not None and ai_framework != "mindspore":
+            raise ValueError(f"Invalid value for ai_framework: '{ai_framework}'. Only None or mindspore are allowed")
 
     # 检查全共卡情况下参数设置
     if rl_config.use_integrated_worker:

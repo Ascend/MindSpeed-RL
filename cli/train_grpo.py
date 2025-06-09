@@ -30,7 +30,6 @@ from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
-from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
@@ -43,7 +42,11 @@ logger = Loggers("grpo_train")
 @ray.remote
 def train(config):
     actor_config, ref_config, reward_config, rl_config, generate_config, profiler_config, msprobe_config = parse_training_config(config).values()
-
+    if hasattr(config['megatron_training'], "ai_framework") and config['megatron_training']['ai_framework'] == "mindspore":
+        from mindspeed_rl.workers.scheduler.launcher_ms import RayActorGroupMs as RayActorGroup
+    else:
+        from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
+ 
     MsProbe.config_init(msprobe_config)
     MsProbe.save_configs({
         'actor': eval(str(actor_config.dict())),

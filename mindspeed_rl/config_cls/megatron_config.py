@@ -167,7 +167,7 @@ class MegatronConfig(BaseConfig):
     recompute_num_layers: 1) uniform: the number of Transformer layers in each uniformly divided recompute unit,
                           2) block: the number of individual Transformer layers to recompute within each pipeline stage
                           (default: None)
-
+    ai_framework: choose mindspore or not (default: None) choices=[None, 'mindspore']
     num_layer_list: a list of number of layers, seperated by comma; e.g., 4,4,4,4 (default: None)
     dataset_additional_keys: Additional keys need to be add from dataset (default: [])
 
@@ -361,6 +361,7 @@ class MegatronConfig(BaseConfig):
         self.overlap_param_gather = False
         self.recompute_activation_function = False
         self.swap_attention = False
+        self.ai_framework = None
         self.noop_layers = None
 
         self.update(training_config, model_config)

@@ -2,7 +2,8 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
 from dataclasses import dataclass
-from typing import Sequence, Dict, Any
+from typing import Sequence, Dict, Any, List
+from collections import defaultdict
 
 import torch
 from torch.utils.data import RandomSampler, SequentialSampler
@@ -53,3 +54,38 @@ class PromptDataLoader(torch.utils.data.DataLoader):
                         sampler=sampler,
                         batch_size=global_batch_size,
                         drop_last=True)
+
+
+class MultiModalDataLoader(torch.utils.data.DataLoader):
+    def __init__(self,
+                 dataset,
+                 global_batch_size,
+                 num_workers,
+                 seed,
+                 dataset_additional_keys,
+                 no_shuffle):
+
+        def collate_fn(features: List[Dict[str, Any]]) -> Dict[str, Any]:
+            batch_dict = defaultdict(list)
+            for feature in features:
+                for key, value in feature.items():
+                    batch_dict[key].append(value)
+
+            batch_dict['prompts'] = [torch.tensor(i) for i in batch_dict['prompts']]
+
+            return batch_dict
+        
+        if not no_shuffle:
+            train_dataloader_generator = torch.Generator()
+            train_dataloader_generator.manual_seed(seed)
+            sampler = RandomSampler(data_source=dataset, generator=train_dataloader_generator)
+        else:
+            sampler = SequentialSampler(data_source=dataset)
+
+        super().__init__(dataset,
+                         batch_size=global_batch_size,
+                         num_workers=num_workers,
+                         drop_last=True,
+                         collate_fn=collate_fn,
+                         sampler=sampler
+                         )

@@ -4,6 +4,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Any
 from torch.utils.data import Dataset
+import datasets
 
 
 class BaseDataset(Dataset, ABC):
@@ -12,7 +13,7 @@ class BaseDataset(Dataset, ABC):
     """
 
     def __init__(self, dataset: Any, dataset_type: str = "basetype", extra_param: Optional[Any] = None):
-        if not isinstance(dataset, Dataset):
+        if not isinstance(dataset, (Dataset, datasets.arrow_dataset.Dataset)):
             raise TypeError(f"Expected dataset to be of type Dataset, got {type(dataset)}.")
 
         self.dataset = dataset

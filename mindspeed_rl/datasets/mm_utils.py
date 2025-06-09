@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from PIL import Image
 from PIL.Image import Image as ImageObject
 from transformers import AutoProcessor
+from transformers.models.qwen2_5_vl.processing_qwen2_5_vl import Qwen2_5_VLProcessor
 
 
 def get_processor(model_path, **kwargs):
@@ -44,14 +45,14 @@ def process_image(image: ImageObject, max_pixels: int, min_pixels: int) -> Image
         
     if image.mode != "RGB":
         image = image.convert("RGB")
-        
+
+    image_res = image.copy()
     image.close()
         
-    return image
+    return image_res
 
 
-
-def get_video_sample_frams(video_stream: "Stream", **kwargs) -> int:
+def get_video_sample_frames(video_stream: "Stream", **kwargs) -> int:
     r"""
     Computes video sample frames acording to fps.
     """

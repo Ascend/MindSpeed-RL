@@ -19,6 +19,7 @@ This file contains a Megatron style Hybrid Model that shares the weights of the 
 import hashlib
 import re
 from functools import partial
+from typing import List
 
 import torch
 import torch.distributed as dist
@@ -180,6 +181,9 @@ class MegatronStyleVllmWeightContainer:
 
     def _build_num_layer_list(self, num_layer_list):
         if num_layer_list:
+            # multimodal num_layer_list is a list of lists, including vit and llm layers
+            if isinstance(num_layer_list[0], List):
+                return num_layer_list
             return [int(num_layers) for num_layers in num_layer_list.split(',')]
         if self._num_hidden_layers % self._pp_size != 0:
             raise ValueError("num_layers % pp_size == 0, please specify num_layer_list")
@@ -350,7 +354,7 @@ class MegatronStyleVllmWeightContainer:
         
         # 检查 linear_fc1 和 linear_fc2 权重形状是否符合特定关系（fc1 包含门控和扩展参数，因此大小是 fc2 的两倍）。不符合条件的模型不被支持。
         for _, vpp_rank, megatron_name in name_pairs:
-            if megatron_name.endswith("linear_fc1.weight"):
+            if not megatron_name.startswith("image_encoder") and megatron_name.endswith("linear_fc1.weight"):
                 fc2_name = megatron_name.replace("linear_fc1", "linear_fc2")
                 megatron_param_fc1 = dict(true_megatron_model[vpp_rank].named_parameters())[megatron_name]
                 megatron_param_fc2 = dict(true_megatron_model[vpp_rank].named_parameters())[fc2_name]
@@ -563,7 +567,7 @@ class MegatronStyleVllmWeightContainer:
         we can throw an error to force user disable TP HybridEngine.
         """
 
-        if "linear_fc1.weight" in name:
+        if 'projector' not in name and 'linear_fc1' in name:
             # if the tensor is gate and proj
             gate_lst = []
             up_lst = []

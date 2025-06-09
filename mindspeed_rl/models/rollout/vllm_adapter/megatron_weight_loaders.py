@@ -65,6 +65,38 @@ def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
     return vllm_model
 
 
+def qwen_vl_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module, 
+                                  infer_paralle_config: InferParallelConfig, hf_config: PretrainedConfig) -> nn.Module:
+    params_dict = dict(vllm_model.named_parameters())
+    vision_config = type('obj', (object,), {
+        'num_attention_heads': hf_config.vision_config.num_heads,
+        'num_key_value_heads': hf_config.vision_config.num_heads,
+    })
+    
+    for name, loaded_weight in actor_weights.items():
+        if name not in params_dict.keys():
+            continue
+        if "qkv" in name:
+            if 'visual' in name:
+                if name.endswith('.bias'):
+                    q_weight, k_weight, v_weight = qkv_split_bias(loaded_weight, infer_paralle_config, vision_config)
+                    loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
+                else:
+                    q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, vision_config)
+                    loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
+            else:
+                if name.endswith('.bias'):
+                    q_weight, k_weight, v_weight = qkv_split_bias(loaded_weight, infer_paralle_config, hf_config)
+                    loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
+                else:
+                    q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, hf_config)
+                    loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
+        
+        load_single_weight(params_dict, name, loaded_weight)
+    
+    return vllm_model
+
+
 def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
         infer_paralle_config: InferParallelConfig, hf_config: PretrainedConfig
 ) -> nn.Module:
@@ -189,4 +221,5 @@ MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
     "DeepseekV2ForCausalLM": deepseek_megatron_weight_loader,
     "CustomDeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
+    "Qwen2_5_VLForConditionalGeneration": qwen_vl_megatron_weight_loader
 }

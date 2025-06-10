@@ -168,7 +168,7 @@ cd ..
 
 git clone https://gitee.com/ascend/MindSpeed-LLM.git
 cd MindSpeed-LLM
-git checkout 9930a5057acdd1976bce10f49d87b34b8d52c036
+git checkout b2868282b073394e40172232bd5d60052b130660
 cp -r mindspeed_llm ../MindSpeed-RL/
 cd ..
 

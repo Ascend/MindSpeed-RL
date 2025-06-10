@@ -68,7 +68,7 @@ bash examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh
 * `save-dir`：保存转换后权重的路径；
 * `tokenizer-model`：分词器模型文件的路径；
 * `model-type-hf`：指定 Hugging Face 模型类型，如 llama2;
-* `params-dtype`：指定参数的数据类型，如 bf16。
+* `params-dtype`：指定参数的数据类型，如 bf16。(当前算法模型只支持 bf16 )
 
 ### mcore 转 hf（可选）
 训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，可以参照以下[示例脚本](../../examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh)命令及脚本参数：

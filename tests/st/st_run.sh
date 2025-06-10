@@ -13,4 +13,10 @@ for script in $test_scripts; do
         echo "脚本执行失败: $script"
         exit 1
     fi
+
+    echo "任务执行完成": $script
+    ray stop
+    ps -ef | grep torchrun | grep -v grep | awk '{print $2}' | xargs -r kill -9
+    echo "计算资源清理完成"
+
 done

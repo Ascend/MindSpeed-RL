@@ -110,3 +110,23 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `min_p`：vllm 过滤掉概率低于 min_p 的词元，不参与后续的采样过程；
 * `temperature`：采样时的随机性参数；
 * `detokenize`：是否将输出token重新转为文本；
+
+### runtime_env 环境变量
+**（ 注：位于 configs/envs/runtime_env.yaml 中 ）**
+* `RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES`：是否禁用 Ray 对 ASCEND_RT_VISIBLE_DEVICES 的自动设置，'true'为禁用
+* `TOKENIZERS_PARALLELISM`：设置tokenizers是否支持并行，'true'为支持
+* `NCCL_DEBUG`：NCCL Debug日志级别，VERSION、WARN、INFO、TRACE
+* `PYTORCH_NPU_ALLOC_CONF`：设置缓存分配器行为
+* `HCCL_CONNECT_TIMEOUT`：HCCL 连接超时时间
+* `HCCL_EXEC_TIMEOUT`：HCCL 执行超时时间 
+* `HCCL_IF_BASE_PORT`：HCCL 通信端口 
+* `CUDA_DEVICE_MAX_CONNECTIONS`：设备最大连接数
+* `HYDRA_FULL_ERROR`：设置 HYDRA 是否输出完整错误日志
+* `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型建议和EP一致，稠密模型设置为1
+* `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
+* `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），兼容性选项
+* `VLLM_VERSION`：指定使用的vLLM版本号
+* `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
+* `VLLM_ENABLE_MC2`：是否启用vLLM的通算融合算子调度策略
+* `HCCL_OP_EXPANSION_MODE`：HCCL算子扩展模式（AIV=AI向量模式），启用高级通信优化
+* `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化

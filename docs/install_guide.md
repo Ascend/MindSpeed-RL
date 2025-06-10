@@ -59,7 +59,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>vllm</td>
-    <td>0.7.3</td>
+    <td>main</td>
   </tr>
 </table>
 
@@ -99,8 +99,8 @@ pip install apex-0.1.dev*.whl
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
 git checkout 5bc1ad6cee754405464a9957e86cf3a9302e4986
-pip install -r requirements-build.txt
 VLLM_TARGET_DEVICE=empty pip install .
+cd ..
 ```
 
 ### vllm_ascend安装

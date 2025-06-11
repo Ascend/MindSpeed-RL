@@ -91,6 +91,8 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.load_checkpoint_with_path(self.ref_model, ref_model_load_path, ckpt_only=True)
         self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
         self.ref_manager.offload_param()
+        megatron_module = self.get_megatron_module()
+        
         self.reference = Reference(
             self.ref_model,
             beta=self.rl_config.beta,
@@ -101,7 +103,9 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
-            temperature=self.generate_config.sampling_config["temperature"],
+            use_remove_padding=self.rl_config.use_remove_padding,
+            set_actual_seq_len=megatron_module['set_actual_seq_len'],
+            temperature=self.generate_config.sampling_config["temperature"]
         )
         MsProbe.config_init(self.msprobe_config)
 

@@ -65,6 +65,8 @@ class RewardWorkerBase(BaseWorker):
         else:
             self.megatron_config.iteration = 0
             self.megatron_config.num_floating_point_operations_so_far = 0
+            
+        megatron_module = self.get_megatron_module()
 
         self.reward = Reward(
             self.model,
@@ -72,6 +74,8 @@ class RewardWorkerBase(BaseWorker):
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
+            use_remove_padding=self.rl_config.use_remove_padding,
+            set_actual_seq_len=megatron_module['set_actual_seq_len'],
             temperature=self.generate_config.sampling_config["temperature"]
         )
 

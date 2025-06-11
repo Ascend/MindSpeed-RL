@@ -12,6 +12,7 @@ from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.utils.utils import (
     append_to_dict, generate_mask, generate_position_ids, get_tune_attention_mask
 )
+from mindspeed_rl.utils.remove_padding import preprocess_packed_seqs, postprocess_packed_seqs
 from mindspeed_rl.utils.compute import get_parallel_state
 
 
@@ -51,12 +52,16 @@ class BaseTrainingEngine(ABC):
             temperature: float = 1.0,
             role: str = None,
             micro_batch_size: int = 1,
+            use_remove_padding: bool = False,
+            set_actual_seq_len: Callable = None,
             forward_backward_func: Callable = None,
             entropy_coeff: float = 0.0,
             kl_penalty: str = "low_var_kl",
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
+        self.use_remove_padding = use_remove_padding
+        self.set_actual_seq_len = set_actual_seq_len
         self.model = model
         self.optimizer = optimizer
         self.opt_param_scheduler = opt_param_scheduler
@@ -95,12 +100,24 @@ class BaseTrainingEngine(ABC):
         data_iter = iter(batches)
         if len(self.model) > 1:
             data_iter = [iter(batches) for _ in self.model]
-
         self.loss_func.add_loss_meta_info(self.get_loss_meta_func())
-
+        post_process = get_parallel_state().get_pipeline_model_parallel_world_size() == 1 or get_parallel_state().is_pipeline_last_stage()
+        
         def forward_step(batch_iter, model):
-            input_ids, attention_mask, position_ids, process_batch = self._get_forward_batch_info(batch_iter)
-            output = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
+            if self.use_remove_padding:
+                input_ids, position_ids, process_batch, seqlens_in_batch, cu_seqlens_padded = self._get_forward_batch_info(batch_iter)
+                self.set_actual_seq_len(cu_seqlens_padded.tolist())
+                output_orig = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
+                if not post_process:
+                    output = output_orig
+                else:
+                    output = postprocess_packed_seqs(output=output_orig,
+                                                     seqlens_in_batch=seqlens_in_batch,
+                                                     cu_seqlens_padded=cu_seqlens_padded,
+                                                     seq_len=seq_len)
+            else:
+                input_ids, attention_mask, position_ids, process_batch = self._get_forward_batch_info(batch_iter)
+                output = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
             output.div_(self.temperature)
             return output, partial(self.loss_func.compute_loss, batch=process_batch, forward_only=forward_only)
 
@@ -110,8 +127,8 @@ class BaseTrainingEngine(ABC):
             data_iterator=data_iter,
             model=self.model,
             num_microbatches=n_micro_batch,
-            seq_length=seq_len,
-            micro_batch_size=self.micro_batch_size,
+            seq_length=self.micro_batch_size * seq_len if self.use_remove_padding else seq_len,
+            micro_batch_size=1 if self.use_remove_padding else self.micro_batch_size,
             forward_only=forward_only,
             collect_non_loss_data=forward_only,
         )
@@ -124,15 +141,20 @@ class BaseTrainingEngine(ABC):
         """
         return {}
 
-    @staticmethod
-    def _get_forward_batch_info(batch_iter):
+    def _get_forward_batch_info(self, batch_iter):
         batch = next(batch_iter)
         input_ids = batch['input_ids']
         attention_mask_1d = generate_mask(input_ids, batch['prompt_length'] + batch['response_length']).to(
             input_ids.device)
-        position_ids = torch.tensor(generate_position_ids(input_ids)).to(input_ids.device)
-        attention_mask = get_tune_attention_mask(attention_mask_1d)
-        return input_ids, attention_mask, position_ids, batch
+        if self.use_remove_padding:
+            tp_size = get_parallel_state().get_tensor_model_parallel_world_size()
+            input_ids, position_ids, seqlens_in_batch, cu_seqlens_padded = preprocess_packed_seqs(
+                input_ids=input_ids, attention_mask_1d=attention_mask_1d, tp_size=tp_size)
+            return input_ids, position_ids, batch, seqlens_in_batch, cu_seqlens_padded
+        else:
+            position_ids = torch.tensor(generate_position_ids(input_ids)).to(input_ids.device)
+            attention_mask = get_tune_attention_mask(attention_mask_1d)
+            return input_ids, attention_mask, position_ids, batch
 
     def post_process_forward_backward_output(self, output: [torch.Tensor],
                                              batch: Dict[str, torch.Tensor]) -> torch.Tensor:

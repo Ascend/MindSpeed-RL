@@ -53,6 +53,8 @@ class RLConfig(BaseConfig):
 
     is_multimodal: Whether base model is a multimodal model or not (default: False)
     # Default values can still be defined if no config is provided
+    
+    use_remove_padding: Whether to use packed sequences for forward (default: False)
     '''
 
     def __init__(self, config_dict):
@@ -107,6 +109,7 @@ class RLConfig(BaseConfig):
         self.actor_update_dispatch_size = None
 
         self.is_multimodal = False
+        self.use_remove_padding = False
 
         self.update(config_dict)
 

@@ -38,27 +38,27 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     <td>3.10</td>
   </tr>
   <tr>
-    <td>torch</td>
+    <td>Torch</td>
     <td rowspan="2">2.5.1</td>
   </tr>
   <tr>
-    <td>torch_npu</td>
+    <td>Torch_npu</td>
   </tr>
   <tr>
-    <td>apex</td>
+    <td>Apex</td>
     <td rowspan="1">0.1</td>
   </tr>
   <tr>
-    <td>ray</td>
+    <td>Ray</td>
     <td>2.42.1</td>
   </tr>
   <tr>
-    <td>vllm</td>
-    <td>main</td>
+    <td>Vllm</td>
+    <td>Main</td>
   </tr>
   <tr>
-    <td>vllm-ascend</td>
-    <td>main</td>
+    <td>Vllm-Ascend</td>
+    <td>Main</td>
   </tr>
 </table>
 
@@ -129,8 +129,18 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td> Preview</td>
     </tr>
     <tr>
-      <td>resharding</td>
+      <td>权重重切分</td>
       <td><a href="docs/features/resharding.md">Doc</a></td>
+      <td  rowspan="1">GRPO</td>
+      <td  rowspan="1">
+        Qwen2.5-7B <br>
+        Qwen2.5-32B <br>
+      </td>
+      <td> Preview</td>
+    </tr>
+    <tr>
+      <td>填充移除</td>
+      <td><a href="docs/features/remove_padding.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
       <td  rowspan="1">
         Qwen2.5-7B <br>

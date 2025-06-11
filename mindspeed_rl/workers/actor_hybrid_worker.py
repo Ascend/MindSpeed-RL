@@ -88,6 +88,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
+        megatron_module = self.get_megatron_module()
         
         if self.generate_config.offload_train_param:
             self.actor_offloader.onload_param()
@@ -108,6 +109,8 @@ class ActorHybridWorkerBase(BaseWorker):
             forward_backward_func=self.forward_backward_func,
             clip_ratio=self.rl_config.clip_ratio,
             micro_batch_size=self.megatron_config.micro_batch_size,
+            use_remove_padding=self.rl_config.use_remove_padding,
+            set_actual_seq_len=megatron_module['set_actual_seq_len'],
             entropy_coeff=self.rl_config.entropy_coeff,
             kl_penalty=self.rl_config.kl_penalty,
             temperature=self.generate_config.sampling_config["temperature"]

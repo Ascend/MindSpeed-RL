@@ -48,7 +48,19 @@ def validate_rl_args(
             f"Sequence length exceeds vLLM max_model_len! "
             f"Actor.seq_length={actor_config.seq_length} vs "
             f"GenerateConfig.max_model_len={generate_config.max_model_len}")
+        
+    # 校验移除填充特性相关配置
+    if rl_config.use_remove_padding:
+        if actor_config.pipeline_model_parallel_size > 1 and not actor_config.variable_seq_lengths:
+            raise ValueError(
+                "'use_remove_padding' feature requires 'variable_seq_lengths=True' when using pipeline parallelism!"
+                "If you want to use context parallelism under this premise and encounter the mindspeed_llm validation error about variable_seq_lengths, "
+                "you just need to delete the validation code of mindspeed_llm, and it will not cause problems.")
 
+        if not actor_config.reset_position_ids:
+            raise ValueError(
+                "'use_remove_padding' feature requires 'reset_position_ids=True'! ")
+     
     # 校验资源分配合理性
     def _validate_resource(resource, t_size, p_size, c_size, component):
         product = t_size * p_size * c_size

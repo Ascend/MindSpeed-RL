@@ -8,6 +8,7 @@ megatron_training:
   use_mcore_models: true
   sequence_parallel: true
   use_flash_attn: true
+  reset_position_ids: true
   no_masked_softmax_fusion: true
   attention_softmax_in_fp32: true
   no_gradient_accumulation_fusion: true
@@ -57,6 +58,7 @@ rl_config:
   blocking: true
   actor_forward_micro_batch_size: 8
   ref_forward_micro_batch_size: 8
+  use_remove_padding: true
   experience_count: 4
   gamma: 1.0
   lam: 0.95

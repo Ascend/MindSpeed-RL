@@ -127,7 +127,8 @@ class VLLMInferEngine(BaseInferEngine):
                 top_k=sampling_config.get('top_k', 50),
                 min_p=sampling_config.get('min_p', 0.0),
                 temperature=sampling_config.get('temperature', 0.2),
-                detokenize=sampling_config.get('detokenize', False)
+                detokenize=sampling_config.get('detokenize', False),
+                seed=sampling_config.get('seed', None)
             )
         except Exception as e:
             raise ValueError(f"Error creating SamplingParams from dictionary") from e
@@ -165,7 +166,6 @@ class VLLMInferEngine(BaseInferEngine):
 
         # Initialize the LLM engine
         self.llm = LLM(
-            seed=1234,
             model=tokenizer_name_or_path,
             trust_remote_code=trust_remote_code,
             tensor_parallel_size=infer_tensor_parallel_size,

@@ -7,7 +7,7 @@ MindSpeed-RL 仓库目前主推的部署方式为`全共卡部署`，即 Actor, 
 
 ![pipeline](../../sources/images/integrated_worker/pipeline.png)
 
-在全共卡配置中，Actor部分会进一步使用训推共卡的部署方案来节约资源，下一节还会对训推共卡技术部分进行进一步展开描述。
+目前仓库只支持全共卡配置方案，在全共卡配置中，Actor部分会进一步使用训推共卡的部署方案来节约资源，下一节还会对训推共卡技术部分进行进一步展开描述。
 
 ### 配置方法
 全共卡情况下， ref_config 和 reward_config 会被自动忽略，复用 actor_config，因此在 config 中不应给出 ref_config 和 reward_config 。
@@ -64,7 +64,7 @@ rl_config:
 ![sharding_process](../../sources/images/integrated_worker/sharding_process.jpg)
 
 当前框架会自动启用训推共卡式 Actor，在配置文件中，可以对共卡情况下的训练态和推理态模型的切分策略进行分别配置，并设定在推理时是否需要对训练相关权重、梯度和优化器进行卸载。
-以 `grpo_trainer_qwen25_7b.yaml` 为例，
+以 `grpo_qwen25_7b_A3.yaml` 为例，
 
 ```yaml
 actor_config:

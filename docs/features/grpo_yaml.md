@@ -128,5 +128,4 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `VLLM_VERSION`：指定使用的vLLM版本号
 * `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
 * `VLLM_ENABLE_MC2`：是否启用vLLM的通算融合算子调度策略
-* `HCCL_OP_EXPANSION_MODE`：HCCL算子扩展模式（AIV=AI向量模式），启用高级通信优化
 * `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化

@@ -17,7 +17,7 @@ from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, compute_vllm_throughput, metrics_sort
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -176,11 +176,13 @@ class RayGRPOTrainer(RayBaseTrainer):
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_timer.last)
             tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, all_timer.last)
-            vllm_throughput = compute_vllm_throughput(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, metrics_result["timing/rollout"])
+            update_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, metrics_result["timing/update"])
+            vllm_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, metrics_result["timing/rollout"])
             metrics.update(value=metrics_result)
             metrics.update(value=grpo_data_metrics)
-            metrics.update("tokens/p/s", tps)
-            metrics.update("vllm_throughput", vllm_throughput)
+            metrics.update("e2e_tps", tps)
+            metrics.update("update_tps", update_tps)
+            metrics.update("vllm_tps", vllm_tps)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)
             if self.tensorboard is not None:

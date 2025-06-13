@@ -118,7 +118,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         end_onload_time = time.time()
         ray.get(
             self.td.update_metrics.remote(
-                "timing/onload",
+                "timing/ref_onload",
                 value=[round(end_onload_time, 4), round(start_onload_time, 4)],
                 cumulate=True
             )
@@ -142,7 +142,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         end_offload_time = time.time()
         ray.get(
             self.td.update_metrics.remote(
-                "timing/offload",
+                "timing/ref_offload",
                 value=[round(end_offload_time, 4), round(start_offload_time, 4)],
                 cumulate=True
             )

@@ -14,7 +14,7 @@ from mindspeed_rl.trainer.utils.compute_utils import get_last_reward
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.utils.compute import get_parallel_state
-from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
+from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank, get_context_parallel_rank
 
 
 class RewardWorkerBase(BaseWorker):
@@ -74,6 +74,8 @@ class RewardWorkerBase(BaseWorker):
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
+            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            context_parallel_size=self.megatron_config.context_parallel_size,
             use_remove_padding=self.rl_config.use_remove_padding,
             set_actual_seq_len=megatron_module['set_actual_seq_len'],
             temperature=self.generate_config.sampling_config["temperature"]
@@ -104,6 +106,8 @@ class RewardWorkerBase(BaseWorker):
                                                                  experience_columns,
                                                                  experience_count,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 cp_size=self.megatron_config.context_parallel_size,
+                                                                 cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
                                                                  )
@@ -139,7 +143,7 @@ class RewardWorkerBase(BaseWorker):
                 )
         parallel_state = get_parallel_state()
         use_vllm = False
-        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0:
+        if is_pipeline_last_stage(parallel_state, use_vllm) and get_tensor_model_parallel_rank(parallel_state, use_vllm) == 0 and self.parallel_state.get_context_parallel_rank() == 0:
             rwd_end_time = time.time()
             ray.get(
                     self.td.update_metrics.remote(

@@ -434,6 +434,23 @@ def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False)
     return getattr(model, attr)
 
 
+def get_batch_on_this_cp_rank(context_parallel_algo, context_parallel_size, batch):
+    """ Slice batch input along sequence dimension into multiple chunks,
+        which are parallelized across GPUs in a context parallel group.
+    """
+    from mindspeed.utils import (set_actual_seq_len, set_position_ids,
+                         _get_batch_on_this_cp_rank_in_ulysses_cp)
+
+    if context_parallel_size <= 1:
+        return batch
+    
+    if context_parallel_algo == 'ulysses_cp_algo':
+        batch = _get_batch_on_this_cp_rank_in_ulysses_cp(batch)
+    else:
+        raise NotImplementedError("only support ulysses_cp_algo.")
+    return batch
+
+
 def get_grpo_profiler(profiler_config, role: str = None):
     args = profiler_config
     if not args or not args.profile:

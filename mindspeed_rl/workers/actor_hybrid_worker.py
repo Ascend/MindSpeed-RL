@@ -111,6 +111,8 @@ class ActorHybridWorkerBase(BaseWorker):
             micro_batch_size=self.megatron_config.micro_batch_size,
             use_remove_padding=self.rl_config.use_remove_padding,
             set_actual_seq_len=megatron_module['set_actual_seq_len'],
+            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            context_parallel_size=self.megatron_config.context_parallel_size,
             entropy_coeff=self.rl_config.entropy_coeff,
             kl_penalty=self.rl_config.kl_penalty,
             temperature=self.generate_config.sampling_config["temperature"]
@@ -172,6 +174,8 @@ class ActorHybridWorkerBase(BaseWorker):
                                                                  experience_columns,
                                                                  experience_count,
                                                                  self.megatron_config.tensor_model_parallel_size,
+                                                                 self.megatron_config.context_parallel_size,
+                                                                 self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
                                                                  get_n_samples=False)
@@ -184,7 +188,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
-                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.parallel_state.get_tensor_model_parallel_rank() == 0:
+                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.parallel_state.get_tensor_model_parallel_rank() == 0 and self.parallel_state.get_context_parallel_rank() == 0: 
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
@@ -243,6 +247,8 @@ class ActorHybridWorkerBase(BaseWorker):
                 experience_columns,
                 experience_count,
                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                cp_size=self.megatron_config.context_parallel_size,
+                cp_algo=self.megatron_config.context_parallel_algo,
                 indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
                 use_vllm=True
             )
@@ -322,6 +328,8 @@ class ActorHybridWorkerBase(BaseWorker):
                                                                  experience_columns,
                                                                  experience_count,
                                                                  tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 cp_size=self.megatron_config.context_parallel_size,
+                                                                 cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
                                                                  get_n_samples=False)

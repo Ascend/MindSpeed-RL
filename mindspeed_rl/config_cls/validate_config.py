@@ -49,6 +49,10 @@ def validate_rl_args(
             f"Actor.seq_length={actor_config.seq_length} vs "
             f"GenerateConfig.max_model_len={generate_config.max_model_len}")
         
+    if actor_config.context_parallel_size > 1 and actor_config.context_parallel_algo is not None:
+        if actor_config.context_parallel_algo not in ["ulysses_cp_algo"]:
+            raise ValueError("Now just support ulysses CP")
+
     # 校验移除填充特性相关配置
     if rl_config.use_remove_padding:
         if actor_config.pipeline_model_parallel_size > 1 and not actor_config.variable_seq_lengths:

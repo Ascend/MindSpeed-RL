@@ -148,4 +148,4 @@ class TestBaseWorker(DistributedTest):
         _, _ = worker.dispatch_transfer_dock_data(experience_consumer_stage,
                                                   experience_columns, experience_count)
 
-        assert mock_broadcast.call_count == 2
+        assert mock_broadcast.call_count == 3

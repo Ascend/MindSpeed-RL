@@ -10,6 +10,7 @@ import socket
 import torch
 import torch_npu
 import ray
+import torch.distributed as dist
 
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.utils.loggers import Loggers
@@ -26,8 +27,11 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     is_pipeline_last_stage,
     get_tensor_model_parallel_group,
     get_tensor_model_parallel_rank,
+    get_context_parallel_rank,
     get_tensor_model_parallel_src_rank,
-    get_model_parallel_group
+    get_model_parallel_group,
+    get_context_parallel_src_rank,
+    get_context_parallel_group
 )
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
 from mindspeed_rl.utils.utils import get_current_dp_range_indexes
@@ -168,12 +172,24 @@ class BaseWorker(BaseRayWorker, ABC):
         else:
             current_device = next(self.model[0].parameters()).device
         status = torch.tensor(0, device=current_device)
-        if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
-                get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
+
+        rank_flg = False
+        if not use_vllm:
+            rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and 
+                        get_context_parallel_rank(self.parallel_state, use_vllm) == 0 and
+                        get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
+        else:
+            rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and 
+                        get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
+        if rank_flg:
             status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
                                   device=current_device)
         torch.distributed.all_reduce(status, group=get_model_parallel_group(self.parallel_state, use_vllm),
                                      op=torch.distributed.ReduceOp.MAX)
+        if not use_vllm:
+            torch.distributed.all_reduce(status, group=get_context_parallel_group(self.parallel_state, use_vllm),
+                                     op=torch.distributed.ReduceOp.MAX)
+
         return status
 
     def setup_distributed_rank(self):
@@ -223,17 +239,26 @@ class BaseWorker(BaseRayWorker, ABC):
 
     @mstx_timer_decorator
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
-                                    experience_columns, experience_count, tp_size=1,
+                                    experience_columns, experience_count, tp_size=1, cp_size=1, cp_algo=None,
                                     use_vllm=False, indexes=None,
                                     get_n_samples=True):
         pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
         batch_data = {}
         batch_data_length = {}
-        # make sure that all ranks in tp/pp group enter dispatch_transfer_dock_data,
+        # make sure that all ranks in cp/tp/pp group enter dispatch_transfer_dock_data,
         # in case of rank0 get_experience before other ranks judge td.all_consumed
-        if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
-                get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
+
+        rank_flg = False
+        if not use_vllm:
+            rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and 
+                        get_context_parallel_rank(self.parallel_state, use_vllm) == 0 and
+                        get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
+        else:
+            rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and 
+                        get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
+        
+        if rank_flg:
             batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
                                                                       experience_count, indexes=indexes,
                                                                       get_n_samples=get_n_samples))  # cpu数据
@@ -244,11 +269,17 @@ class BaseWorker(BaseRayWorker, ABC):
         else:
             index = torch.empty(experience_count, device=torch.cuda.current_device(), dtype=torch.int64)
 
-        #  # 传输index, 并判断是否取出了数据
         torch.distributed.broadcast(
             index, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
             group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
         )
+
+        if not use_vllm:
+            torch.distributed.broadcast(
+                index, get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                group=get_context_parallel_group(self.parallel_state, use_vllm)
+            )
+
         torch.distributed.broadcast(
             index, get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
             group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
@@ -257,13 +288,11 @@ class BaseWorker(BaseRayWorker, ABC):
         if index[0].item() == -1:
             return None, None
 
-        if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
-                get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
+        if rank_flg:
             batch_data, batch_data_length = pack_experience_columns(batch_data, experience_count)
 
         for key in experience_columns:
-            if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and \
-                    get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0:
+            if rank_flg:
                 batch_data_shape = torch.tensor(batch_data[key].shape,
                                                 dtype=torch.int64, device=torch.cuda.current_device())
 
@@ -280,7 +309,7 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data_dtype = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
                 batch_data_length_shape = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
 
-            # 传输tensor数据形状和类型
+            # TP domain sync
             torch.distributed.broadcast(
                 batch_data_shape, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
@@ -289,6 +318,23 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data_dtype, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
             )
+            torch.distributed.broadcast(batch_data_length_shape, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
+                                        group=get_tensor_model_parallel_group(self.parallel_state, use_vllm))
+
+            # CP domain sync
+            if not use_vllm:
+                torch.distributed.broadcast(
+                    batch_data_shape, get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                    group=get_context_parallel_group(self.parallel_state, use_vllm)
+                )
+                torch.distributed.broadcast(
+                    batch_data_dtype, get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                    group=get_context_parallel_group(self.parallel_state, use_vllm)
+                )
+                torch.distributed.broadcast(batch_data_length_shape, get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                                            group=get_context_parallel_group(self.parallel_state, use_vllm))
+            
+            # PP domain sync
             torch.distributed.broadcast(
                 batch_data_shape, get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
@@ -297,14 +343,11 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data_dtype, get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
             )
-
-            torch.distributed.broadcast(batch_data_length_shape, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
-                                        group=get_tensor_model_parallel_group(self.parallel_state, use_vllm))
             torch.distributed.broadcast(batch_data_length_shape, get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                                         group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm))
 
-            if get_tensor_model_parallel_rank(self.parallel_state, use_vllm) != 0 or \
-                    get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) != 0:
+
+            if not rank_flg:
                 if batch_data_dtype == 1:
                     batch_data[key] = torch.empty(batch_data_shape[0],   # batch_data_shape[1],
                                                   device=torch.cuda.current_device(),
@@ -320,6 +363,13 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_data[key].cuda(), get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
             )
+
+            if not use_vllm:
+                torch.distributed.broadcast(
+                    batch_data[key].cuda(), get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                    group=get_context_parallel_group(self.parallel_state, use_vllm)
+                )
+            
             torch.distributed.broadcast(
                 batch_data[key].cuda(), get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
@@ -328,13 +378,19 @@ class BaseWorker(BaseRayWorker, ABC):
             torch.distributed.broadcast(batch_data_length[key].cuda(), get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
                                         group=get_tensor_model_parallel_group(self.parallel_state, use_vllm))
 
+            if not use_vllm:
+                torch.distributed.broadcast(batch_data_length[key].cuda(), get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                                            group=get_context_parallel_group(self.parallel_state, use_vllm))
+
             torch.distributed.broadcast(batch_data_length[key].cuda(), get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                                         group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm))
 
             index_without_pad = index.cpu().numpy().tolist()[:batch_data_shape[0]]
 
         if batch_data:
-            padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size)
+            if cp_algo in ['ulysses_cp_algo']:
+                padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size * cp_size)
+                
             return padded_batch_data, index_without_pad
         else:
             return {}, []

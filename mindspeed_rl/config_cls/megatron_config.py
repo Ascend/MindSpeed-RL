@@ -138,6 +138,7 @@ class MegatronConfig(BaseConfig):
     dataloader_type: Single pass vs multiple pass data loader (default: None)
     enable_high_availability: Switch of the high availability feature (default: False)
     context_parallel_size: Degree of context parallelism (default: 1)
+    context_parallel_algo: Algorithm of context parallelism (default: ulysses_cp_algo)
     reset_position_ids: Reset posistion ids after end-of-document token (default: False)
     optimizer: Optimizer function (default: 'adam')
     do_sample: Enable doing sample in actor generations (default: False)
@@ -326,6 +327,7 @@ class MegatronConfig(BaseConfig):
         self.dataloader_type = None
         self.enable_high_availability = False
         self.context_parallel_size = 1
+        self.context_parallel_algo = "ulysses_cp_algo"
         self.reset_position_ids = False
         self.optimizer = 'adam'
         self.do_sample = False

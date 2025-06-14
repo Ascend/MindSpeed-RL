@@ -185,3 +185,8 @@ $$
 $$
 (\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_rollout}
 $$
+## 性能数据
+| 模型         | 机器型号 | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
+|------------|------|-----|-----------|-------------------|------------|---------| 
+| Qwen25-32B | A3   | 64  | 16 | 1024              | 2048       | 320     | 
+| Qwen25-32B | A2   | 64  | 16  | 1024              | 2048       | 100     |

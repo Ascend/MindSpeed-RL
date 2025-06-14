@@ -4,10 +4,10 @@
 
 MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套表如下：
 
-| MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本 | Python版本 |
-| ---------------- | ------------ | ----------- | ------------- | -------- | ---------- |
-| master（主线）   | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.1.RC1  | Python3.10 |
-| 2.0.0（预览）    | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.1.RC1  | Python3.10 |
+| MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
+| ---------------- | ------------ |-----------|-------------|---------| ---------- |
+| master（主线）   | Core 0.8.0   | 2.6.0     | 2.6.0       | 8.2.RC1 | Python3.10 |
+| 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
 [昇腾辅助软件](https://gitee.com/ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
 
@@ -28,7 +28,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>Toolkit（开发套件）</td>
-      <td rowspan="3">8.1.RC1</td>
+      <td rowspan="3">8.2.RC1</td>
   </tr>
   <tr>
     <td>Kernel（算子包）</td>
@@ -44,7 +44,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>torch</td>
-    <td rowspan="2">2.5.1</td>
+    <td rowspan="2">2.6.0</td>
   </tr>
   <tr>
     <td>torch_npu</td>
@@ -73,12 +73,10 @@ bash Ascend-hdk-*-npu-driver_*.run --full
 ### CANN安装
 
 ```shell
-bash Ascend-cann-toolkit_8.1.RC1_linux-aarch64.run --install
-bash Ascend-cann-kernels-*_8.1.RC1_linux-aarch64.run --install
-bash Ascend-cann-nnal_8.1.RC1_linux-aarch64.run --install
-# 设置环境变量
+bash Ascend-cann-toolkit_8.2.RC1_linux-aarch64.run --install
+bash Atlas-A3-cann-kernels_8.2.RC1_linux-aarch64.run --install
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
-source /usr/local/Ascend/nnal/asdsip/set_env.sh
+bash Ascend-cann-nnal_8.2.RC1_linux-aarch64.run --install
 source /usr/local/Ascend/nnal/atb/set_env.sh
 ```
 
@@ -86,8 +84,8 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 
 ```shell
 # 安装torch和torch_npu
-pip install torch-2.5.1-cp310-cp310-*.whl
-pip install torch_npu-2.5.1.*.manylinux2014_aarch64.whl
+pip install torch-2.6.0-cp310-cp310-*.whl
+pip install torch_npu-2.6.0.*.manylinux2014_aarch64.whl
 
 # apex for Ascend 构建参考 https://gitee.com/ascend/apex
 pip install apex-0.1.dev*.whl
@@ -122,9 +120,9 @@ sudo apt install libjemalloc2
 在启动任务前执行如下命令通过环境变量导入jemalloc：
 ```shell
 # arm64架构
-export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2 $LD_PRELOAD
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 # x86_64架构
-export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2 $LD_PRELOAD
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 ```
 
 #### OpenEuler 操作系统
@@ -144,7 +142,7 @@ make install
 ```
 在启动任务前执行如下命令通过环境变量导入jemalloc：
 ```shell
-export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 $LD_PRELOAD
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 ```
 
 > 如以上安装过程出现错误，可以通过提出issue获得更多解决建议。
@@ -175,4 +173,5 @@ cd ..
 cd ./MindSpeed-RL
 pip install -r requirements.txt
 pip install antlr4-python3-runtime==4.7.2 --no-deps 
+pip uninstall torchvision
 ```

@@ -12,6 +12,9 @@ mkdir logs
 
 export TASK_QUEUE_ENABLE=2
 export HCCL_IF_BASE_PORT=24703
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+export MALLOC_MMAP_THRESHOLD_=512768
+export LCAL_COMM_ID=127.0.0.1:27001
 
 NNODES=1
 NPUS_PER_NODE=16

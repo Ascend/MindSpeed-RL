@@ -86,12 +86,12 @@ class _VocabParallelEntropy(torch.autograd.Function):
 
 def vocab_parallel_entropy(vocab_parallel_logits: torch.Tensor) -> torch.Tensor:
     """Compute entropy when the logits are sharded in tp ranks
-    
+
     Args:
         vocab_parallel_logits: (total_nnz, vocab_size // tp_size)
 
     Returns: (total_nnz,)
-        
+
     """
     return _VocabParallelEntropy.apply(vocab_parallel_logits)
 
@@ -120,9 +120,10 @@ def compute_kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTenso
     # # URL http://joschu.net/blog/kl-approx.html.
     if kl_penalty == "low_var_kl":
         kl = ref_logprob - logprob
+        kl = torch.clamp(kl, min=-15, max=15)
         ratio = torch.exp(kl)
         kld = (ratio - kl - 1).contiguous()
-        return torch.clamp(kld, min=-10, max=10)
+        return kld
 
     if kl_penalty == "full":
         # so, here logprob and ref_logprob should contain the logits for every token in vocabulary

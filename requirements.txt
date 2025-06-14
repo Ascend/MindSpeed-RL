@@ -10,10 +10,12 @@ regex
 sympy
 tensorboard
 tensordict==0.1.2
-transformers==4.48.2
+transformers==4.52.1
 word2number
 wandb
 pillow==11.2.1
 av==14.3.0
 qwen_vl_utils==0.0.11
-mathruler
+mathruler==0.1.0
+pylatexenc==2.10
+numba==0.61.2

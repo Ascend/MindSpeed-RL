@@ -17,10 +17,10 @@ megatron_training:
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path: ./Qwen2.5-32B
-  global_batch_size: 32
-  seq_length: 2048
+  global_batch_size: 64
+  seq_length: 1024
   save_interval: 100
-  train_iters: 100
+  train_iters: 500
   stage: ray_grpo
   attention_dropout: 0.0
   hidden_dropout: 0.0
@@ -30,15 +30,17 @@ megatron_training:
   dataset_additional_keys: ['labels']
   data_path: ./data
   split: 100,0,0
-  no_shuffle: false 
+  no_shuffle: false
   full_shuffle_instruction_dataset: false
   seed: 1234
+  reset_position_ids: true
 
 actor_config:
   model: qwen25_32b
-  micro_batch_size: 1
-  tensor_model_parallel_size: 8
-  pipeline_model_parallel_size: 1
+  micro_batch_size: 2
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 4
+  num_layer_list: 16,17,16,15
   lr: 1e-6
   lr_decay_style: constant
   min_lr: 0.0
@@ -55,28 +57,30 @@ actor_config:
 
 rl_config:
   blocking: true
+  use_remove_padding: true
+  ref_forward_micro_batch_size: 16
+  reward_dispatch_size: 64
+  adv_dispatch_size: 64
+  actor_update_dispatch_size: 16
   use_integrated_worker: true
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
-  kl_penalty: low_var_kl 
+  kl_penalty: low_var_kl
   kl_ctrl_type: fixed
   init_kl_coef: 0.001
-  mini_batch_size: 32
-  max_prompt_length: 2048
+  mini_batch_size: 64
+  max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
   entropy_coeff: 0
   shuffle_minibatch: false
-  n_samples_per_prompt: 8
+  n_samples_per_prompt: 16
   rule_reward: true
   verifier_function: ["base_acc"]
   verifier_weight: [1.0]
-  num_cpus_for_local_task: 1.0
-  use_tensorboard: true
   actor_resource:
     num_npus: 16
-  guarantee_order: true
 
 generate_config:
   enforce_eager: True
@@ -86,16 +90,15 @@ generate_config:
   offload_train_param: true
 
   # 推理时的并行配置
-  infer_tensor_parallel_size: 8
+  infer_tensor_parallel_size: 2
   infer_pipeline_parallel_size: 1
   infer_expert_parallel_size: 1
 
   # vllm 模型相关设置
-  max_num_seqs: 1024            
-  max_num_batched_tokens: 8192  #
-  max_model_len: 4096
+  max_num_seqs: 64
+  max_model_len: 3072
   dtype: "bfloat16"
-  gpu_memory_utilization: 0.4
+  gpu_memory_utilization: 0.6
 
   # 采样配置
   sampling_config:

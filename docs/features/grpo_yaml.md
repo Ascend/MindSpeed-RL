@@ -129,3 +129,5 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
 * `VLLM_ENABLE_MC2`：是否启用vLLM的通算融合算子调度策略
 * `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化
+* `TASK_QUEUE_ENABLE`：控制开启task_queue算子下发队列优化的等级，推荐设置为 '2' 使能 Level 2 优化。
+* `CPU_AFFINITY_CONF`：指定使用绑核优化，推荐设置为 '1'。

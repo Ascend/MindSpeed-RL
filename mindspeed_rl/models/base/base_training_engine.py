@@ -3,6 +3,7 @@ import random
 from abc import ABC
 from typing import Callable, Dict, List
 from functools import partial
+import itertools
 
 import torch
 from torch.utils.data import DataLoader
@@ -12,6 +13,7 @@ from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.utils.utils import (
     append_to_dict, generate_mask, generate_position_ids, get_tune_attention_mask
 )
+from mindspeed_rl.utils.seqlen_balancing import rearrange_micro_batches, get_reverse_idx
 from mindspeed_rl.utils.remove_padding import preprocess_packed_seqs, postprocess_packed_seqs
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.utils.utils import get_batch_on_this_cp_rank
@@ -53,6 +55,8 @@ class BaseTrainingEngine(ABC):
             temperature: float = 1.0,
             role: str = None,
             micro_batch_size: int = 1,
+            use_dynamic_bsz: bool = False,
+            max_packing_token_size: bool = 4096,
             use_remove_padding: bool = False,
             set_actual_seq_len: Callable = None,
             forward_backward_func: Callable = None,
@@ -63,6 +67,8 @@ class BaseTrainingEngine(ABC):
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
+        self.use_dynamic_bsz = use_dynamic_bsz
+        self.max_packing_token_size = max_packing_token_size
         self.use_remove_padding = use_remove_padding
         self.set_actual_seq_len = set_actual_seq_len
         self.model = model
@@ -96,11 +102,29 @@ class BaseTrainingEngine(ABC):
         if shuffle_mini_batch:
             random.shuffle(batches)
         return batches
+    
+    @staticmethod
+    def _split_batches_with_dynamic_bsz(batch: Dict, max_packing_token: int) -> (List[Dict], List[List[int]]):
+        seq_len_list = []
+        for prompt_len, response_len in zip(batch['prompt_length'], batch['response_length']):
+            seq_len_list.append(prompt_len.item() + response_len.item())
+        partitions = rearrange_micro_batches(seq_len_list, max_packing_token)
+        batches = []
+        for key, tensors in batch.items():
+            for batch_idx, partition in enumerate(partitions):
+                if batch_idx >= len(batches):
+                    batches.append({})
+                batches[batch_idx][key] = tensors[partition]
+        return batches, partitions
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):
-        batches = self._split_batches(batch, batch_size=self.micro_batch_size,
-                                      shuffle_mini_batch=self.shuffle_mini_batch)
+        if self.use_dynamic_bsz:
+            batches, indices = self._split_batches_with_dynamic_bsz(batch, self.max_packing_token_size)
+        else:
+            batches = self._split_batches(batch, batch_size=self.micro_batch_size,
+                                          shuffle_mini_batch=self.shuffle_mini_batch)
         n_micro_batch = len(batches)
+        batch_size = batch['input_ids'].shape[0]
         seq_len = batches[0]['input_ids'].shape[1]
         data_iter = iter(batches)
         if len(self.model) > 1:
@@ -131,7 +155,11 @@ class BaseTrainingEngine(ABC):
                         output_list[get_parallel_state().get_context_parallel_rank()] = output
                         output = torch.cat(output_list, dim=1)
             output.div_(self.temperature)
-            return output, partial(self.loss_func.compute_loss, batch=process_batch, forward_only=forward_only)
+            return output, partial(self.loss_func.compute_loss,
+                                   batch=process_batch,
+                                   forward_only=forward_only,
+                                   use_dynamic_bsz=self.use_dynamic_bsz,
+                                   actual_micro_batch_size=batch_size / n_micro_batch)
 
         # batch should be a list of batches inside micro-batches
         losses_reduced = self.forward_backward_func(
@@ -144,6 +172,14 @@ class BaseTrainingEngine(ABC):
             forward_only=forward_only,
             collect_non_loss_data=forward_only,
         )
+        
+        # Reverse the batch index to be the same outside
+        if self.use_dynamic_bsz and forward_only and post_process:
+            losses_reduced_list = torch.cat(losses_reduced, dim=0)
+            indices = list(itertools.chain.from_iterable(indices))
+            revert_indices = get_reverse_idx(indices)
+            losses_reduced = [losses_reduced_list[[idx, ]] for idx in revert_indices]
+
         return losses_reduced
 
     def get_loss_meta_func(self) -> Dict:

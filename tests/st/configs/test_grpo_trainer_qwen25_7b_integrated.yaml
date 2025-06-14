@@ -56,6 +56,8 @@ actor_config:
 rl_config:
   use_integrated_worker: true
   blocking: true
+  use_dynamic_bsz: true
+  max_packing_token_size: 8192
   actor_forward_micro_batch_size: 8
   ref_forward_micro_batch_size: 8
   use_remove_padding: true

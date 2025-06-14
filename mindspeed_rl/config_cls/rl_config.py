@@ -115,3 +115,6 @@ class RLConfig(BaseConfig):
 
         self.n_samples_per_prompt = config_dict.get('n_samples_per_prompt', 1)
         self.mini_batch_size = config_dict.get('mini_batch_size', 1) * self.n_samples_per_prompt
+
+        self.use_dynamic_bsz = False
+        self.max_packing_token_size = 4096

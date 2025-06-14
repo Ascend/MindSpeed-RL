@@ -15,6 +15,8 @@ class RewardLossFunc(BaseLossFunc):
     def compute_loss(self, output: torch.Tensor,
                      batch: Dict[str, torch.Tensor],
                      forward_only=False,
+                     use_dynamic_bsz=False,
+                     actual_micro_batch_size=1,
                      non_loss_data=True) -> Tuple[torch.Tensor, Dict]:
         return output
 

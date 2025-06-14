@@ -83,10 +83,12 @@ class ReferenceWorkerBase(BaseWorker):
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
-            context_parallel_algo=self.megatron_config.context_parallel_algo,
-            context_parallel_size=self.megatron_config.context_parallel_size,
+            use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
+            max_packing_token_size=self.rl_config.max_packing_token_size,
             use_remove_padding=self.rl_config.use_remove_padding,
             set_actual_seq_len=megatron_module['set_actual_seq_len'],
+            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            context_parallel_size=self.megatron_config.context_parallel_size,
             temperature=self.generate_config.sampling_config["temperature"]
         )
 

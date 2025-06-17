@@ -14,6 +14,9 @@ megatron_training:
   no_gradient_accumulation_fusion: true
   use_fused_swiglu: true
   use_fused_rotary_pos_emb: true
+  use_ascend_coc: True
+  coc_fused_kernel: True
+  coc_parallel_num: 2
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF

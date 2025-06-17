@@ -201,6 +201,10 @@ class MegatronConfig(BaseConfig):
     moe_tp_extend_ep: use tp group to extend experts parallelism instead of sharding weight tensor of experts in tp group
     moe_alltoall_overlap_comm: moe_alltoall_overlap_comm
     noop_layers:  noop layers string
+    use_ascend_coc: switch to open CoC feature (default: False)
+    coc_mode: 0=original, 1=rewrite, 2=coc default
+    coc_parallel_num: number of parallel in CoC features (default: 1)
+    coc_fused_kernel: switch to use fused kernel in CoC (default: False)
     '''
 
     def __init__(self, training_config: Dict, model_config: Dict):
@@ -365,5 +369,9 @@ class MegatronConfig(BaseConfig):
         self.swap_attention = False
         self.ai_framework = None
         self.noop_layers = None
-
+        self.use_ascend_coc = False
+        self.coc_mode = -1
+        self.coc_parallel_num = 1
+        self.coc_fused_kernel = False
+        
         self.update(training_config, model_config)

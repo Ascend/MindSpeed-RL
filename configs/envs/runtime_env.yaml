@@ -37,6 +37,8 @@ env_vars:
   TASK_QUEUE_ENABLE: "2"
   # 指定使能 CPU 绑核
   CPU_AFFINITY_CONF: '1'
+  # COC指定环境变量
+  LCAL_COMM_ID: '127.0.0.1:27001'
 
 #指定 GLOO 框架通信网卡
 #  GLOO_SOCKET_IFNAME: "Your SOCKET IFNAME"

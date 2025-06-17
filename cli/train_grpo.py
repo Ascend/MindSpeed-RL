@@ -437,6 +437,9 @@ def initialize_megatron(
 
     set_global_variables(args)
 
+    from mindspeed.core.tensor_parallel.lcal_coc.user_config import initialize_coc_from_cfg
+    initialize_coc_from_cfg(args)
+    
     if args.use_deter_comp:
         seed_all(args.seed)
         logger.info("deterministic computing is applied for npu.")

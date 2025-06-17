@@ -142,6 +142,7 @@ make install
 ```
 在启动任务前执行如下命令通过环境变量导入jemalloc：
 ```shell
+#根据实际安装路径设置环境变量，例如安装路径为:/usr/local/lib/libjemalloc.so.2,可通过以下命令来设置环境变量
 export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 ```
 

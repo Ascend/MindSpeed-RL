@@ -47,42 +47,10 @@ bash examples/data/preprocess_data.sh deepscaler
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B)  为参考。
 ### hf 转 mcore
-在训练前，需要将 Hugging Face 权重转换成Mcore格式。
-
-注：这里会调用到 mindspeed_llm 仓，进行权重转换时注意按照安装手册中的环境准备步骤，将 mindspeed_llm 放入 MindSpeed-RL 目录下。
-
-脚本启动命令可以用bash启动，可根据真实情况配置脚本，[示例脚本](../../examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh)启动命令和配置参数如下：
-```bash
-# 路径按照真实情况配置
-bash examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh
-```
-配置参数介绍
-* `use-mcore-models`：启用 MCore 模型；
-* `model-type`：指定模型类型，如 GPT;
-* `load-model-type`：指定加载模型的类型，如 hf（Hugging Face）;
-* `save-model-type`：指定保存模型的类型，如 mg;
-* `target-tensor-parallel-size`：设置目标张量并行大小；
-* `target-pipeline-parallel-size`：设置目标流水线并行大小；
-* `add-qkv-bias`：是否进行 QKV 偏置；
-* `load-dir`：加载 Hugging Face 权重的路径；
-* `save-dir`：保存转换后权重的路径；
-* `tokenizer-model`：分词器模型文件的路径；
-* `model-type-hf`：指定 Hugging Face 模型类型，如 llama2;
-* `params-dtype`：指定参数的数据类型，如 bf16。(当前算法模型只支持 bf16 )
+在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitee.com/ascend/MindSpeed-LLM) 权重转换部分 。
 
 ### mcore 转 hf（可选）
-训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，可以参照以下[示例脚本](../../examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh)命令及脚本参数：
-
-```bash
-# 路径按照真实情况配置
-bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
-```
-配置参数介绍
-
-这里的参数与上文一致，注意以下几个事项即可：
-1. 权重转换转回 Hugging Face 格式时，tp 和 pp 配置需配置为1；
-2. load-model-type 参数配置为 mg，save-model-type 参数配置为 hf ;
-3. save-dir 路径需要填入原始 HF 模型路径，新权重会存于 HF 原始权重文件下的 mg2hg 目录下，如/qwen2.5_7b_hf/mg2hg/
+训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitee.com/ascend/MindSpeed-LLM) 权重转换部分 。
 
 ## 启动训练
 

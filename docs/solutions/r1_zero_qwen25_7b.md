@@ -57,15 +57,6 @@ R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，�
 ### 权重转换
 在进行RL训练之前，模型需要从HuggingFace权重转换为megatron权重，可参考[**权重转换部分**](../algorithms/grpo.md)
 
-```bash
-# 设置需要的权重转换参数
-# 全共卡方案actor和ref model使用TP4PP1，将脚本里改成TP4PP1配置
-bash examples/ckpt/ckpt_convert_qwen25_hf2mcore.sh
-
-# 训练完后如需要转回HF格式
-bash examples/ckpt/ckpt_convert_qwen25_mcore2hf.sh
-```
-
 ## 模板构造
 
 * R1-Zero复现需要在数据处理时加上prompt模板激发`<think>...</think><answer>...$\boxed{}</answer>`

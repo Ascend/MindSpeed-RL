@@ -388,9 +388,7 @@ class BaseWorker(BaseRayWorker, ABC):
             index_without_pad = index.cpu().numpy().tolist()[:batch_data_shape[0]]
 
         if batch_data:
-            if cp_algo in ['ulysses_cp_algo']:
-                padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size * cp_size)
-                
+            padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size * cp_size)
             return padded_batch_data, index_without_pad
         else:
             return {}, []

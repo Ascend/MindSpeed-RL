@@ -34,6 +34,7 @@ from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_
     update_md5_by_rank, compute_md5, validate_md5, _build_infer_param_dict, get_tp_allgather_group, \
     get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group, is_fake_tp_param
 from mindspeed_rl.utils.loggers import Loggers
+from mindspeed_rl.utils.utils import is_multimodal
 
 logger = Loggers(__name__)
 
@@ -89,7 +90,7 @@ class MegatronStyleVllmWeightContainer:
         self._vpp_layer_list = self._build_vpp_layer_list(self._num_layer_list)
         ## _noop_layers
         self._global2local_map = self._build_global2local_map(self._vpp_layer_list, self._vpp_size, self._noop_layers) if self._noop_layers is not None else None
-        
+
         # tp configs
         self._tp_size = self.parallel_state.get_tensor_model_parallel_world_size()
         self._tp_group = self.parallel_state.get_tensor_model_parallel_group()
@@ -136,7 +137,7 @@ class MegatronStyleVllmWeightContainer:
     def _validate_parallel_config(self):
         if self._infer_pp_size != 1:
             raise ValueError("infer_pp_size != 1 not supported yet")
-        
+
         if self._infer_ep_size % self._ep_size != 0:
             raise ValueError("The training expert size should be divisibled by the inference expert size.")
         if self._ep_size > 1 and not self.moe_tp_extend_ep:
@@ -211,7 +212,7 @@ class MegatronStyleVllmWeightContainer:
                 start_layer += layers_in_vpp_rank
 
         return glb2local_map
-    
+
     def _unwrap_megatron_model(self, model):
         """
         Remove consecutive 'module.' prefixes from the model based on the state_dict's first key.
@@ -232,9 +233,13 @@ class MegatronStyleVllmWeightContainer:
         Return a list of buffers, and a reference dict megatron_param_name->buffer.
         """
         vllm_names = list(dict(self.vllm_model.named_parameters()).keys()) # 获取每个pp内部的weights name
+        if is_multimodal():
+            layers_num = [sum(num_layer_list) for num_layer_list in self._num_layer_list]
+        else:
+            layers_num = sum(self._num_layer_list)
         self.weight_names_per_pp = self.weight_adaptor.get_weight_names_per_pp(self._vpp_layer_list, vllm_names,
-                                                                               sum(self._num_layer_list), self._vpp_size, self._noop_layers)
-        
+                                                                               layers_num, self._vpp_size, self._noop_layers)
+
         self.weight_buffers = build_model_weight_buffer(self.vllm_model, self.weight_names_per_pp,
                                                         self.weight_adaptor.get_weight_buffer_meta
                                                         )
@@ -347,11 +352,11 @@ class MegatronStyleVllmWeightContainer:
         normal_layer_func = partial(self.weight_adaptor.global2local_layer, num_layer_list=self._vpp_layer_list, global2local_map=self._global2local_map)
         name_pairs = sorted(list(set([(name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
                                     for vpp_rank, names_per_vpp in enumerate(weight_names_meta) for name in names_per_vpp])))
-        
+
         if self.enable_validate:
             self.origin_params_for_md5 = hashlib.md5()
             self.infer_params_for_md5 = [hashlib.md5() for _ in range(get_tp_allgather_world_size())]
-        
+
         # 检查 linear_fc1 和 linear_fc2 权重形状是否符合特定关系（fc1 包含门控和扩展参数，因此大小是 fc2 的两倍）。不符合条件的模型不被支持。
         for _, vpp_rank, megatron_name in name_pairs:
             if not megatron_name.startswith("image_encoder") and megatron_name.endswith("linear_fc1.weight"):
@@ -394,7 +399,7 @@ class MegatronStyleVllmWeightContainer:
             self.weight_buffer_meta = self.weight_adaptor.get_weight_buffer_meta(self.vllm_model, combined_names_per_pp)
             self.experts_weight_buffer_meta = get_weight_buffer_meta_from_buffer(self.weight_buffer_meta)
             self.experts_memory_buffers = build_experts_memory_buffer(self.experts_weight_buffer_meta, self.experts_memory_expend_N)
-            
+
             # Step2 将weights_buffer上对应的权重放到experts_buffer中
             if(cur_pp_rank == pp_rank):
                 weight_names = self.weight_names_per_pp[pp_rank]
@@ -403,7 +408,7 @@ class MegatronStyleVllmWeightContainer:
                 name_pairs = sorted(list(set([(name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
                                       for vpp_rank, names_per_vpp in enumerate(weight_names_meta) for name in names_per_vpp])))
                 true_megatron_model = self._unwrap_megatron_model(self.megatron_model)
-                
+
                 megatron_params_dict = {}
                 # 拿到当前pp的所有权重
                 for vpp_rank in range(self._vpp_size):
@@ -418,12 +423,12 @@ class MegatronStyleVllmWeightContainer:
 
             # Step3 后续的操作可以复用
             global_src = dist.get_global_rank(group=self._pp_group, group_rank=cur_pp_rank)
-            
+
             # broadcast专家权重（experts memory buffer中的）
             for dtype, experts_memory_buffer in self.experts_memory_buffers.items():
                 dist.broadcast(tensor=experts_memory_buffer.data, src=global_src, group=self._pp_group, async_op=False)
                 pp_group_rank = self._rank // self.pp_group_size
-               
+
                 # 获取对应的dtype
                 for name, tensor_indices_value in sorted(experts_memory_buffer.tensor_indices.items()):
                     shape = tensor_indices_value[1]  # 是*N的

@@ -11,6 +11,7 @@
 ### 1. 数据输入一致
   - 1.1 设置shuffle参数
       > **注意**：在训练前删除数据集目录下后缀为.npy的缓存文件
+      
       两次计算的数据输入需要保持一致，可以在训练脚本的yaml文件megatron_training参数中加入控制数据集输入
       MindSpeed RL 提供两个参数进行控制
       ```
@@ -38,7 +39,7 @@
 
       使能方法，在rl_config参数中加入
       ```
-      use_guarantee_order: true
+      guarantee_order: true
       ```
 
 ### 2. 使能确定性计算参数

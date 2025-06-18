@@ -47,7 +47,7 @@ class BaseLossFunc(ABC):
         logits = truncate_middle_and_pad(responses, output, truncate_lengths)
         return responses, logits
 
-    def compute_log_probs(self, output: torch.Tensor, batch: Dict[str, torch.Tensor], update=False) -> torch.Tensor:
+    def compute_log_probs_no_pack(self, output: torch.Tensor, batch: Dict[str, torch.Tensor], update=False) -> torch.Tensor:
         responses, logits = self._get_compute_log_probs_input(output, batch)
         log_probs = compute_log_probs(logits, responses)
         if update:
@@ -55,3 +55,39 @@ class BaseLossFunc(ABC):
             return log_probs, entropy
         else:
             return log_probs
+
+    def compute_log_probs_with_pack(self, output, batch: Dict[str, torch.Tensor], update=False):
+        batch_size = len(output)
+        log_probs_list = []
+        entropy_list = []
+        for i in range(batch_size):
+            # 提取单个样本的output和batch
+            single_output = output[i].unsqueeze(0)
+            single_batch = {key: value[i].unsqueeze(0) for key, value in batch.items()}
+            # 逐条计算log_probs
+            response, logits = self._get_compute_log_probs_input(single_output, single_batch)
+            single_log_probs = compute_log_probs(logits, response)
+            log_probs_list.append(single_log_probs)
+            if update:
+                # 计算entropy
+                single_entropy = vocab_parallel_entropy(logits)
+                entropy_list.append(single_entropy)
+
+        # 将列表转换为张量
+        log_probs = torch.cat(log_probs_list, dim=0)
+        if update:
+            entropy = torch.cat(entropy_list, dim=0)
+            return log_probs, entropy
+        else:
+            return log_probs
+
+    def compute_log_probs(self, output, batch: Dict[str, torch.Tensor], update=False):
+        # output在remove padding开启时type为list，否则为tensor
+        
+        if isinstance(output, list):
+            # output为[b,s,v]维，pack场景下可能单条超长与单条较短的组成单个tensor可能导致内存爆炸,因此特殊处理
+            return self.compute_log_probs_with_pack(output, batch, update=update)
+        elif isinstance(output, torch.Tensor):
+            return self.compute_log_probs_no_pack(output, batch, update=update)
+        else:
+            raise ValueError(f"Output type {type(output)} is not supported")

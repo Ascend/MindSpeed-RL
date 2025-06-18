@@ -140,11 +140,14 @@ class BaseTrainingEngine(ABC):
                 output_orig = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
                 if not post_process:
                     output = output_orig
+                    output.div_(self.temperature)
                 else:
                     output = postprocess_packed_seqs(output=output_orig,
                                                      seqlens_in_batch=seqlens_in_batch,
                                                      cu_seqlens_padded=cu_seqlens_padded,
                                                      seq_len=seq_len)
+                    for item in output:
+                        item.div_(self.temperature)
             else:
                 input_ids, attention_mask, position_ids, process_batch = self._get_forward_batch_info(batch_iter)
                 output = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
@@ -154,7 +157,7 @@ class BaseTrainingEngine(ABC):
                         torch.distributed.all_gather(output_list, output.detach(), group=get_parallel_state().get_context_parallel_group())
                         output_list[get_parallel_state().get_context_parallel_rank()] = output
                         output = torch.cat(output_list, dim=1)
-            output.div_(self.temperature)
+                output.div_(self.temperature)
             return output, partial(self.loss_func.compute_loss,
                                    batch=process_batch,
                                    forward_only=forward_only,

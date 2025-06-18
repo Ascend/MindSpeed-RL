@@ -101,18 +101,18 @@ def postprocess_packed_seqs(
     Raises:
         ValueError: If output tensor does not have expected batch dimension of 1.
     """
+
     if output.shape[0] != 1:
         raise ValueError("Expected output tensor to have shape[0] == 1 (packed batch dimension)")
 
     # Prepare new output with padding
     batch_size = seqlens_in_batch.shape[0]
     full_shape = [batch_size, seq_len] + list(output.shape[2:])
-    output_new = torch.zeros(full_shape, dtype=output.dtype, device=output.device)
-
+    output_new = []
     for i in range(batch_size):
         start = cu_seqlens_padded[i].item()
         length = seqlens_in_batch[i].item()
-        output_new[i, :length] = output[0, start:start + length]
+        output_new.append(output[0, start:start + length])
 
     return output_new
 

@@ -143,6 +143,7 @@ class TestBaseWorker(DistributedTest):
         )
 
         worker.td = MagicMock()
+        worker.mm_td = MagicMock()
         worker.parallel_state = MagicMock()
 
         _, _ = worker.dispatch_transfer_dock_data(experience_consumer_stage,

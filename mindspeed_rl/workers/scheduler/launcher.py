@@ -246,13 +246,13 @@ class RayActorGroup:
     def execute_sync_command(self, method_name: str, *args, **kwargs):
         return ray.get(self.execute_async_command(method_name, *args, **kwargs))
 
-    def async_init_transfer_dock(self, transfer_dock):
+    def async_init_transfer_dock(self, transfer_dock, mm_transfer_dock=None):
         for actor in self.actor_handlers:
-            self.temp_actor_ref_objs.append(actor.init_transfer_dock.remote(transfer_dock))
+            self.temp_actor_ref_objs.append(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock))
 
-    def sync_init_transfer_dock(self, transfer_dock):
+    def sync_init_transfer_dock(self, transfer_dock, mm_transfer_dock=None):
         for actor in self.actor_handlers:
-            ray.get(actor.init_transfer_dock.remote(transfer_dock))
+            ray.get(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock))
 
     def wait_all_ref_objs_run_over(self):
         ray.get(self.temp_actor_ref_objs)

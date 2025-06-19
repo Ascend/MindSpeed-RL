@@ -11,12 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import vllm
-import vllm.model_executor
 from vllm.model_executor.layers.linear import ColumnParallelLinear, RowParallelLinear
 from vllm.model_executor.layers.quantization import QuantizationConfig
-import vllm.model_executor.models
-import vllm.model_executor.models.qwen2_5_vl
 
 
 class Npu_Qwen2_5_VisionMLP(nn.Module):
@@ -56,4 +52,5 @@ class Npu_Qwen2_5_VisionMLP(nn.Module):
 
 
 def replace_qwen2_5_visionmlp():
+    import vllm.model_executor.models.qwen2_5_vl
     vllm.model_executor.models.qwen2_5_vl.Qwen2_5_VisionMLP = Npu_Qwen2_5_VisionMLP

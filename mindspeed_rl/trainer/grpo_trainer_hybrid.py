@@ -12,12 +12,12 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig
-from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock
+from mindspeed_rl.trainer.utils import GRPOTransferDock, MMGRPOTransferDock
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_grpo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort, is_multimodal
 
 
 class RayGRPOTrainer(RayBaseTrainer):
@@ -89,6 +89,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         )
 
         self.transfer_dock = None
+        self.mm_transfer_dock = None
         self.metrics = Metric()
         self.transfer_dock_init()
         self.kwargs = kwargs
@@ -97,13 +98,16 @@ class RayGRPOTrainer(RayBaseTrainer):
     def transfer_dock_init(self):
         self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
                                                      self.metrics, addition_columns=self.dataset_additional_keys)
-        self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
-        self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
+        if is_multimodal():
+            self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
+
+        self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
+        self.ref_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
         for reward in self.reward_list:
             if hasattr(reward, 'sync_init_transfer_dock'):
-                reward.sync_init_transfer_dock(self.transfer_dock)
+                reward.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
             else:
-                reward.init_transfer_dock.remote(self.transfer_dock)
+                reward.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
         global_batch_size = self.actor_worker.megatron_config.global_batch_size
@@ -132,6 +136,9 @@ class RayGRPOTrainer(RayBaseTrainer):
 
             batch = next(data_iters)
             ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
+            if is_multimodal():
+                ray.get(self.mm_transfer_dock.clear.remote())
+                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences
@@ -156,7 +163,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                     self.actor_worker.compute_log_prob(blocking=self.blocking)
 
                 self.actor_worker.wait_all_ref_objs_run_over()
-                
+
                 self.ref_worker.wait_all_ref_objs_run_over()
                 for reward in self.reward_list:
                     if hasattr(reward, 'wait_all_ref_objs_run_over'):
@@ -215,11 +222,11 @@ class RayGRPOTrainer(RayBaseTrainer):
         end_adv_time = time.time()
         ray.get(
             self.transfer_dock.update_metrics.remote(
-                "timing/adv", 
+                "timing/adv",
                 value=[round(end_adv_time, 4), round(start_adv_time, 4)],
                 cumulate=True
             )
-        ) 
+        )
         ray.get(
             self.transfer_dock.update_metrics.remote(
                 "end_time/end_adv_time",

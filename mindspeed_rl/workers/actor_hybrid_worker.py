@@ -21,7 +21,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step
+from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step, is_multimodal
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 
@@ -89,7 +89,7 @@ class ActorHybridWorkerBase(BaseWorker):
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
         megatron_module = self.get_megatron_module()
-        
+
         if self.generate_config.offload_train_param:
             self.actor_offloader.onload_param()
 
@@ -123,8 +123,9 @@ class ActorHybridWorkerBase(BaseWorker):
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
         MsProbe.config_init(self.msprobe_config)
 
-    def init_transfer_dock(self, td):
+    def init_transfer_dock(self, td, mm_td):
         self.td = td
+        self.mm_td = mm_td
         self.empty_cache()
 
     def get_iteration(self):
@@ -147,6 +148,8 @@ class ActorHybridWorkerBase(BaseWorker):
 
         experience_columns = ['responses', 'advantages', 'old_log_prob',
                              'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+        if is_multimodal():
+            experience_columns.extend(['attention_mask', 'position_ids'])
 
         if self.rl_config.use_integrated_worker:
             experience_count = (
@@ -190,7 +193,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 self.args.consumed_train_samples += self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
                 self.num_floating_point_operations_so_far += num_floating_point_operations(self.args,
                                                                                            self.megatron_config.global_batch_size)
-                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.parallel_state.get_tensor_model_parallel_rank() == 0 and self.parallel_state.get_context_parallel_rank() == 0: 
+                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.parallel_state.get_tensor_model_parallel_rank() == 0 and self.parallel_state.get_context_parallel_rank() == 0:
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
@@ -231,6 +234,8 @@ class ActorHybridWorkerBase(BaseWorker):
 
         experience_consumer_stage = 'actor_rollout'
         experience_columns = ['prompts', 'prompt_length']
+        if is_multimodal():
+            experience_columns.extend(['input_ids', 'input_ids_length'])
 
         experience_count = self.rl_config.actor_rollout_dispatch_size
 
@@ -241,7 +246,7 @@ class ActorHybridWorkerBase(BaseWorker):
         actor_generate_profiler = profiler_start(self.profiler_config, role="actor_generate",
                                                  profiler_iteration=self.prof_iteration)
         MsProbe.debugger_start(self.inference_model.model, tag='actor_generate_sequences')
-        
+
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
@@ -270,7 +275,11 @@ class ActorHybridWorkerBase(BaseWorker):
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]
 
-                prompts_data = prompts
+                if is_multimodal():
+                    prompts_data = batch_data['input_ids'][indexes].unbind()
+                else:
+                    prompts_data = prompts
+
                 prompts = []
                 for prompt in prompts_data:
                     for _ in range(self.rl_config.n_samples_per_prompt):
@@ -285,6 +294,8 @@ class ActorHybridWorkerBase(BaseWorker):
                     'input_ids': input_ids_list,
                     'response_length': responses_length
                 }
+                if is_multimodal():
+                    outputs['prompt_length'] = batch_data['input_ids_length']
                 self.collect_transfer_dock_data(outputs, index, use_vllm=True)
                 end_time = time.time()
 
@@ -317,6 +328,8 @@ class ActorHybridWorkerBase(BaseWorker):
 
         experience_consumer_stage = 'actor_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
+        if is_multimodal():
+            experience_columns.extend(['attention_mask', 'position_ids', 'input_ids_length'])
         experience_count = self.rl_config.actor_logprob_dispatch_size
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=False) if self.rl_config.guarantee_order else None

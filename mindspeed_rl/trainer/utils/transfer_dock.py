@@ -279,6 +279,7 @@ class GRPOTransferDock(TransferDock):
             "attention_mask",
             "labels",
             "input_ids",
+            "input_ids_length",
             "actor_rollout",
             "rm_scores",
             "token_level_rewards",
@@ -641,14 +642,14 @@ def pad_experience(
     Args:
         experience_batch: Dict
             {
-                'prompts': [ tensor([1, 1, 1, 1]), 
+                'prompts': [ tensor([1, 1, 1, 1]),
                              tensor([2, 2, 2, 2]),
-                             tensor([3, 3, 3, 3]), 
-                             tensor([4, 4, 4, 4])], 
-                'attention_mask': [ tensor([1]), 
-                                    tensor([2, 2]), 
-                                    tensor([3, 3, 3]), 
-                                    tensor([4, 4, 4, 4])], 
+                             tensor([3, 3, 3, 3]),
+                             tensor([4, 4, 4, 4])],
+                'attention_mask': [ tensor([1]),
+                                    tensor([2, 2]),
+                                    tensor([3, 3, 3]),
+                                    tensor([4, 4, 4, 4])],
             }
         pad_id: Pad token.
             0.0
@@ -694,6 +695,8 @@ def pad_experience(
         for experience_column, experience in experience_batch.items():
             if experience_column in ["prompt_length", "response_length"]:
                 padded = torch.cat(experience).reshape(-1, 1)
+            elif experience_column in ["position_ids"]:
+                padded = pad_sequence(experience, batch_first=True, padding_value=pad_id)
             elif experience[0].is_floating_point():
                 padded = pad_multiples(experience, pad_id=0.0, multiple=multiple)
             else:
@@ -761,18 +764,18 @@ def trans_input_to_experience(experience_dict: Dict[str, Union[Tensor, List[Tens
 
 
 def pack_experience_columns(experience_dict, experience_count):
-    """ 
+    """
     Compress experiences by packing tensors into ONE.
     from experience_dict
         {
-            'prompts': [ tensor([1, 1, 1]), 
+            'prompts': [ tensor([1, 1, 1]),
                             tensor([2, 2, 2, 2]),
-                            tensor([3, 3, 3]), 
-                            tensor([4, 4, 4, 4])], 
-            'attention_mask': [ tensor([1]), 
-                                tensor([2, 2]), 
-                                tensor([3, 3, 3]), 
-                                tensor([4, 4, 4, 4])], 
+                            tensor([3, 3, 3]),
+                            tensor([4, 4, 4, 4])],
+            'attention_mask': [ tensor([1]),
+                                tensor([2, 2]),
+                                tensor([3, 3, 3]),
+                                tensor([4, 4, 4, 4])],
         }
     To batch_data
         {
@@ -781,7 +784,7 @@ def pack_experience_columns(experience_dict, experience_count):
         }
         batch_data_length
         {
-            'prompts': tensor([3, 4, 3, 4]), 
+            'prompts': tensor([3, 4, 3, 4]),
             'attention_mask': tensor([1, 2, 3, 4])
         }
     """
@@ -795,14 +798,40 @@ def pack_experience_columns(experience_dict, experience_count):
     for key, value in experience_dict.items():
         if len(value) != experience_count:
             raise ValueError(f"ERROR: when pack, experience '{key}' number does not match experience_count")
-        packed_experience = []
-        data_length = []
-        for i in range(experience_count):
-            packed_experience.extend(value[i].tolist())
-            data_length.append(len(value[i]))
 
-        batch_data[key] = torch.tensor(packed_experience, dtype=value[0].dtype)
-        batch_data_length[key] = torch.tensor(data_length, dtype=torch.int32)
+        # 判断是一维张量还是二维张量
+        is_2d = len(value[0].shape) > 1
+        if is_2d:
+            # 处理二维张量，如position_ids
+            first_dim = value[0].shape[0]
+            # 确保所有张量的第一维相同
+            for i in range(experience_count):
+                if value[i].shape[0] != first_dim:
+                    raise ValueError(f"ERROR: when pack 2D tensor, first dimension must be the same for all experiences")
+
+            # 准备存储连接后的二维张量
+            packed_data = []
+            for dim_idx in range(first_dim):
+                dim_data = []
+                for i in range(experience_count):
+                    dim_data.extend(value[i][dim_idx].tolist())
+                packed_data.append(dim_data)
+
+            batch_data[key] = torch.tensor(packed_data, dtype=value[0].dtype)
+
+            # 仅记录第二维的长度
+            data_length = [value[i].shape[1] for i in range(experience_count)]
+            batch_data_length[key] = torch.tensor(data_length, dtype=torch.int32)
+        else:
+            # 原有的一维张量处理逻辑
+            packed_experience = []
+            data_length = []
+            for i in range(experience_count):
+                packed_experience.extend(value[i].tolist())
+                data_length.append(len(value[i]))
+
+            batch_data[key] = torch.tensor(packed_experience, dtype=value[0].dtype)
+            batch_data_length[key] = torch.tensor(data_length, dtype=torch.int32)
 
     return batch_data, batch_data_length
 
@@ -853,28 +882,64 @@ def unpack_pad_experience(batch_data, batch_data_length, pad_id, multiple):
 
         lengths = length_list.to(data_device)
 
-        # 计算最大长度
-        max_row_len = torch.max(lengths).item()
-        if multiple > 1:
-            max_row_len = ((max_row_len + multiple - 1) // multiple) * multiple
+        # 判断是一维还是二维张量
+        is_2d = len(data.shape) > 1
+        if is_2d:
+            # 处理二维张量，如position_ids
+            first_dim = data.shape[0]
 
-        # 预分配张量
-        if data[0].is_floating_point():
-            padded_tensor = torch.full((len(lengths), max_row_len), 0.0,
-                                       dtype=data_dtype, device=data_device)
+            # 计算最大长度
+            max_row_len = torch.max(lengths).item()
+            if multiple > 1:
+                max_row_len = ((max_row_len + multiple - 1) // multiple) * multiple
+
+            # 创建结果张量，每个样本是一个单独的2D张量
+            sample_count = len(lengths)
+            result = []
+
+            # 预分配张量
+            if data[0].is_floating_point():
+                padded_tensor = torch.full((sample_count, first_dim, max_row_len), 0.0,
+                                          dtype=data_dtype, device=data_device)
+            else:
+                padded_tensor = torch.full((sample_count, first_dim, max_row_len), pad_id,
+                                          dtype=data_dtype, device=data_device)
+
+            # 计算累积长度
+            cum_length = torch.cat([torch.tensor([0], device=data_device),
+                                   torch.cumsum(lengths, 0)])
+
+            # 填充每个样本
+            for i in range(sample_count):
+                seq_len = lengths[i]
+                for dim_idx in range(first_dim):
+                    start_idx = cum_length[i]
+                    end_idx = cum_length[i] + seq_len
+                    padded_tensor[i, dim_idx, :seq_len] = data[dim_idx, start_idx:end_idx]
+
+            padded_batch_data[key] = padded_tensor
         else:
-            padded_tensor = torch.full((len(lengths), max_row_len), pad_id,
+            # 原有的一维张量处理逻辑
+            # 计算最大长度
+            max_row_len = torch.max(lengths).item()
+            if multiple > 1:
+                max_row_len = ((max_row_len + multiple - 1) // multiple) * multiple
+
+            # 预分配张量
+            if data.is_floating_point():
+                padded_tensor = torch.full((len(lengths), max_row_len), 0.0,
+                                       dtype=data_dtype, device=data_device)
+            else:
+                padded_tensor = torch.full((len(lengths), max_row_len), pad_id,
                                        dtype=data_dtype, device=data_device)
 
-        # 向量化填充
-        cum_length = torch.cat([torch.tensor([0], device=data_device
+            # 向量化填充
+            cum_length = torch.cat([torch.tensor([0], device=data_device
                                              ), torch.cumsum(lengths, 0)])
 
-        for i, _ in enumerate(lengths):
-            seq_len = lengths[i]
-            padded_tensor[i, :seq_len] = data[cum_length[i]:cum_length[i + 1]]
-        padded_batch_data[key] = padded_tensor
+            for i, _ in enumerate(lengths):
+                seq_len = lengths[i]
+                padded_tensor[i, :seq_len] = data[cum_length[i]:cum_length[i + 1]]
+            padded_batch_data[key] = padded_tensor
 
     return padded_batch_data
-
-

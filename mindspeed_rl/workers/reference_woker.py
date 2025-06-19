@@ -9,7 +9,7 @@ import torch
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
-from mindspeed_rl.config_cls.generate_config import GenerateConfig  
+from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.models.reference import Reference
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
@@ -17,7 +17,7 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank, get_context_parallel_rank
 from mindspeed_rl.utils.loggers import Loggers
-from mindspeed_rl.utils.utils import mstx_timer_decorator
+from mindspeed_rl.utils.utils import mstx_timer_decorator, is_multimodal
 
 logger = Loggers(__name__)
 
@@ -70,7 +70,7 @@ class ReferenceWorkerBase(BaseWorker):
         else:
             self.megatron_config.iteration = 0
             self.megatron_config.num_floating_point_operations_so_far = 0
-            
+
         megatron_module = self.get_megatron_module()
 
         self.reference = Reference(
@@ -92,13 +92,16 @@ class ReferenceWorkerBase(BaseWorker):
             temperature=self.generate_config.sampling_config["temperature"]
         )
 
-    def init_transfer_dock(self, td):
+    def init_transfer_dock(self, td, mm_td):
         self.td = td
+        self.mm_td = mm_td
 
     @mstx_timer_decorator
     def compute_ref_log_prob(self):
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
+        if is_multimodal():
+            experience_columns.extend(['attention_mask', 'position_ids', 'input_ids_length'])
         experience_count = self.rl_config.ref_dispatch_size
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=False) if self.rl_config.guarantee_order else None

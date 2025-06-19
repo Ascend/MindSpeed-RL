@@ -1,4 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +35,7 @@ def clip_by_value(x, tensor_min, tensor_max):
     return clipped
 
 
-def masked_mean(values, mask, axis=None):
+def masked_mean(values, mask, axis=None, epsilon=1e-8):
     """
     Compute mean of tensor with a masked values.
 
@@ -47,7 +48,7 @@ def masked_mean(values, mask, axis=None):
         The mean of the data after applying the mask
     """
 
-    return (values * mask).sum(axis=axis) / mask.sum(axis=axis)
+    return (values * mask).sum(axis=axis) / (mask.sum(axis=axis) + epsilon)
 
 
 def masked_var(values, mask, unbiased=True):

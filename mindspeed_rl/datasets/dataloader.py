@@ -74,7 +74,7 @@ class MultiModalDataLoader(torch.utils.data.DataLoader):
             batch_dict['prompts'] = [torch.tensor(i) for i in batch_dict['prompts']]
 
             return batch_dict
-        
+
         if not no_shuffle:
             train_dataloader_generator = torch.Generator()
             train_dataloader_generator.manual_seed(seed)
@@ -83,9 +83,10 @@ class MultiModalDataLoader(torch.utils.data.DataLoader):
             sampler = SequentialSampler(data_source=dataset)
 
         super().__init__(dataset,
-                         batch_size=global_batch_size,
-                         num_workers=num_workers,
-                         drop_last=True,
-                         collate_fn=collate_fn,
-                         sampler=sampler
-                         )
+                        num_workers=num_workers,
+                        generator=torch.Generator().manual_seed(seed),
+                        collate_fn=collate_fn,
+                        pin_memory=True,
+                        sampler=sampler,
+                        batch_size=global_batch_size,
+                        drop_last=True)

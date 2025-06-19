@@ -37,7 +37,8 @@ from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
     update_megatron_weight_loader,
     InferParallelConfig
 )
-from mindspeed_rl.utils import get_tokenizer
+from mindspeed_rl.utils import get_tokenizer, is_multimodal
+
 
 logger = Loggers("vllm_engine")
 
@@ -179,6 +180,7 @@ class VLLMInferEngine(BaseInferEngine):
             gpu_memory_utilization=gpu_memory_utilization,
             max_num_seqs=max_num_seqs,
             max_model_len=max_model_len,
+            seed=self.sampling_params.seed,
             additional_config={
                 'expert_tensor_parallel_size': infer_expert_tensor_parallel_size,
                 'enable_graph_mode': int(os.environ.get('VLLM_ENABLE_GRAPH_MODE', '0')),
@@ -271,9 +273,16 @@ class VLLMInferEngine(BaseInferEngine):
         else:
             self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine = None
             self.llm.llm_engine.model_executor.driver_worker.worker.gpu_cache = None
-        if hasattr(self.model.model.layers[0].self_attn, "attn"):
+        if hasattr(self.model, 'model') and hasattr(self.model.model.layers[0].self_attn, "attn"):
             for i in range(self.model.model.start_layer, self.model.model.end_layer):
                 attn_impl = self.model.model.layers[i].self_attn.attn.impl
+                if hasattr(attn_impl, "key_cache"):
+                    attn_impl.key_cache = None
+                    attn_impl.value_cache = None
+        # 多模态kv cache
+        elif hasattr(self.model, 'language_model') and hasattr(self.model.language_model.model.layers[0].self_attn, "attn"):
+            for i in range(self.model.language_model.model.start_layer, self.model.language_model.model.end_layer):
+                attn_impl = self.model.language_model.model.layers[i].self_attn.attn.impl
                 if hasattr(attn_impl, "key_cache"):
                     attn_impl.key_cache = None
                     attn_impl.value_cache = None
@@ -285,7 +294,7 @@ class VLLMInferEngine(BaseInferEngine):
     def offload_model_weights(self):
         for name, params in self.model.named_parameters():
             params.data = self.cpu_model[name]
-        if hasattr(self.model.model.layers[-1].self_attn, "mla_attn"):
+        if hasattr(self.model, 'model') and hasattr(self.model.model.layers[-1].self_attn, "mla_attn"):
             for i in range(self.model.model.start_layer, self.model.model.end_layer):
                 mla = self.model.model.layers[i].self_attn.mla_attn.impl
                 if hasattr(mla, "w_kc"):
@@ -302,7 +311,7 @@ class VLLMInferEngine(BaseInferEngine):
                               self.model,
                               infer_parallel_config,
                               self.hf_config)
-        if hasattr(self.model.model.layers[0].self_attn, "mla_attn"):
+        if hasattr(self.model, 'model') and hasattr(self.model.model.layers[0].self_attn, "mla_attn"):
             self._process_mla()
 
     def _process_mla(self):
@@ -319,9 +328,18 @@ class VLLMInferEngine(BaseInferEngine):
     @torch.no_grad()
     def generate_sequences(self, idx_list, **kwargs):
         self.init_cache_engine()
+        if is_multimodal():
+            images = kwargs.pop("extra_info")
+            prompts = [
+                {"prompt_token_ids": prompt, "multi_modal_data": {"image": image}}
+                for prompt, image in zip(idx_list, images['image'])
+            ]
+            idx_list = None
+        else:
+            prompts = None
         with self.update_sampling_params(**kwargs):
             response = self.llm.generate(
-                prompts=None,
+                prompts=prompts,
                 sampling_params=self.sampling_params,
                 prompt_token_ids=idx_list,
                 use_tqdm=False

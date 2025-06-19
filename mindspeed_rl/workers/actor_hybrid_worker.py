@@ -270,7 +270,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 prompts = truncate_rows(prompts_data, prompt_length_data)
                 prompts_list = [prompt.numpy().tolist() for prompt in prompts]
 
-                responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list))
+                responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), extra_info=batch_data)
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]

@@ -68,8 +68,8 @@ class ActorRolloutHybrid(ABC):
         self.sharding_manager = sharding_manager
 
     @mstx_timer_decorator
-    def generate_sequences(self, prompts_list: List[List[int]]) -> Tensor:
-        responses = self.inference_actor.generate_sequences(prompts_list)[0]
+    def generate_sequences(self, prompts_list: List[List[int]], **kwargs) -> Tensor:
+        responses = self.inference_actor.generate_sequences(prompts_list, **kwargs)[0]
         return responses
 
     @mstx_timer_decorator

@@ -1,6 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
-from typing import Tuple    
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -82,7 +82,8 @@ def postprocess_packed_seqs(
     output: torch.Tensor,
     seqlens_in_batch: torch.Tensor,
     cu_seqlens_padded: torch.Tensor,
-    seq_len: int
+    seq_len: int,
+    return_tensor: bool = False
 ) -> torch.Tensor:
     """
     Unpacks a packed output tensor back into the original batch shape, restoring padding.
@@ -107,12 +108,18 @@ def postprocess_packed_seqs(
 
     # Prepare new output with padding
     batch_size = seqlens_in_batch.shape[0]
-    full_shape = [batch_size, seq_len] + list(output.shape[2:])
-    output_new = []
+    if return_tensor:
+        full_shape = [batch_size, seq_len] + list(output.shape[2:])
+        output_new = torch.zeros(full_shape, dtype=output.dtype, device=output.device)
+    else:
+        output_new = []
     for i in range(batch_size):
         start = cu_seqlens_padded[i].item()
         length = seqlens_in_batch[i].item()
-        output_new.append(output[0, start:start + length])
+        if return_tensor:
+            output_new[i, :length] = output[0, start:start + length]
+        else:
+            output_new.append(output[0, start:start + length])
 
     return output_new
 

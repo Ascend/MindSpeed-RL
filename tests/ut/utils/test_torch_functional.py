@@ -18,30 +18,30 @@ class TestClipByValue(DistributedTest):
 
 class TestMaskedMean(DistributedTest):
     world_size = 1
-    
+
     def test_masked_mean_1d(self):
         from mindspeed_rl.utils.torch_functional import masked_mean
         values = torch.tensor([1.0, 2.0, 3.0])
         mask = torch.tensor([1.0, 0.0, 1.0])
-        result = masked_mean(values, mask)
+        result = masked_mean(values, mask, epsilon=0)
         assert result == 2.0
 
 
 class TestMaskedVar(DistributedTest):
     world_size = 1
-    
+
     def test_masked_var_unbiased_true(self):
         from mindspeed_rl.utils.torch_functional import masked_var
         import numpy as np
         values = np.array([1, 2, 3, 4, 5])
         mask = np.array([1, 1, 1, 1, 1])
         result = masked_var(values, mask, unbiased=True)
-        assert result == 2.5
+        assert np.isclose(result, 2.5, atol=1e-5)
 
 
 class TestMaskedWhiten(DistributedTest):
     world_size = 1
-    
+
     def test_masked_whiten_shift_mean_true(self):
         from mindspeed_rl.utils.torch_functional import masked_whiten
         values = torch.tensor([1.0, 2.0, 3.0, 4.0])

@@ -15,7 +15,11 @@ class BaseConfig:
         Method to update parameters from a config dictionary
         '''
         if 'model' in config_dict:
-            self.update(model_config_dict[config_dict['model']])
+            # if str, parsed as file path, used for multi-modal
+            if isinstance(model_config_dict, str):
+                self._process_multi_modal(model_config_dict)
+            else:
+                self.update(model_config_dict[config_dict['model']])
 
         for key, value in config_dict.items():
             if key == 'model':
@@ -37,3 +41,20 @@ class BaseConfig:
 
     def dict(self):
         return self.__dict__
+
+    def _process_multi_modal(self, model_config_dict):
+        import json
+        from pathlib import Path
+        config_path = Path(model_config_dict)
+        if not config_path.is_file():
+            raise FileNotFoundError(f'model json file: {str(model_config_dict)} is not found!')
+        else:
+            config = json.loads(config_path.read_text())
+            # used for actor_hybrid_worker initialize megatron resharding manager
+            img_pp_layers = config.get('image_encoder', {}).get('vision_encoder', {}).get('pipeline_num_layers', None)
+            llm_pp_layers = config.get('text_decoder', {}).get('pipeline_num_layers', None)
+            if img_pp_layers is None or llm_pp_layers is None:
+                raise ValueError(f'`pipeline_num_layers` should be set in config file: {str(model_config_dict)}.')
+            setattr(self, 'num_layer_list', [img_pp_layers, llm_pp_layers])
+            # used for mindspeed mm
+            setattr(self, "mm_model", model_config_dict)

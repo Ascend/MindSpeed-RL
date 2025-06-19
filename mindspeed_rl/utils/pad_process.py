@@ -73,7 +73,7 @@ def truncate_middle_and_pad(responses, input_tensor, truncate_lengths, pad_value
     return output_tensor
 
 
-def truncate_rows(tensor, index_tensor):
+def truncate_rows(tensor, index_tensor, left_pad=False):
     """
     tensor: 二维 Tensor，形状为 (mbs, seq_len)
     index_tensor: 二维 Tensor，形状为 (mbs, 1)，表示每一行截断的位置
@@ -85,7 +85,10 @@ def truncate_rows(tensor, index_tensor):
         # 获取当前行的截断索引
         trunc_idx = index_tensor[i].item()
         # 截断当前行
-        truncated_row = tensor[i, :trunc_idx].cpu()
+        if left_pad:
+            truncated_row = tensor[i, -trunc_idx:].cpu()
+        else:
+            truncated_row = tensor[i, :trunc_idx].cpu()
         # 将截断后的行添加到列表中
         truncated_tensors.append(truncated_row)
 

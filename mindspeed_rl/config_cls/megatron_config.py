@@ -109,7 +109,7 @@ class MegatronConfig(BaseConfig):
     bf16: Whether to use BF16 (default: False)
     use_distributed_optimizer: Use distributed optimizer (default: False)
     is_instruction_dataset: Whether the dataset is instruction-based (default: False)
-    is_pairwise_dataset: Whether the dataset is pairwise format that has a chosen sequence and rejected 
+    is_pairwise_dataset: Whether the dataset is pairwise format that has a chosen sequence and rejected
         sequence, which usually used in reinforce learning (default: False)
     variable_seq_lengths: Whether to use variable sequence lengths (default: False)
     no_shuffle: Whether to shuffle the dataset (default: False)
@@ -153,7 +153,7 @@ class MegatronConfig(BaseConfig):
     eval_interval: Interval between running evaluation on validation set (default: 1000)
     seed: Random seed used for python, numpy, pytorch, and cuda (default: 1234)
     vocab_extra_ids: Number of additional vocabulary tokens. They are used for span masking in the T5 model (default: 0)
-    use_tp_pp_dp_mapping: If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp. 
+    use_tp_pp_dp_mapping: If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp.
         Make sure EP and CP aren't used with this option enabled with this option enabled (default: False)
     log_interval: Report loss and timing interval (default: 100)
     load_checkpoint_loosely: Enable loading checkpoint not strictly (default: False)
@@ -205,6 +205,7 @@ class MegatronConfig(BaseConfig):
     coc_mode: 0=original, 1=rewrite, 2=coc default
     coc_parallel_num: number of parallel in CoC features (default: 1)
     coc_fused_kernel: switch to use fused kernel in CoC (default: False)
+    mm_model: config for multimodal models
     '''
 
     def __init__(self, training_config: Dict, model_config: Dict):
@@ -369,9 +370,13 @@ class MegatronConfig(BaseConfig):
         self.swap_attention = False
         self.ai_framework = None
         self.noop_layers = None
+
         self.use_ascend_coc = False
         self.coc_mode = -1
         self.coc_parallel_num = 1
         self.coc_fused_kernel = False
-        
+
+        # used for multimodal models
+        self.mm_model = None
+
         self.update(training_config, model_config)

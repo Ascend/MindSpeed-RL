@@ -371,7 +371,7 @@ class MsProbe:
         cls.debugger.service.first_start = True if model not in cls.hooked_model else False
         cls.debugger.service.config.dump_path = os.path.join(cls.config.dump_path, tag)
         cls.debugger.start(model=model)
-        if model not in cls.hooked_model:
+        if not cls.debugger.service.first_start and model not in cls.hooked_model:
             cls.hooked_model.append(model)
 
     @classmethod

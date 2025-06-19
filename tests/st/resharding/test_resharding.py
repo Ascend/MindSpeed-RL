@@ -55,7 +55,7 @@ sampling_config = {
 def make_megatron_config(args):
     megatron_config = MegatronConfig(
         training_config={'model': 'qwen25-7b', 'use_fused_rmsnorm': True, 'use_mcore_models': True,
-                         'sequence_parallel': True, 'use_flash_attn': True, 'use_mc2': True,
+                         'sequence_parallel': True, 'use_flash_attn': True, 
                          'no_masked_softmax_fusion': True, 'attention_softmax_in_fp32': True,
                          'no_gradient_accumulation_fusion': True, 'use_fused_swiglu': True,
                          'use_fused_rotary_pos_emb': True, 'bf16': True, 'use_distributed_optimizer': True,
@@ -75,7 +75,7 @@ def make_megatron_config(args):
                           'group_query_attention': True, 'num_query_groups': 4, 'attention_dropout': 0.0,
                           'init_method_std': '0.01', 'hidden_dropout': 0.0, 'adam_beta1': 0.9, 'adam_beta2': 0.95,
                           'position_embedding_type': 'rope', 'normalization': 'RMSNorm', 'use_fused_rmsnorm': True,
-                          'swiglu': True, 'use_flash_attn': True, 'use_mc2': True, 'no_masked_softmax_fusion': True,
+                          'swiglu': True, 'use_flash_attn': True, 'no_masked_softmax_fusion': True,
                           'attention_softmax_in_fp32': True, 'no_gradient_accumulation_fusion': True,
                           'use_fused_swiglu': True, 'use_fused_rotary_pos_emb': True, 'bf16': True}}
     )

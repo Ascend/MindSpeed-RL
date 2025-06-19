@@ -80,17 +80,6 @@ bash Ascend-cann-nnal_8.2.RC1_linux-aarch64.run --install
 source /usr/local/Ascend/nnal/atb/set_env.sh
 ```
 
-### PTA安装
-
-```shell
-# 安装torch和torch_npu
-pip install torch-2.6.0-cp310-cp310-*.whl
-pip install torch_npu-2.6.0.*.manylinux2014_aarch64.whl
-
-# apex for Ascend 构建参考 https://gitee.com/ascend/apex
-pip install apex-0.1.dev*.whl
-```
-
 ### vllm及相关依赖安装：
 （注：环境中需要安装git，因为vllm的安装过程依赖git）
 ```shell
@@ -109,6 +98,16 @@ git checkout 908a851
 pip install -e .
 ```
 
+### PTA安装
+
+```shell
+# 安装torch和torch_npu
+pip install torch-2.6.0-cp310-cp310-*.whl
+pip install torch_npu-2.6.0.*.manylinux2014_aarch64.whl
+
+# apex for Ascend 构建参考 https://gitee.com/ascend/apex
+pip install apex-0.1.dev*.whl
+```
 
 ### 高性能内存库 jemalloc 安装
 为了确保 Ray 进程能够正常回收内存，需要安装并使能 jemalloc 库进行内存管理。

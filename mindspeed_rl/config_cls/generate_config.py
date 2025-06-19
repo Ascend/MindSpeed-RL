@@ -89,6 +89,11 @@ class GenerateConfig(BaseConfig):
             "seed": None # 随机种子
         }
 
+        if config_dict.get("sampling_config") is not None:
+            for key, _ in config_dict["sampling_config"].items():
+                if key not in self.sampling_config:
+                    raise ValueError(f"The key: {key} is missing, causing the setup to fail. Please check."
+                            f" If necessary, register it in the config file.")    
+
         # 如果提供了配置字典，则更新默认值
-        if config_dict is not None:
-            self.update(config_dict)
+        self.update(config_dict)

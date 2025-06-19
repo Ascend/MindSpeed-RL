@@ -29,8 +29,9 @@ class BaseConfig:
             if hasattr(self, key):
                 setattr(self, key, value)
             else:
-                logger.warning(f"The key: {key} is missing, causing the setup to fail. Please check."
-                               f" If necessary, register it in the config file.")
+                raise ValueError(f"The key: {key} is missing, causing the setup to fail. Please check."
+                                 f" If necessary, register it in the config file.")
+
 
     def __repr__(self):
         '''Represent the model config as a string for easy reading'''

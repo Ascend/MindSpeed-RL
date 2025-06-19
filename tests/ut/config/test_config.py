@@ -10,8 +10,8 @@ class TestConfig(DistributedTest):
     world_size = 1
 
     def test_megatron_config(self):
-        model_config = {'model': {'llama_7b': {'use_mcore_models': True, 'useless_case': 1}}}
-        config = {'model': 'llama_7b', 'use_mcore_models': False, 'bad_case': 1}
+        model_config = {'model': {'llama_7b': {'use_mcore_models': True}}}
+        config = {'model': 'llama_7b', 'use_mcore_models': False}
 
         m_config = MegatronConfig(config, model_config.get('model'))
 

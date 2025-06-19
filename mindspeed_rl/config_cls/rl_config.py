@@ -61,7 +61,7 @@ class RLConfig(BaseConfig):
         self.runtime_env_path = 'configs/envs/runtime_env.yaml'
         self.rule_reward = True
         self.beta = 0.1
-        self.actor_resource = None
+        self.actor_resource = {"num_npus": None}
         self.reference_resource = None
         self.reward_resource = None
         self.num_samples_per_step = 1
@@ -111,10 +111,17 @@ class RLConfig(BaseConfig):
         self.is_multimodal = False
         self.use_remove_padding = False
 
-        self.update(config_dict)
-
         self.n_samples_per_prompt = config_dict.get('n_samples_per_prompt', 1)
         self.mini_batch_size = config_dict.get('mini_batch_size', 1) * self.n_samples_per_prompt
 
         self.use_dynamic_bsz = False
         self.max_packing_token_size = 4096
+        self.shuffle_minibatch = False
+
+        if config_dict.get("actor_resource") is not None:
+            for key, _ in config_dict["actor_resource"].items():
+                if key not in self.actor_resource:
+                    raise ValueError(f"The key: {key} is missing, causing the setup to fail. Please check."
+                            f" If necessary, register it in the config file.")  
+
+        self.update(config_dict)

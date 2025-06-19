@@ -64,7 +64,6 @@ rl_config:
   actor_forward_micro_batch_size: 8
   ref_forward_micro_batch_size: 8
   use_remove_padding: true
-  experience_count: 4
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
@@ -83,17 +82,11 @@ rl_config:
   verifier_parallel: 4
   verifier_timeout: 120
   use_tensorboard: true
-  actor_micro_batch_size: 1
-  ref_micro_batch_size: 1
-  rew_micro_batch_size: 1
-  adv_micro_batch_size: 1
-  update_micro_batch_size: 1
   actor_resource:
     num_npus: 8
 
 generate_config:
   enforce_eager: True
-  gen_micro_batch_size: 16
   trust_remote_code: true
   offload_train_optimizer: true
   offload_train_grad: true

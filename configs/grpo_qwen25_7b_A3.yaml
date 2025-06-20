@@ -32,6 +32,7 @@ megatron_training:
   split: 100,0,0
   no_shuffle: false
   full_shuffle_instruction_dataset: false
+  seed: 1
 
 actor_config:
   model: qwen25_7b

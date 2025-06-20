@@ -3,6 +3,7 @@
 import time
 import dataclasses
 import copy
+import gc
 from typing import Callable
 
 import ray
@@ -269,6 +270,9 @@ class ActorHybridWorkerBase(BaseWorker):
                 # preprocess, remove padding
                 prompts = truncate_rows(prompts_data, prompt_length_data)
                 prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+
+                gc.collect()
+                torch.cuda.empty_cache()
 
                 responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), extra_info=batch_data)
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)

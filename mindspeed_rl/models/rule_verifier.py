@@ -193,10 +193,21 @@ def base_acc_subprocess(prediction, reference, timeout_seconds=1):
         return 0.0
 
 
+def new_format_and_acc(sequence, answer):
+    pattern = re.compile(r"<think>.*</think>.*<answer>.*\\boxed\{.*\}.*</answer>", re.DOTALL)
+    format_match = re.fullmatch(pattern, sequence)
+
+    extract_output = extract_boxed_content(sequence)
+    if grade_answer(extract_output, answer) and format_match:
+        return 1.0
+    else:
+        return 0.0
+
+
 def base_model_accuracy_reward(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
-        box_match = base_acc_subprocess(sequence, answer)
+        box_match = new_format_and_acc(sequence, answer)
         scores.append(box_match)
 
     return scores

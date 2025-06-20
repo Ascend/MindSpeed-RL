@@ -3,6 +3,9 @@ defaults:
       - qwen25_32b
 
 megatron_training:
+  use_ascend_coc: True
+  coc_fused_kernel: True
+  coc_parallel_num: 2
   model: qwen25_32b
   use_fused_rmsnorm: true
   use_mcore_models: true
@@ -19,7 +22,7 @@ megatron_training:
   tokenizer_name_or_path: ./Qwen2.5-32B
   global_batch_size: 64
   seq_length: 1024
-  save_interval: 100
+  save_interval: 200
   train_iters: 500
   stage: ray_grpo
   attention_dropout: 0.0
@@ -30,12 +33,8 @@ megatron_training:
   dataset_additional_keys: ['labels']
   data_path: ./data
   split: 100,0,0
-  no_shuffle: false
-  full_shuffle_instruction_dataset: false
   reset_position_ids: true
-  use_ascend_coc: True
-  coc_fused_kernel: True
-  coc_parallel_num: 2
+  seed: 1
 
 actor_config:
   model: qwen25_32b
@@ -57,10 +56,12 @@ actor_config:
   no_load_rng: true
 
 rl_config:
-  blocking: true
+  use_dynamic_bsz: true
+  max_packing_token_size: 8192
   use_remove_padding: true
+  blocking: true
   actor_forward_micro_batch_size: 64
-  ref_forward_micro_batch_size: 64
+  ref_forward_micro_batch_size: 32
   reward_dispatch_size: 64
   adv_dispatch_size: 32
   actor_update_dispatch_size: 64
@@ -75,7 +76,6 @@ rl_config:
   max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
-  entropy_coeff: 0
   shuffle_minibatch: false
   n_samples_per_prompt: 16
   rule_reward: true
@@ -98,16 +98,17 @@ generate_config:
 
   # vllm 模型相关设置
   max_num_seqs: 64
-  max_model_len: 3072
+  max_model_len: 2048
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
 
   # 采样配置
   sampling_config:
     logprobs: 1
-    max_tokens: 2048
+    max_tokens: 1024
     top_p: 1.0
     top_k: -1
     min_p: 0
     temperature: 1.0
     detokenize: false
+    seed: 1

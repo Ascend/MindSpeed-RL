@@ -112,11 +112,10 @@ class RLConfig(BaseConfig):
         self.use_remove_padding = False
 
         self.n_samples_per_prompt = config_dict.get('n_samples_per_prompt', 1)
-        self.mini_batch_size = config_dict.get('mini_batch_size', 1) * self.n_samples_per_prompt
+        self.mini_batch_size = 1
 
         self.use_dynamic_bsz = False
         self.max_packing_token_size = 4096
-        self.shuffle_minibatch = False
 
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():
@@ -125,3 +124,4 @@ class RLConfig(BaseConfig):
                             f" If necessary, register it in the config file.")  
 
         self.update(config_dict)
+        self.mini_batch_size = config_dict.get('mini_batch_size', 1) * self.n_samples_per_prompt

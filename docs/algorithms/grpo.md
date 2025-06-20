@@ -58,7 +58,7 @@ bash examples/data/preprocess_data.sh deepscaler
 1. 根据实际安装路径设置 jemalloc 环境变量，用于更好管理内存，避免长跑过程中内存 OOM ，例如：export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 
 2. 修改 DEFAULT_YAML 为指定的 yaml，目前已支持的配置文件放置在 configs / 文件夹下，具体参数说明可见 [配置文件参数介绍](../features/grpo_yaml.md)；
 3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
-4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP（ 需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost ）；
+4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP (需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost)；；
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练
 bash examples/grpo/grpo_trainer_qwen25_7b.sh

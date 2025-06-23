@@ -117,12 +117,16 @@ def get_handler_dataset_attr(handler_name, dataset_additional_keys, map_keys, ra
         setattr(dataset_attr, "ranking", True)
 
     if "AlpacaStyle" in handler_name:
-        dataset_attr.formatting = "alpaca"
+        if "Math17k" in handler_name:
+            dataset_attr.formatting = "math17k_alpaca"
+        else:
+            dataset_attr.formatting = "alpaca"
         column_names = ["prompt", "query", "response", "history", "system", "chosen", "rejected"]
         if map_keys is not None:
             check_dataset_info_map(map_keys, handler_name, column_names, raw_datasets)
             for column_name, target_name in map_keys.items():
                 setattr(dataset_attr, column_name, target_name)
+
 
     return dataset_attr
 
@@ -152,6 +156,8 @@ def align_dataset(dataset, dataset_attr, data_args):
     """
     if dataset_attr.formatting == "alpaca":
         convert_func = partial(convert_alpaca_to_intermediate, dataset_attr=dataset_attr)
+    elif dataset_attr.formatting == "math17k_alpaca":
+        convert_func = partial(convert_math17k_to_intermediate, dataset_attr=dataset_attr)
 
     column_names = [k for k in next(iter(dataset)) if k not in dataset_attr.dataset_additional_keys]
 
@@ -169,6 +175,92 @@ def align_dataset(dataset, dataset_attr, data_args):
 
     dataset = dataset.filter(lambda x: len(x["prompt"]) != 0 and len(x["response"]) != 0)
     return dataset
+
+
+def convert_math17k_to_intermediate(sample: Dict[str, List[Any]], dataset_attr: "InstructionDatasetAttr"):
+    """
+    format sample info
+    {
+      "instruction": "我还想知道中国古代的五代十国时期和欧洲的中世纪有什么异同点？",
+      "input": "",
+      "output": "中国的五代十国时期和欧洲的中世纪大体上是同时期的历史时期，但它们有许多重要的异同点。",
+      "history": [
+       [
+        "回答的非常好",
+        "感谢你的认可！还有什么需要我帮助的吗？"
+       ]
+      ]
+     }
+    ---->>>>
+    {
+        'prompt': [{'role': 'user', 'content': '回答的非常好'}, 
+                {'role': 'assistant', 'content': '感谢你的认可！还有什么需要我帮助的吗？'}, 
+                {'role': 'user', 'content': '我还想知道中国古代的五代十国时期和欧洲的中世纪有什么异同点？'}], 
+        'response': [{'role': 'assistant', 'content': '中国的五代十国时期和欧洲的中世纪大体上是同时期的历史时期，但它们有许多重要的异同点。'}], 
+        'system': [''], 
+        'tools': ['']
+    }
+    """
+    outputs = {"prompt": [], "response": [], "system": [], "tools": []}
+    prompt = []
+    
+    if dataset_attr.history and (isinstance(sample[dataset_attr.history], list) or isinstance(sample[dataset_attr.history], dict)):
+        for old_prompt, old_response in sample[dataset_attr.history]:
+            prompt.append({"role": Role.USER.value, "content": old_prompt})
+            prompt.append({"role": Role.ASSISTANT.value, "content": old_response})
+
+    content = []
+    if dataset_attr.prompt and sample[dataset_attr.prompt]:
+        content.append(sample[dataset_attr.prompt])
+
+    if dataset_attr.query and sample[dataset_attr.query]:
+        content.append(sample[dataset_attr.query])
+
+    content = content[0]
+    prompt.append({"role": Role.USER.value, "content": "\n".join([content[0]["content"]])})
+
+    if dataset_attr.ranking:
+        if dataset_attr.chosen and isinstance(sample[dataset_attr.chosen], list):
+            response = [
+                {"role": Role.ASSISTANT.value, "content": sample[dataset_attr.chosen][0]},
+                {"role": Role.ASSISTANT.value, "content": sample[dataset_attr.rejected][1]},
+            ]
+        elif dataset_attr.chosen and isinstance(sample[dataset_attr.chosen], str):
+            response = [
+                {"role": Role.ASSISTANT.value, "content": sample[dataset_attr.chosen]},
+                {"role": Role.ASSISTANT.value, "content": sample[dataset_attr.rejected]},
+            ]
+        else:
+            response = []
+    else:
+        if dataset_attr.response and isinstance(sample[dataset_attr.response], dict):
+            response = [
+                {
+                    "role": Role.ASSISTANT.value,
+                    "content": content
+                }
+                for content in [sample[dataset_attr.response]['ground_truth']]
+            ]
+        elif dataset_attr.response and isinstance(sample[dataset_attr.response], str):
+            response = [
+                {
+                    "role": Role.ASSISTANT.value, 
+                    "content": sample[dataset_attr.response]
+                }
+            ]
+        else:
+            response = []
+
+    outputs["prompt"] = prompt
+    outputs["response"] = response
+    outputs["system"].append(sample[dataset_attr.system] if dataset_attr.system else "")
+    outputs["tools"].append("")
+
+    for add_key in dataset_attr.dataset_additional_keys:
+        if add_key != "labels":
+            outputs[add_key] = sample[add_key]
+
+    return outputs
 
 
 def convert_alpaca_to_intermediate(sample: Dict[str, List[Any]], dataset_attr: "InstructionDatasetAttr"):

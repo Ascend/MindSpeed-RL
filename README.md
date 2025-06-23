@@ -17,13 +17,13 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tr>
   <tr>
     <td>昇腾NPU驱动</td>
-    <td rowspan="2">25.0.RC1</td>
+    <td rowspan="2">25.2.0</td>
   <tr>
     <td>昇腾NPU固件</td>
   </tr>
   <tr>
     <td>Toolkit（开发套件）</td>
-      <td rowspan="3">8.1.RC1</td>
+      <td rowspan="3">8.2.RC1</td>
   </tr>
   <tr>
     <td>Kernel（算子包）</td>
@@ -39,7 +39,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tr>
   <tr>
     <td>Torch</td>
-    <td rowspan="2">>=2.5.1</td>
+    <td rowspan="2">2.5.1</td>
   </tr>
   <tr>
     <td>Torch_npu</td>
@@ -87,7 +87,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         <a href="docs/solutions/r1_zero_qwen25_7b.md">Qwen2.5-7B</a> <br>
         <a href="docs/solutions/r1_zero_qwen25_32b.md">Qwen2.5-32B</a> <br>
       </td>
-      <td> Preview</td>
+      <td> Released</td>
     </tr>
   </tbody>
 </table>
@@ -116,7 +116,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Preview</td>
+      <td> Released</td>
     </tr>
     <tr>
       <td>数据调度</td>
@@ -237,6 +237,7 @@ MindSpeed RL已发布版本维护策略：
 
 | **MindSpeed RL版本** | **对应标签** | **维护策略** | **当前状态** | **发布时间**  | **后续状态** | **EOL日期** |
 |--------------------| ------------ |----------|----------|-----------|----------|-----------|
+| 2.1.0              | \            | 正式版本     |  商用      |   \  | \        | 2025/12/30 |
 | 2.0.0              | \            | 预览版本     |  预览      |   \  | \        | 2025/9/30 |
 
 

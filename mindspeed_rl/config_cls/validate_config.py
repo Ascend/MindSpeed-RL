@@ -254,6 +254,7 @@ def validate_data_handler_config(config):
         "AlpacaStylePairwiseHandler",
         "AlpacaStyleProcessRewardHandler",
         "R1AlpacaStyleInstructionHandler",
+        "Math17kAlpacaStyleInstructionHandler",
     ]
     if config.prompt_type is not None and config.handler_name not in support_prompt_type_handler:
         raise ValueError(f'If specify prompt_type , handler name must be in:\n{support_prompt_type_handler}.')

@@ -8,8 +8,25 @@
 
 ## 数据预处理
 配置好环境后，需要对数据集进行预处理。
+目前支持DeepScaler和Math-17k数据集，对于能力较弱的模型（如qwen2.5_7b），建议使用Math-17k数据集来训练，打分器配套使用math_17k_acc。
 
-以 [**DeepScaler**](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/tree/main) 为例。
+如果使用 [**Math-17k**](https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k)，数据预处理操作如下：
+
+```bash
+# 读取math_17k数据集
+cd dataset/
+wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet --no-check
+cd ..
+```
+
+数据预处理的yaml配置文件放置于configs/datasets文件夹下，通过以下命令进行数据集预处理：
+[示例yaml配置文件](../../configs/datasets/math_17k.yaml)
+```bash
+#读取configs/datasets/math_17k.yaml文件 
+bash examples/data/preprocess_data.sh math_17k
+```
+
+如果使用 [**DeepScaler**](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/tree/main) 数据集，数据预处理操作如下：
 
 ```bash
 # 读取deepscaler数据集

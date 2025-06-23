@@ -456,6 +456,10 @@ class R1AlpacaStyleInstructionHandler(BaseDatasetHandler):
         return tokenized_full_prompt
 
 
+class Math17kAlpacaStyleInstructionHandler(R1AlpacaStyleInstructionHandler):
+    pass
+
+
 def _get_handler_cls(handler_name=None):
     """choose dataset class by dataset_name"""
     current_module = sys.modules.get(__name__)
@@ -569,6 +573,7 @@ def build_dataset(args):
         "AlpacaStyleInstructionHandler",
         "AlpacaStylePairwiseHandler",
         "R1AlpacaStyleInstructionHandler",
+        "Math17kAlpacaStyleInstructionHandler",
     ]:
         handler_dataset_attr = get_handler_dataset_attr(args.handler_name, args.dataset_additional_keys, args.map_keys,
                                                         raw_datasets)

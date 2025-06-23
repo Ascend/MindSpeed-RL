@@ -30,7 +30,7 @@
       开启shuffle并保证跑两次数据一致：
       ```
       no_shuffle: false
-      seed: 1234
+      seed: 1234  # 如果有就不用再加
       full_shuffle_instruction_dataset: false
       ```
   - 1.2 使能TransferDock (TD) 保序特性

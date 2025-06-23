@@ -122,6 +122,70 @@ def karmarkar_karp(seqlen_list: List[int], k_partitions: int, equal_size: bool):
     return partitions
 
 
+def heapq_partition(seqlen_list: List[int], k_partitions: int, equal_size: bool):
+    equal_part_num = len(seqlen_list) // k_partitions
+
+    sorted_seqlen = sorted([(seqlen, i) for i, seqlen in enumerate(seqlen_list)], reverse=True)
+
+    # Initialize the heap: each group maintains [current sum, number of elements, group index, elements in the group]
+    groups = [[0, 0, i, []] for i in range(k_partitions)]
+    heapq.heapify(groups)
+
+    partitions = []
+    for seqlen, i in sorted_seqlen:
+        current_group = heapq.heappop(groups)
+        current_group[3].append(i)
+        current_group[0] += seqlen
+        current_group[1] += 1
+        if equal_size:
+            if current_group[1] < equal_part_num:
+                heapq.heappush(groups, current_group)
+            else:
+                partitions.append(current_group[3])
+        else:
+            heapq.heappush(groups, current_group)
+
+    partitions.extend([group[3] for group in groups])
+
+    if equal_size:
+        for i, partition in enumerate(partitions):
+            if len(partition) * k_partitions != len(seqlen_list):
+                raise ValueError(f"Partition {i} has {len(partition)} items, expected {len(seqlen_list) // k_partitions}")
+    return partitions
+
+
+def get_seqlen_balanced_partitions(seqlen_list: List[int], k_partitions: int, equal_size: bool):
+    """get order of seq lengths to make partitions balanced, this is
+        used in balancing sum of seq length across dp ranks and micro batches
+    Parameters:
+        seqlen_list (List[int]):
+            seq lengths of each items
+        k_partitions (int):
+            resulting number of partitions
+        equal_size (bool):
+            if True, number of items in each partitions must be equal.
+            if False, only consider balancing the sum, each partition can have
+            variable number of items
+    Returns:
+        partitions (List[List[int]]):
+            return k_partitions list containing the index of items.
+    """
+    if k_partitions > len(seqlen_list):
+        raise ValueError(f"number of items:[{len(seqlen_list)}] < k_partitions:[{k_partitions}]")
+
+    def _check_and_sort_partitions(partitions):
+        seen_idx = set()
+        sorted_partitions = [None] * k_partitions
+        for i, partition in enumerate(partitions):
+            for idx in partition:
+                seen_idx.add(idx)
+            sorted_partitions[i] = sorted(partition)
+        return sorted_partitions
+
+    partitions = heapq_partition(seqlen_list=seqlen_list, k_partitions=k_partitions, equal_size=equal_size)
+    return _check_and_sort_partitions(partitions)
+
+
 def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dp_group=None):
     """get order of seq lengths to make partitions balanced, this is
         used in balancing sum of seq length across dp ranks and micro batches
@@ -136,7 +200,6 @@ def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dp_group
     if max(seqlen_list) > max_token_len:
         raise ValueError(f"seqlen of items:[{max(seqlen_list)}] must <= max_token_len:[{max_token_len}]")
     
-
     # Calculate the minimum number of bins
     total_sum_of_seqlen = sum(seqlen_list)
     if total_sum_of_seqlen % max_token_len == 0:

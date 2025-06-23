@@ -4,6 +4,7 @@
 
 1. **填充移除（Remove padding）**  
 2. **动态批量大小（Dynamic Batch Size）**
+3. **数据并行负载均衡（DP Batch Balance）**
 
 ---
 
@@ -65,7 +66,7 @@ rl_config:
 
 ---
 
-## 参数说明：`max_packing_token_size
+## 参数说明：max_packing_token_size
 
 `max_packing_token_size` 是动态批大小（Dynamic Batch Size）机制中的核心参数，用于限制每个拼接后的 micro batch 中 token 的总数，防止因拼接过多序列而导致显存溢出（OOM）。  
 
@@ -90,4 +91,27 @@ max_packing_token_size = (rl_config.max_prompt_length + generate_config.sampling
 rl_config:
   use_dynamic_bsz: true
   max_packing_token_size: 8192
+```
+
+# 📦 数据并行负载均衡（DP Batch Balance）特性
+
+## 背景介绍
+
+在数据并行（Data Parallel, DP）训练中，若各 DP 节点的序列总长度不均衡，会导致计算量少的节点提前完成等待，形成「木桶效应」。该特性通过装箱算法均衡各 DP 节点的序列总长度，减少节点间等待时间，提升分布式训练效率。
+
+## 实现原理
+
+1. **序列长度收集**：获取当前批次所有样本的序列长度；
+2. **动态装箱分组**：使用堆排序装箱算法，按序列长度从大到小依次分配至当前总长度最小的分组，确保各 DP 节点的总序列长度均衡；
+3. **数据分配**：将分组后的样本分配至各 DP 节点，实现计算量均衡。
+
+<p align="center">
+  <img src="../../sources/images/remove_padding/dp_balance.png" width="400"/>
+</p>
+
+## 配置方法
+
+```yaml
+rl_config:
+  use_dp_batch_balance: true
 ```

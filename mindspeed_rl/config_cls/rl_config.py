@@ -52,8 +52,8 @@ class RLConfig(BaseConfig):
     num_cpus_for_placement_group: Number of CPUs for ray worker placement group
 
     is_multimodal: Whether base model is a multimodal model or not (default: False)
+    use_dp_batch_balance: Whether to use dynamic batch size balancing across data parallel ranks (default: False)
     # Default values can still be defined if no config is provided
-    
     use_remove_padding: Whether to use packed sequences for forward (default: False)
     '''
 
@@ -98,6 +98,7 @@ class RLConfig(BaseConfig):
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8
         self.use_integrated_worker = True
+        self.use_dp_batch_balance = False
         self.ref_forward_micro_batch_size = None
         self.actor_forward_micro_batch_size = None
 

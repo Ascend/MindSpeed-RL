@@ -299,6 +299,12 @@ class GRPOTransferDock(TransferDock):
             "reward_scores",
             "grpo_metrics",
         ]
+        self.batch_seqlen_balance_mapper = {
+            "ref_log_prob": ["prompt_length", "response_length"],
+            "actor_log_prob": ["prompt_length", "response_length"],
+            "reward_scores": ["prompt_length", "response_length"],
+            "actor_train": ["prompt_length", "response_length"]
+        }
         if addition_columns:
             for column in addition_columns:
                 if column not in self.experience_columns:
@@ -339,6 +345,7 @@ class GRPOTransferDock(TransferDock):
         experience_count: int = None,
         indexes: List[int] = None,
         get_n_samples: bool = True,
+        use_batch_seqlen_balance: bool = False
     ):
         """Get padded experience data from GRPOTransferDock.
 
@@ -351,6 +358,7 @@ class GRPOTransferDock(TransferDock):
             multiple: The multiple of TP to pad.
             get_n_samples: Whether to get n samples at the same time.
             target_seq_len: Target sequence length.
+            use_batch_seqlen_balance: Whether to enable batch balance with seq_len.
 
         Returns: Data dict and row numbers.
 
@@ -384,11 +392,13 @@ class GRPOTransferDock(TransferDock):
                         f"n_samples_per_prompt: {self.n_samples_per_prompt}"
                     )
                 indexes = self._sample_ready_index_n_samples(
-                    consumer, experience_count, experience_columns
+                    consumer, experience_count, experience_columns,
+                    use_batch_seqlen_balance=use_batch_seqlen_balance
                 )
             else:
                 indexes = self._sample_ready_index(
-                    consumer, experience_count, experience_columns
+                    consumer, experience_count, experience_columns,
+                    use_batch_seqlen_balance=use_batch_seqlen_balance
                 )
 
             if not indexes:
@@ -473,6 +483,7 @@ class GRPOTransferDock(TransferDock):
         experience_count: int,
         experience_columns: List[str],
         target_seq_len: int = None,
+        use_batch_seqlen_balance: bool = False
     ) -> Optional[List[int]]:
         """Randomly select a specified number of prepared experiences from TransferDock.
 
@@ -497,13 +508,22 @@ class GRPOTransferDock(TransferDock):
             if len(usable_indexes) < experience_count:
                 return None
 
-            if experience_count > 0:
+            if experience_count <= 0:
+                return None
+
+            if consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
+                    usable_indexes) % experience_count == 0:
+                sampled_indexes = self.batch_seqlen_balance_sampler(
+                    consumer, usable_indexes, experience_count, get_n_samples=False
+                )
+                if not sampled_indexes:
+                    return None
+            else:
                 sampled_indexes = self.batch_balencing_sampler(
                     experience_columns, usable_indexes, experience_count, target_seq_len
                 )
-                self.experience_consumer_status[consumer][sampled_indexes] = 1
-            else:
-                sampled_indexes = None
+            self.experience_consumer_status[consumer][sampled_indexes] = 1
+
 
         return sampled_indexes
 
@@ -513,6 +533,7 @@ class GRPOTransferDock(TransferDock):
         experience_count: int,
         experience_columns: List[str],
         target_seq_len: int = None,
+        use_batch_seqlen_balance: bool = False
     ) -> Optional[List[int]]:
         """Randomly select a specified number of prepared experiences from TransferDock at multiples of n_sample.
 
@@ -521,6 +542,7 @@ class GRPOTransferDock(TransferDock):
             experience_count: Number for rows to sample.
             experience_columns: Columns from which to sample.
             target_seq_len: Sample according with seq_len and target_seq_len.
+            use_batch_seqlen_balance: Balance bath with seq_len
 
         Returns: Sampled row numbers.
 
@@ -558,12 +580,20 @@ class GRPOTransferDock(TransferDock):
             if len(usable_indexes) < experience_count_n_samples:
                 return None
 
-            sampled_indexes_n_sample = self.batch_balencing_sampler(
-                experience_columns,
-                usable_indexes,
-                experience_count_n_samples,
-                target_seq_len,
-            )
+            if consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
+                    usable_indexes) % experience_count_n_samples == 0:
+                sampled_indexes_n_sample = self.batch_seqlen_balance_sampler(
+                    consumer, usable_indexes, experience_count_n_samples, get_n_samples=True
+                )
+                if not sampled_indexes_n_sample:
+                    return None
+            else:
+                sampled_indexes_n_sample = self.batch_balencing_sampler(
+                    experience_columns,
+                    usable_indexes,
+                    experience_count_n_samples,
+                    target_seq_len,
+                )
 
             sampled_indexes = []
             for n_sample_index in sampled_indexes_n_sample:
@@ -611,6 +641,34 @@ class GRPOTransferDock(TransferDock):
 
         """
         return self.experience_consumer_status
+
+    def batch_seqlen_balance_sampler(
+            self, consumer, usable_indexes, experience_count, get_n_samples=False
+    ):
+        from mindspeed_rl.utils.seqlen_balancing import get_seqlen_balanced_partitions
+
+        if len(usable_indexes) == experience_count:
+            sampled_indexes = [int(usable_indexes[i]) for i in range(experience_count)]
+            return sampled_indexes
+        seq_len_columns = self.batch_seqlen_balance_mapper.get(consumer)
+        if get_n_samples:
+            seq_len_list = [
+                sum([self.experience_data[key][idx * self.n_samples_per_prompt + addition].item()
+                     for addition in range(self.n_samples_per_prompt) for key in seq_len_columns])
+                for idx in usable_indexes
+            ]
+        else:
+            seq_len_list = [
+                sum([self.experience_data[key][idx].item() for key in seq_len_columns])
+                for idx in usable_indexes
+            ]
+        k_partitions = len(seq_len_list) // experience_count
+        sampled_indexes_idx = get_seqlen_balanced_partitions(seq_len_list, k_partitions, equal_size=True)
+        if len(sampled_indexes_idx) > 0:
+            sampled_indexes = [int(usable_indexes[i]) for i in sampled_indexes_idx[0]]
+        else:
+            sampled_indexes = None
+        return sampled_indexes
 
     def batch_balencing_sampler(
         self, experience_columns, usable_indexes, experience_count, target_seq_len=None

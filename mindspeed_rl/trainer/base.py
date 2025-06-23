@@ -38,6 +38,7 @@ class RayBaseTrainer(object):
                  dataset_additional_keys: List[str] = None,
                  blocking: bool = False,
                  guarantee_order: bool = False,
+                 use_dp_batch_balance: bool = False,
                  num_cpus_for_local_task: float = 0.1,
                  **kwargs):
 
@@ -62,6 +63,7 @@ class RayBaseTrainer(object):
         self.dataset_additional_keys = dataset_additional_keys
         self.blocking = blocking
         self.guarantee_order = guarantee_order
+        self.use_dp_batch_balance = use_dp_batch_balance
         self.num_cpus_for_local_task = num_cpus_for_local_task
         self.kwargs = kwargs
 

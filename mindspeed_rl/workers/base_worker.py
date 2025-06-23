@@ -281,7 +281,8 @@ class BaseWorker(BaseRayWorker, ABC):
         if rank_flg:
             batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
                                                                       experience_count, indexes=indexes,
-                                                                      get_n_samples=get_n_samples))  # cpu数据
+                                                                      get_n_samples=get_n_samples,
+                                                                      use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():

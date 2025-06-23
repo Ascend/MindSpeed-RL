@@ -576,7 +576,8 @@ class Qwen2_5_VLWeightAdaptor(MegatronVLLMWeightAdaptor):
         )
 
         # Align vpp format, only support vpp=1 in the current version
-        weight_names_per_pp = [weight_names_per_pp]
+        for i, weight_name_list in enumerate(weight_names_per_pp):
+            weight_names_per_pp[i] = [weight_name_list]
         return weight_names_per_pp
 
 

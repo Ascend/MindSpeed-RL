@@ -280,7 +280,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 responses_length = [torch.tensor([len(response)]) for response in responses]
 
                 if is_multimodal():
-                    prompts_data = batch_data['input_ids'][indexes].unbind()
+                    prompts_data = batch_data['input_ids'][indexes].cpu().unbind()
                 else:
                     prompts_data = prompts
 

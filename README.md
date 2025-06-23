@@ -126,7 +126,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>权重重切分</td>
@@ -136,7 +136,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>填充移除</td>
@@ -146,7 +146,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>长序列并行</td>
@@ -156,7 +156,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
   </tbody>
 
@@ -184,7 +184,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>性能调优</td>
@@ -194,7 +194,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>数据采集</td>
@@ -204,7 +204,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td>确定性计算</td>
@@ -214,7 +214,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         Qwen2.5-7B <br>
         Qwen2.5-32B <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
   </tbody>
 </table>

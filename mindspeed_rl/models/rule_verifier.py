@@ -152,6 +152,7 @@ def verifier(responses, data, config, **kwargs):
         "step": reasoning_steps_reward,
         "strict_format": strict_format_reward,
         "base_acc": base_model_accuracy_reward,
+        "math_17k_acc": math_17k_accuracy_reward,
     }
 
     labels = data["labels"]
@@ -208,6 +209,23 @@ def base_model_accuracy_reward(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
         box_match = new_format_and_acc(sequence, answer)
+        scores.append(box_match)
+
+    return scores
+
+
+def new_acc(sequence, answer):
+    extract_output = extract_boxed_content(sequence)
+    if grade_answer(extract_output, answer):
+        return 1.0
+    else:
+        return 0.0
+
+
+def math_17k_accuracy_reward(sequences, answers, *args, **kwargs):
+    scores = []
+    for sequence, answer in zip(sequences, answers):
+        box_match = new_acc(sequence, answer)
         scores.append(box_match)
 
     return scores

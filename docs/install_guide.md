@@ -6,7 +6,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 
 | MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------|-------------|---------| ---------- |
-| master（主线）   | Core 0.8.0   | 2.6.0     | 2.6.0       | 8.2.RC1 | Python3.10 |
+| 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
 | 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
 [昇腾辅助软件](https://gitee.com/ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
@@ -22,7 +22,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>昇腾NPU驱动</td>
-    <td rowspan="2">25.0.RC1</td>
+    <td rowspan="2">25.2.0</td>
   <tr>
     <td>昇腾NPU固件</td>
   </tr>
@@ -44,7 +44,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>torch</td>
-    <td rowspan="2">2.6.0</td>
+    <td rowspan="2">2.5.1</td>
   </tr>
   <tr>
     <td>torch_npu</td>
@@ -102,8 +102,8 @@ pip install -e .
 
 ```shell
 # 安装torch和torch_npu
-pip install torch-2.6.0-cp310-cp310-*.whl
-pip install torch_npu-2.6.0.*.manylinux2014_aarch64.whl
+pip install torch-2.5.1-cp310-cp310-*.whl
+pip install torch_npu-2.5.1.*.manylinux2014_aarch64.whl
 
 # apex for Ascend 构建参考 https://gitee.com/ascend/apex
 pip install apex-0.1.dev*.whl
@@ -149,7 +149,7 @@ export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 
 ## 准备源码
 ```shell
-git clone https://gitee.com/ascend/MindSpeed-RL.git 
+git clone https://gitee.com/ascend/MindSpeed-RL.git -b 2.1.0
 
 git clone https://gitee.com/ascend/MindSpeed.git 
 cd MindSpeed
@@ -173,5 +173,4 @@ cd ..
 cd ./MindSpeed-RL
 pip install -r requirements.txt
 pip install antlr4-python3-runtime==4.7.2 --no-deps 
-pip uninstall torchvision
 ```

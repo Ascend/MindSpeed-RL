@@ -3,6 +3,9 @@ defaults:
       - qwen25_7b
 
 megatron_training:
+  use_ascend_coc: True
+  coc_fused_kernel: True
+  coc_parallel_num: 2
   model: qwen25_7b
   use_fused_rmsnorm: true
   use_mcore_models: true
@@ -73,7 +76,7 @@ rl_config:
   shuffle_mini_batch: false
   n_samples_per_prompt: 8
   rule_reward: true
-  verifier_function: ["base_acc"]
+  verifier_function: ["math_17k_acc"]
   verifier_weight: [1.0]
   num_cpus_for_local_task: 1.0
   use_tensorboard: true

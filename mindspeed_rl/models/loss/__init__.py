@@ -2,9 +2,10 @@
 
 from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.models.loss.grpo_actor_loss_func import GRPOActorLossFunc
+from mindspeed_rl.models.loss.dapo_actor_loss_func import DAPOActorLossFunc
 from mindspeed_rl.models.loss.reference_loss_func import ReferenceLossFunc
 from mindspeed_rl.models.loss.reward_loss_func import RewardLossFunc
 
 __all__ = [
-    'LossFuncFactory', 'GRPOActorLossFunc', 'ReferenceLossFunc', 'RewardLossFunc'
+    'LossFuncFactory', 'GRPOActorLossFunc', 'ReferenceLossFunc', 'RewardLossFunc', 'DAPOActorLossFunc'
 ]

@@ -184,8 +184,12 @@ class BaseWorker(BaseRayWorker, ABC):
             rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and
                         get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
         if rank_flg:
-            status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
-                                  device=current_device)
+            if self.sampling_transfer_dock and ray.get(self.sampling_transfer_dock.get_cur_index.remote()):
+                status = torch.tensor(int(not ray.get(self.sampling_transfer_dock.all_consumed.remote(experience_consumer_stage))),
+                                      device=current_device)
+            else:
+                status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
+                                      device=current_device)
         torch.distributed.all_reduce(status, group=get_model_parallel_group(self.parallel_state, use_vllm),
                                      op=torch.distributed.ReduceOp.MAX)
         if not use_vllm:
@@ -201,7 +205,13 @@ class BaseWorker(BaseRayWorker, ABC):
         logger.info(f"getenv MASTER_ADDR  : {os.getenv('MASTER_ADDR')}")
         logger.info(f"getenv MASTER_PORT  : {os.getenv('MASTER_PORT')}")
         logger.info(f"ray alloc NPU ID    :  {int(ray.get_runtime_context().get_accelerator_ids()['NPU'][0])}")
-        self.initialize_func(config=self.megatron_config)
+
+        import copy
+        config = copy.deepcopy(self.megatron_config)
+        if config.stage == "ray_dapo":
+            config.stage = "ray_grpo"
+
+        self.initialize_func(config=config)
         megatron_module = self.get_megatron_module()
         for key, value in megatron_module.items():
             setattr(self, key, value)
@@ -218,7 +228,7 @@ class BaseWorker(BaseRayWorker, ABC):
         """
         raise NotImplementedError("This method should be implemented by subclasses")
 
-    def init_transfer_dock(self, td):
+    def init_transfer_dock(self, td, sampling_transfer_dock=None):
         raise NotImplementedError("This method should be implemented by subclasses")
 
     @property
@@ -279,10 +289,18 @@ class BaseWorker(BaseRayWorker, ABC):
                         get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
 
         if rank_flg:
-            batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
-                                                                      experience_count, indexes=indexes,
-                                                                      get_n_samples=get_n_samples,
-                                                                      use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+            if self.sampling_transfer_dock and ray.get(self.sampling_transfer_dock.get_cur_index.remote()):
+                batch_data, index = ray.get(
+                    self.sampling_transfer_dock.get_experience.remote(experience_consumer_stage, experience_columns,
+                                                       experience_count, indexes=indexes,
+                                                       get_n_samples=get_n_samples,
+                                                       use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+            else:
+                batch_data, index = ray.get(
+                    self.td.get_experience.remote(experience_consumer_stage, experience_columns,
+                                                       experience_count, indexes=indexes,
+                                                       get_n_samples=get_n_samples,
+                                                       use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
@@ -456,7 +474,10 @@ class BaseWorker(BaseRayWorker, ABC):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
-            self.td.put_experience.remote(data_dict=output, indexes=index)
+            if self.sampling_transfer_dock and ray.get(self.sampling_transfer_dock.get_cur_index.remote()):
+                self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index)
+            else:
+                self.td.put_experience.remote(data_dict=output, indexes=index)
 
     @mstx_timer_decorator
     def collect_transfer_dock_mm_data(self, output, index, use_vllm=False):
@@ -465,13 +486,15 @@ class BaseWorker(BaseRayWorker, ABC):
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
             self.mm_td.put_experience.remote(batch=output, indexes=index)
 
-    def get_dp_range_indexes(self, experience_count, use_vllm=False):
+
+    def get_dp_range_indexes(self, experience_count, use_vllm=False, assign_batch_size=None):
         if use_vllm:
             current_dp_rank, dp_world_size = self.get_vllm_dp_rank()
         else:
             current_dp_rank = self.parallel_state.get_data_parallel_rank()
             dp_world_size = self.parallel_state.get_data_parallel_world_size()
-        assign_batch_size = self.megatron_config.global_batch_size // dp_world_size
+        if assign_batch_size is None:
+            assign_batch_size = self.megatron_config.global_batch_size // dp_world_size
         return get_current_dp_range_indexes(experience_count=experience_count,
                                             assign_batch_size=assign_batch_size,
                                             current_dp_rank=current_dp_rank)

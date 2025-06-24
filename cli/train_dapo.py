@@ -15,42 +15,38 @@ import torch
 import yaml
 from ray.util import placement_group
 
-from mindspeed_rl.config_cls.validate_config import validate_rl_args
-from mindspeed_rl.utils import get_tokenizer
-from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
+from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
+from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
+from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.workers.rule_reward import RuleReward
-from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
+from mindspeed_rl.trainer.dapo_trainer_hybrid import RayDAPOTrainer
 
 cur_file_dir = Path(__file__).absolute().parent.parent
-logger = Loggers("grpo_train")
+logger = Loggers("dapo_train")
 
 
 @ray.remote
 def train(config):
     actor_config, ref_config, reward_config, rl_config, generate_config, profiler_config, msprobe_config = parse_training_config(config).values()
-    if hasattr(config['megatron_training'], "ai_framework") and config['megatron_training']['ai_framework'] == "mindspore":
-        from mindspeed_rl.workers.scheduler.launcher_ms import RayActorGroupMs as RayActorGroup
-    else:
-        from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
+
+    from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
  
     MsProbe.config_init(msprobe_config)
     MsProbe.save_configs({
         'actor': eval(str(actor_config.dict())),
-        'ref': eval(str(ref_config.dict())),
         'reward': eval(str(reward_config.dict())),
         'rl': eval(str(rl_config.dict())),
         'generate': eval(str(generate_config.dict()))
@@ -80,7 +76,7 @@ def train(config):
         ).initialize()
 
         actor_worker = integrated_worker
-        reference_worker = integrated_worker
+
 
     else:
         actor_worker = RayActorGroup(
@@ -96,18 +92,6 @@ def train(config):
             global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 
-        reference_worker = RayActorGroup(
-            worker=ReferenceWorker,
-            placement_group=None,
-            megatron_config=ref_config,
-            rl_config=rl_config,
-            generate_config=generate_config,
-            model_provider=gpt_model_provider,
-            tokenizer=tokenizer,
-            initialize_func=initialize_megatron,
-            get_megatron_module=get_megatron_module,
-            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
-        ).initialize()
 
         if rl_config.reward_resource:
             reward_worker = RayActorGroup(
@@ -170,14 +154,13 @@ def train(config):
 
     logger.info('after dataloader is built')
 
-    reference_worker.wait_all_ref_objs_run_over()
+
     for reward in reward_list:
         if hasattr(reward, 'wait_all_ref_objs_run_over'):
             reward.wait_all_ref_objs_run_over()
 
-    trainer = RayGRPOTrainer(
+    trainer = RayDAPOTrainer(
         actor_worker,
-        reference_worker,
         reward_list,
         tokenizer=tokenizer,
         global_batch_size=actor_config.global_batch_size,
@@ -207,7 +190,7 @@ def parse_training_config(config: Dict):
         if "ref_config" in config:
             raise ValueError(
                 f"ref_config should not be set when use_integrated_worker mode is on.")
-        ref_config = actor_config
+        ref_config = None
 
         if "reward_config" in config:
             raise ValueError(
@@ -215,8 +198,7 @@ def parse_training_config(config: Dict):
         reward_config = actor_config
 
     else:
-        ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
-                                    config.get('model'))
+        ref_config = None
 
         reward_config = MegatronConfig({**config.get("megatron_training"), **config.get("reward_config")},
                                        config.get('model'))
@@ -437,9 +419,6 @@ def initialize_megatron(
 
     set_global_variables(args)
 
-    from mindspeed.core.tensor_parallel.lcal_coc.user_config import initialize_coc_from_cfg
-    initialize_coc_from_cfg(args)
-    
     if args.use_deter_comp:
         seed_all(args.seed)
         logger.info("deterministic computing is applied for npu.")
@@ -549,7 +528,7 @@ def _initialize_distributed():
                 )
 
 
-@hydra.main(config_path='../configs', config_name='grpo_qwen25_7b_A3', version_base=None)
+@hydra.main(config_path='../configs', config_name='dapo_qwen25_32b_A3', version_base=None)
 def main(config):
     if not ray.is_initialized():
         # this is for local ray cluster

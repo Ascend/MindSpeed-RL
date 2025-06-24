@@ -1,4 +1,5 @@
 import re
+import gc
 import time
 import multiprocessing as mp
 from multiprocessing import Process, Queue
@@ -13,6 +14,7 @@ from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
 from mindspeed_rl.utils.utils import mstx_timer_decorator
+from mindspeed_rl.models.math_dapo import compute_score
 
 logger = Loggers("Rule verify")
 
@@ -105,11 +107,26 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
 
     scores, metrics = verifier(str_responses, extra_data, rl_config)
 
+    if rl_config.overlong_buffer_enable:
+        overlong_buffer_len = rl_config.overlong_buffer
+        expected_len = rl_config.rollout_max_tokens - overlong_buffer_len
+        exceed_len = [length.item() - expected_len for length in batch["response_length"]]
+        overlong_penalty_factor = rl_config.overlong_buffer_penalty_factor
+        overlong_reward = [min(-length / overlong_buffer_len * overlong_penalty_factor, 0) for length in exceed_len]
+        for score, reward in zip(scores, overlong_reward):
+            score += reward
+
     scores = torch.tensor(
         scores,
         dtype=torch.float64,
         device=reward_index.device
     )
+
+    original_scores = torch.tensor(
+        scores,
+        dtype=torch.float32,
+        device=reward_index.device
+    ).reshape(reward_index.shape)
 
     scores = scores.reshape(-1, rl_config.n_samples_per_prompt)
     scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-6)
@@ -127,7 +144,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
     metrics["end_time/rule_reward"] = [round(end_time, 4)]
 
 
-    return scores, metrics
+    return scores, metrics, original_scores
 
 
 def verifier(responses, data, config, **kwargs):
@@ -153,6 +170,7 @@ def verifier(responses, data, config, **kwargs):
         "strict_format": strict_format_reward,
         "base_acc": base_model_accuracy_reward,
         "math_17k_acc": math_17k_accuracy_reward,
+        "acc_for_dapo": accuracy_reward_for_dapo
     }
 
     labels = data["labels"]
@@ -209,6 +227,15 @@ def base_model_accuracy_reward(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
         box_match = new_format_and_acc(sequence, answer)
+        scores.append(box_match)
+
+    return scores
+
+
+def accuracy_reward_for_dapo(sequences, answers, *args, **kwargs):
+    scores = []
+    for sequence, answer in zip(sequences, answers):
+        box_match = compute_score(sequence, answer)
         scores.append(box_match)
 
     return scores

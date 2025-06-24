@@ -287,6 +287,8 @@ class GRPOTransferDock(TransferDock):
             "ref_log_prob",
             "advantages",
             "returns",
+            "metric_for_dapo",
+            "reward_for_dapo"
         ]
         self.experience_consumers = [
             "trainer",
@@ -298,6 +300,8 @@ class GRPOTransferDock(TransferDock):
             "rule_reward",
             "reward_scores",
             "grpo_metrics",
+            "dynamic_sampling",
+            "dapo_metrics"
         ]
         self.batch_seqlen_balance_mapper = {
             "ref_log_prob": ["prompt_length", "response_length"],
@@ -331,12 +335,33 @@ class GRPOTransferDock(TransferDock):
             for key in self.experience_consumers
         }
         self.metrics = metrics
+        self.prefetch_request_index_lock = threading.Lock()
+        self.cur_index = 0
 
     def get_metrics(self):
         return self.metrics
 
     def update_metrics(self, key="", value=None, cumulate=False):
         self.metrics.update(key, value, cumulate=cumulate)
+    
+    def get_cur_index(self):
+        return self.cur_index
+
+    def prefetch_request_index(self, experience_num):
+        """
+
+        Args:
+            experience_num: experience sample nums.
+
+        Returns: request index list.
+
+        """
+        if self.cur_index >= self.max_len:
+            return None
+        with self.prefetch_request_index_lock:
+            request_index = list(range(self.cur_index, min(self.cur_index + experience_num, self.max_len)))
+            self.cur_index += experience_num
+        return request_index
 
     def get_experience(
         self,
@@ -436,13 +461,17 @@ class GRPOTransferDock(TransferDock):
         self._put(experience_columns, experience, indexes)
 
     def put_prompts_experience(
-        self, batch: Dict[str, Tensor], dataset_additional_keys: List[str] = None
+        self, 
+        batch: Dict[str, Tensor], 
+        dataset_additional_keys: List[str] = None, 
+        indexes = None
     ):
         """Put data into specified columns and rows.
 
         Args:
             batch: Batch datas from original dataloader.
             dataset_additional_keys: The additional experience types from the dataset.
+            indexes: Batch datas indexes.
 
         Returns: None
 
@@ -469,7 +498,9 @@ class GRPOTransferDock(TransferDock):
                         values.append(value)
                 add_vals[add_keys] = values
 
-        indexes = [i for i in range(len(prompt_length))]
+        if indexes is None:
+            indexes = [i for i in range(len(prompt_length))]
+
         data_dict = dict(
             {"prompt_length": prompt_length, "prompts": prompts}, **add_vals
         )
@@ -633,6 +664,7 @@ class GRPOTransferDock(TransferDock):
         }
         self.metrics.reset()
         self._clear_experience_data_and_status()
+        self.cur_index = 0
 
     def get_consumer_status(self):
         """Get consumer status.

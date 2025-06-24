@@ -27,6 +27,10 @@ class ActorRolloutHybrid(ABC):
         generate_config: GenerateConfig = None Configuration for generation/inference (e.g., vLLM settings).
         clip_ratio: float = 0.1 The clipping ratio threshold for PPO (limits the policy update range).
         forward_backward_func: Callable = None The forward-backward function for distributed training.
+        token_level_loss: bool = False   Whether to use token_level_loss for DAPO (limits the policy update range).
+        clip_higher_enable: bool = False   Whether to use higher clip for DAPO (limits the policy update range).
+        clip_ratio_low: float = 0.1   The low clipping ratio threshold for DAPO (limits the policy update range).
+        clip_ratio_high: float = 0.1   The high clipping ratio threshold for DAPO (limits the policy update range).
         **kwargs: Additional parameters for base class argument passing.
     """
 
@@ -46,6 +50,10 @@ class ActorRolloutHybrid(ABC):
             temperature: float = 1.0,
             forward_backward_func: Callable = None,
             micro_batch_size: int = 1,
+            token_level_loss: bool = True,
+            clip_higher_enable: bool = False,
+            clip_ratio_low: float = 0.1,
+            clip_ratio_high: float = 0.1,
             **kwargs
     ):
 
@@ -62,6 +70,10 @@ class ActorRolloutHybrid(ABC):
             stage=stage,
             forward_backward_func=forward_backward_func,
             micro_batch_size=micro_batch_size,
+            token_level_loss=token_level_loss,
+            clip_higher_enable=clip_higher_enable,
+            clip_ratio_low=clip_ratio_low,
+            clip_ratio_high=clip_ratio_high,
             **kwargs
         )
         self.inference_actor = inference_model

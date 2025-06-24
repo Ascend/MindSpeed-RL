@@ -94,6 +94,13 @@ def append_to_dict(data: Dict, new_data: Dict):
         data[key].append(val)
 
 
+def extract_from_dict(data: Dict, index_list: List[int]):
+    result = {}
+    for key, value in data.items():
+        result[key] = [value[idx] for idx in index_list]
+    return result
+    
+
 def num_floating_point_operations(args, batch_size):
     """
     Calculate the number of floating-point operations for a given model configuration and batch size.
@@ -214,11 +221,23 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
 
     reference_start_time = metrics.pop('start_time/reference_model', None)
     reference_end_time = metrics.pop('end_time/reference', None)
+    is_reference_exist = True if reference_end_time is not None else False
+
+    if is_reference_exist:
+        custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
+    else:
+        custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p']
+        reference_end_time = 0
 
     if old_log_p_end_time is None:
         old_log_p_end_time = reference_end_time
         custom_order.remove('timing/old_log_p')
-    non_overlap_reference_model_time = max(reference_end_time - max(old_log_p_end_time, reference_start_time), 0)
+
+    if is_reference_exist:
+        non_overlap_reference_model_time = max(reference_end_time - max(old_log_p_end_time, reference_start_time), 0)
+    else:
+        non_overlap_reference_model_time = 0 
+
     non_overlap_adv_time = max(max(old_log_p_end_time, end_adv_time) - old_log_p_end_time, 0)
 
     if "timing/rule_reward" in metrics.keys():
@@ -257,12 +276,27 @@ def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     actor_resource_only = compute_kwargs.get('use_integrated_worker', False)
 
     actor_npus = actor_resource.get('num_npus', 0)
-    reference_npus = reference_resource.get('num_npus', 0)
+    reference_npus = reference_resource.get('num_npus', 0) if reference_resource is not None else 0
     reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
 
     world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
     tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs * n_samples / world_size / time_all
     return tps
+
+
+def compute_vllm_throughput(compute_kwargs, metrics_result, gbs, n_samples, time_rollout):
+    actor_resource = compute_kwargs.get('actor_resource', {})
+    reference_resource = compute_kwargs.get('reference_resource', {})
+    reward_resource = compute_kwargs.get('reward_resource', None)
+    actor_resource_only = compute_kwargs.get('use_integrated_worker', False)
+
+    actor_npus = actor_resource.get('num_npus', 0)
+    reference_npus = reference_resource.get('num_npus', 0) if reference_resource is not None else 0
+    reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
+
+    world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
+    vllm_throughput = metrics_result['response_length/mean'] * gbs * n_samples / world_size / time_rollout
+    return vllm_throughput
 
 
 def seed_all(seed=1234):

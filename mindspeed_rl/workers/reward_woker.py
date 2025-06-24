@@ -83,8 +83,9 @@ class RewardWorkerBase(BaseWorker):
             temperature=self.generate_config.sampling_config["temperature"]
         )
 
-    def init_transfer_dock(self, td):
+    def init_transfer_dock(self, td, sampling_transfer_dock=None):
         self.td = td
+        self.sampling_transfer_dock = sampling_transfer_dock
 
     def compute_rm_score(self):
         experience_consumer_stage = 'reward_scores'

@@ -38,6 +38,10 @@ class Actor(BaseTrainingEngine):
             clip_ratio: float = 0.1,
             temperature: float = 1.0,
             forward_backward_func: Callable = None,
+            token_level_loss: bool = True,
+            clip_higher_enable: bool = False,
+            clip_ratio_low: float = 0.1,
+            clip_ratio_high: float = 0.1,
             **kwargs
     ):
         super(Actor, self).__init__(
@@ -53,6 +57,10 @@ class Actor(BaseTrainingEngine):
             temperature=temperature,
             role='actor',
             forward_backward_func=forward_backward_func,
+            token_level_loss=token_level_loss,
+            clip_higher_enable=clip_higher_enable,
+            clip_ratio_low=clip_ratio_low,
+            clip_ratio_high=clip_ratio_high,
             **kwargs)
 
     def get_loss_meta_func(self):
@@ -67,6 +75,14 @@ class Actor(BaseTrainingEngine):
             meta_info["entropy_coeff"] = self.entropy_coeff
         if self.kl_penalty is not None:
             meta_info["kl_penalty"] = self.kl_penalty
+        if self.token_level_loss is not None:
+            meta_info["token_level_loss"] = self.token_level_loss
+        if self.clip_higher_enable is not None:
+            meta_info["clip_higher_enable"] = self.clip_higher_enable
+        if self.clip_ratio_low is not None:
+            meta_info["clip_ratio_low"] = self.clip_ratio_low
+        if self.kl_ctrl is not None:
+            meta_info["clip_ratio_high"] = self.clip_ratio_high
         return meta_info
 
     def post_process_forward_backward_output(self, output: torch.Tensor,

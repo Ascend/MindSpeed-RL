@@ -23,9 +23,10 @@ import numpy as np
 
 import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.pad_process import truncate_rows
-from mindspeed_rl.utils.utils import generate_mask, get_current_dp_range_indexes
+from mindspeed_rl.utils.utils import generate_mask, get_current_dp_range_indexes, extract_from_dict
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 from mindspeed_rl.utils.utils import mstx_timer_decorator
+from mindspeed_rl.utils.loggers import Loggers
 
 
 class AdaptiveKLController:
@@ -99,6 +100,55 @@ def compute_gae_advantage_return(
         advantages = F.masked_whiten(advantages, eos_mask)
         advantages = torch.masked_fill(advantages, ~eos_mask, 0)
     return advantages, returns
+
+
+@ray.remote
+def dynamic_sampling(num_prompt_in_batch, data_num, n_samples_per_prompt, sampling_transfer_dock, transfer_dock, guarantee_order):
+    """
+    dynamic sampling, filter out all groups with the same metric value in group
+
+    Args:
+        num_prompt_in_batch: current train prompt num
+        data_num: sampling_transfer_dock data num
+        n_samples_per_prompt: n respose per prompt
+        sampling_transfer_dock: A data queue object for infer
+        transfer_dock: A data queue object for train
+        guarantee_order: guarantee order
+
+    Returns:
+        num_prompt_in_batch: current train prompt num after filter
+    """
+    logger = Loggers('dynamic_sampling')
+    experience_consumer_stage = 'dynamic_sampling'
+    experience_columns = ['prompts', 'prompt_length', 'responses', 'labels', 'response_length',
+                          'input_ids', 'rm_scores', 'token_level_rewards', 'metric_for_dapo', 'reward_for_dapo']
+    sorted_indexes = get_current_dp_range_indexes(experience_count=data_num,
+                                                  assign_batch_size=data_num) if guarantee_order else None
+    while not ray.get(sampling_transfer_dock.all_consumed.remote(experience_consumer_stage)):
+        batch_data, index = ray.get(
+            sampling_transfer_dock.get_experience.remote(experience_consumer_stage, experience_columns, experience_count=data_num,
+                                                     indexes=sorted_indexes.pop(0) if guarantee_order else None))
+        if batch_data and index:
+            # filter by metric values
+            metric_values = batch_data['metric_for_dapo']
+            kept_idx_list = []
+            for idx in range(0, data_num, n_samples_per_prompt):
+                metric_group = metric_values[idx: idx + n_samples_per_prompt]
+                vals = [val.item() for val in metric_group]
+                if np.std(metric_group) > 0 or len(metric_group) == 1:
+                    num_prompt_in_batch += 1
+                    kept_idx_list.extend(list(range(idx, idx + n_samples_per_prompt)))
+            logger.info(f"dynamic_sampling: num_prompt_in_batch {num_prompt_in_batch}")
+            if not kept_idx_list:
+                logger.info(f"dynamic_sampling: kept_idx_list is empty")
+                break
+
+            experience_data = extract_from_dict(batch_data, kept_idx_list)
+            index_list = ray.get(transfer_dock.prefetch_request_index.remote(len(kept_idx_list)))
+            if index_list:
+                ray.get(transfer_dock.put_experience.remote(experience_data, index_list))
+
+    return num_prompt_in_batch
 
 
 def compute_group_norm_advantage_return(token_level_rewards: torch.Tensor, eos_mask: torch.Tensor):
@@ -255,5 +305,70 @@ def compute_grpo_data_metrics(
                 "prompt_length/mean": torch.mean(prompt_length, dtype=torch.float32).detach().item(),
                 "prompt_length/max": torch.max(prompt_length).detach().item(),
                 "prompt_length/min": torch.min(prompt_length).detach().item(),
+            }
+            return metrics
+
+
+def compute_dapo_data_metrics(
+        td, experience_count, tokenizer, global_batch_size, guarantee_order
+):
+    """
+    Calculate various metrics for DAPO data
+
+    Args:
+        td: A data queue object
+        experience_count: Number of experiences to retrieve
+        tokenizer: The pre-trained tokenizer
+        global_batch_size: The number of global batch size
+        guarantee_order: The switch of guarantee order
+
+    Returns:
+        Dictionary containing various metric values
+    """
+    experience_consumer_stage = "dapo_metrics"
+    experience_columns = [
+        "rm_scores",
+        "token_level_rewards",
+        "responses",
+        "advantages",
+        "returns",
+        "prompt_length",
+        "response_length",
+        "reward_for_dapo"
+    ]
+    pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
+    sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
+                                                  assign_batch_size=global_batch_size) if guarantee_order else None
+    while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
+        batch, index = ray.get(
+            td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
+                                     indexes=sorted_indexes.pop(0) if guarantee_order else None)
+        )
+        if batch and index:
+            batch = pad_experience(batch, pad_token_id) # multiple, tp_size
+            sequence_score = batch["rm_scores"].sum(-1)
+            sequence_reward = batch["token_level_rewards"].sum(-1)
+            prompt_length = batch["prompt_length"]
+            response_length = batch["response_length"]
+            reward_for_dapo = batch["reward_for_dapo"]
+
+            metrics = {
+                # score
+                "dapo/score/mean": torch.mean(sequence_score).detach().item(),
+                "dapo/score/max": torch.max(sequence_score).detach().item(),
+                "dapo/score/min": torch.min(sequence_score).detach().item(),
+                # reward
+                "dapo/rewards/mean": torch.mean(sequence_reward).detach().item(),
+                "dapo/rewards/max": torch.max(sequence_reward).detach().item(),
+                "dapo/rewards/min": torch.min(sequence_reward).detach().item(),
+                "response_length/mean": torch.mean(response_length, dtype=torch.float32).detach().item(),
+                "response_length/max": torch.max(response_length).detach().item(),
+                "response_length/min": torch.min(response_length).detach().item(),
+                # prompt length
+                "prompt_length/mean": torch.mean(prompt_length, dtype=torch.float32).detach().item(),
+                "prompt_length/max": torch.max(prompt_length).detach().item(),
+                "prompt_length/min": torch.min(prompt_length).detach().item(),
+
+                "dapo/reward_for_dapo/mean": torch.mean(reward_for_dapo).detach().item(),
             }
             return metrics

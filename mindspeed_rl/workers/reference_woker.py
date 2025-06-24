@@ -92,9 +92,10 @@ class ReferenceWorkerBase(BaseWorker):
             temperature=self.generate_config.sampling_config["temperature"]
         )
 
-    def init_transfer_dock(self, td, mm_td):
+    def init_transfer_dock(self, td, mm_td, sampling_transfer_dock=None):
         self.td = td
         self.mm_td = mm_td
+        self.sampling_transfer_dock = sampling_transfer_dock
 
     @mstx_timer_decorator
     def compute_ref_log_prob(self):

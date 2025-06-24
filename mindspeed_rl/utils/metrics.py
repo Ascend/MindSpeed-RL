@@ -64,6 +64,26 @@ class Metric(ABC):
 
         return value_mean
 
+    def compute_sum(self, value, axis=0):
+        """
+        计算并返回当前的指标的和。
+        """
+        value_sum = None
+        if isinstance(value, torch.Tensor):
+            value_sum = torch.sum(value).detach().item()
+        elif isinstance(value, np.ndarray):
+            value_sum = np.sum(value, axis=axis)
+        elif isinstance(value, list):
+            # 过滤非数值元素
+            filtered_data = [x for x in value if isinstance(x, (int, float))]
+            value_sum = sum(filtered_data)
+        elif isinstance(value, tuple):
+            value_sum = sum(value)
+        elif isinstance(value, dict):
+            value_sum = sum(value.values())
+
+        return value_sum
+
     def compute_max(self, key, value, axis=0):
         """
         计算并返回当前的指标的最大值。
@@ -103,6 +123,22 @@ class Metric(ABC):
             value_min = min(value.values())
 
         return value_min
+
+    def remove_key(self, key):
+        """
+        Remove the given key from the metric dictionary if it exists.
+        key: str
+        """
+        if key in self.metric:
+            del self.metric[key]
+        else:
+            print(f"Key '{key}' not found in metrics.")
+
+    def remove_grpo_keys(self):
+        """
+        Remove grpo keys from the metric dictionary if it exists.
+        """
+        self.metric = {k: v for k, v in self.metric.items() if not k.startswith('grpo')}
 
     def reset(self):
         """

@@ -37,6 +37,10 @@ class BaseTrainingEngine(ABC):
         role: str The role of actor in the RLHF frameworker.
         micro_batch_size: int = 1 Micro batch size for actor rollout.
         forward_backward_func: Callable = None The forward-backward function for distributed training.
+        token_level_loss: bool = False   Whether to use token_level_loss for DAPO (limits the policy update range).
+        clip_higher_enable: bool = False   Whether to use higher clip for DAPO (limits the policy update range).
+        clip_ratio_low: float = 0.1   The low clipping ratio threshold for DAPO (limits the policy update range).
+        clip_ratio_high: float = 0.1   The high clipping ratio threshold for DAPO (limits the policy update range).
         **kwargs: Additional keyword arguments.
     """
 
@@ -64,6 +68,10 @@ class BaseTrainingEngine(ABC):
             context_parallel_algo: str = "ulysses_cp_algo",
             context_parallel_size: int = 1,
             kl_penalty: str = "low_var_kl",
+            token_level_loss: bool = False,
+            clip_higher_enable: bool = False,
+            clip_ratio_low: float = 0.1,
+            clip_ratio_high: float = 0.1,
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
@@ -87,6 +95,10 @@ class BaseTrainingEngine(ABC):
         self.context_parallel_algo = context_parallel_algo
         self.context_parallel_size = context_parallel_size
         self.temperature = temperature
+        self.token_level_loss = token_level_loss
+        self.clip_higher_enable = clip_higher_enable
+        self.clip_ratio_low = clip_ratio_low
+        self.clip_ratio_high = clip_ratio_high
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)
         self.kwargs = kwargs
 

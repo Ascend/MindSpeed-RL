@@ -211,10 +211,20 @@ class RayActorGroupMs:
     def async_init_transfer_dock(self, transfer_dock):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.init_transfer_dock.remote(transfer_dock))
-
-    def sync_init_transfer_dock(self, transfer_dock):
+        
+    def sync_init_transfer_dock(self, transfer_dock, sampling_transfer_dock=None):
         for actor in self.actor_handlers:
-            ray.get(actor.init_transfer_dock.remote(transfer_dock))
+            ray.get(actor.init_transfer_dock.remote(transfer_dock, sampling_transfer_dock))
+
+    def enter_infer_mode(self):
+        for actor in self.actor_handlers:
+            self.temp_actor_ref_objs.append(actor.enter_infer_mode.remote())
+        ray.get(self.temp_actor_ref_objs)
+
+    def exit_infer_mode(self):
+        for actor in self.actor_handlers:
+            self.temp_actor_ref_objs.append(actor.exit_infer_mode.remote())
+        ray.get(self.temp_actor_ref_objs)
 
     def wait_all_ref_objs_run_over(self):
         ray.get(self.temp_actor_ref_objs)

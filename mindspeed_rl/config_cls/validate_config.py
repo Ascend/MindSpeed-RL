@@ -79,11 +79,13 @@ def validate_rl_args(
                        actor_config.context_parallel_size,
                        "Actor")
 
-    _validate_resource(rl_config.reference_resource,
-                       ref_config.tensor_model_parallel_size,
-                       ref_config.pipeline_model_parallel_size,
-                       ref_config.context_parallel_size,
-                       "Reference")
+    if ref_config:
+        _validate_resource(rl_config.reference_resource,
+                        ref_config.tensor_model_parallel_size,
+                        ref_config.pipeline_model_parallel_size,
+                        ref_config.context_parallel_size,
+                        "Reference")
+
     if rl_config.reward_resource:
         _validate_resource(rl_config.reward_resource,
                            reward_config.tensor_model_parallel_size,
@@ -104,10 +106,11 @@ def validate_rl_args(
                           rl_config.n_samples_per_prompt,
                           "Actor")
 
-    _validate_batch_ratio(ref_config.global_batch_size,
-                          ref_config.micro_batch_size,
-                          rl_config.n_samples_per_prompt,
-                          "Reference")
+    if ref_config:
+        _validate_batch_ratio(ref_config.global_batch_size,
+                            ref_config.micro_batch_size,
+                            rl_config.n_samples_per_prompt,
+                            "Reference")
 
     if rl_config.reward_resource:
         _validate_batch_ratio(reward_config.global_batch_size,
@@ -138,10 +141,11 @@ def validate_rl_args(
             generate_config.infer_tensor_parallel_size *
             generate_config.infer_pipeline_parallel_size)
 
-    ref_data_parallel_size = rl_config.reference_resource.num_npus // (
-            ref_config.tensor_model_parallel_size *
-            ref_config.pipeline_model_parallel_size *
-            ref_config.context_parallel_size)
+    if ref_config:
+        ref_data_parallel_size = rl_config.reference_resource.num_npus // (
+                ref_config.tensor_model_parallel_size *
+                ref_config.pipeline_model_parallel_size *
+                ref_config.context_parallel_size)
 
     _validate_data_parallel(actor_config.global_batch_size,
                             actor_data_parallel_size,
@@ -159,7 +163,7 @@ def validate_rl_args(
                             rl_config.n_samples_per_prompt,
                             "Generation")
 
-    if not rl_config.use_integrated_worker:
+    if not rl_config.use_integrated_worker and ref_config:
         _validate_data_parallel(ref_config.global_batch_size,
                                 ref_data_parallel_size,
                                 ref_config.micro_batch_size,
@@ -184,10 +188,11 @@ def validate_rl_args(
         rl_config.actor_logprob_dispatch_size or
         (actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
     )
-    rl_config.ref_dispatch_size = (
-        rl_config.ref_dispatch_size or
-        (ref_config.global_batch_size * rl_config.n_samples_per_prompt // ref_data_parallel_size)
-    )
+    if ref_config:
+        rl_config.ref_dispatch_size = (
+            rl_config.ref_dispatch_size or
+            (ref_config.global_batch_size * rl_config.n_samples_per_prompt // ref_data_parallel_size)
+        )
     rl_config.adv_dispatch_size = (
         rl_config.adv_dispatch_size or (actor_config.global_batch_size * rl_config.n_samples_per_prompt)
     )
@@ -205,6 +210,12 @@ def validate_rl_args(
             rl_config.reward_dispatch_size or (reward_config.global_batch_size * rl_config.n_samples_per_prompt)
         )
 
+    # 若开启dapo动态采样，需要更新用于计算adv和logp的dispatch_size
+    if rl_config.filter_groups_enable:
+        rl_config.actor_logprob_dispatch_size = \
+            (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+        rl_config.adv_dispatch_size = (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt)
+
     # 校验经验计数与全局批次关系
     def _validate_experience_ratio(global_batch, experience_count, component):
         if global_batch * rl_config.n_samples_per_prompt % experience_count != 0:
@@ -215,9 +226,10 @@ def validate_rl_args(
                                rl_config.actor_logprob_dispatch_size,
                                "Actor Infer")
 
-    _validate_experience_ratio(ref_config.global_batch_size,
-                               rl_config.ref_dispatch_size,
-                               "Reference")
+    if ref_config:
+        _validate_experience_ratio(ref_config.global_batch_size,
+                                rl_config.ref_dispatch_size,
+                                "Reference")
 
     if rl_config.reward_resource:
         _validate_experience_ratio(reward_config.global_batch_size,
@@ -237,6 +249,12 @@ def validate_rl_args(
             rl_config.actor_update_dispatch_size or
             (actor_config.global_batch_size  * rl_config.n_samples_per_prompt // actor_data_parallel_size)
         )
+
+        # 若开启dapo动态采样，需要更新用于actor更新的dispatch_size
+        if rl_config.filter_groups_enable:
+            rl_config.actor_update_dispatch_size = \
+                (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+
         _validate_experience_ratio(reward_config.global_batch_size,
                                    rl_config.actor_update_dispatch_size,
                                    "Actor Update")
@@ -246,6 +264,26 @@ def validate_rl_args(
         raise ValueError(
             f"Verifier function and weight length mismatch: "
             f"{len(rl_config.verifier_function)} vs {len(rl_config.verifier_weight)}")
+
+    # DAPO Response Overlong 校验
+    if rl_config.overlong_buffer_enable and rl_config.overlong_buffer >= generate_config.sampling_config["max_tokens"]:
+        max_tokens = generate_config.sampling_config["max_tokens"]
+        raise ValueError(
+            f"Response max length {max_tokens} "
+            f"must greater than Dapo overlong buffer {rl_config.overlong_buffer}")
+
+    if rl_config.overlong_buffer_enable and rl_config.rollout_max_tokens != generate_config.sampling_config["max_tokens"]:
+        max_tokens = generate_config.sampling_config["max_tokens"]
+        raise ValueError(
+            f"overlong rollout_max_tokens and generate rollout_max_tokens mismatch: "
+            f"{len(rl_config.rollout_max_tokens)} vs {max_tokens}")
+
+    # DAPO Clip Higher 校验
+    if rl_config.clip_higher_enable:
+        if rl_config.clip_ratio_low > rl_config.clip_ratio_high:
+            raise ValueError(
+                f"clip_ratio_low {actor_config.clip_ratio_low} "
+                f"must less than clip_ratio_high {actor_config.clip_ratio_high}")
 
 
 def validate_data_handler_config(config):

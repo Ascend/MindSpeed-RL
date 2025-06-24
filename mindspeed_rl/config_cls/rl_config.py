@@ -118,6 +118,26 @@ class RLConfig(BaseConfig):
         self.use_dynamic_bsz = False
         self.max_packing_token_size = 4096
 
+        # token level loss
+        self.token_level_loss = True
+
+        # Clip Higher策略
+        self.clip_higher_enable = False
+        self.clip_ratio_low = 0.1
+        self.clip_ratio_high = 0.1
+
+        # 过长response惩罚措施
+        self.overlong_buffer_enable = False
+        self.overlong_buffer = 0
+        self.overlong_buffer_penalty_factor = 1.0
+        self.rollout_max_tokens = 2048
+
+        # Prompt过滤措施
+        self.filter_groups_enable = False
+        self.filter_groups_metric = "acc"
+        self.filter_groups_max_batches = 1
+        self.filter_groups_train_batch_size = 1
+
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():
                 if key not in self.actor_resource:

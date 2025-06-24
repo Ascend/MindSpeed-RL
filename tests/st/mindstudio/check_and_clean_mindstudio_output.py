@@ -48,7 +48,7 @@ def clean_profiler_output(profiler_dir: str):
             logger.error(f'Failed to delete directory: {e}')
 
 
-def check_msprobe_output(msprobe_dir: str) -> bool:
+def check_grpo_msprobe_output(msprobe_dir: str) -> bool:
     """Check if msprobe deliverables are generated correctly"""
     logger.info('Starting msprobe deliverables check...')
 
@@ -78,6 +78,32 @@ def check_msprobe_output(msprobe_dir: str) -> bool:
     return True
 
 
+def check_dapo_msprobe_output(msprobe_dir: str) -> bool:
+    """Check if msprobe deliverables are generated correctly"""
+    logger.info('Starting msprobe deliverables check...')
+
+    # Check if msprobe_data directory exists
+    if not os.path.exists(msprobe_dir):
+        logger.error(f'Msprobe data directory not found: {msprobe_dir}')
+        return False
+
+    if not os.path.isfile(os.path.join(msprobe_dir, "configurations.json")):
+        logger.error(f'Configurations directory not found: {os.path.join(msprobe_dir, "configurations.json")}')
+        return False
+    
+    if not os.path.isfile(os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")):
+        logger.error(f'Msprobe key data response not found: '
+                     f'{os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")}')
+        return False
+    
+    if not os.path.isdir(os.path.join(msprobe_dir, "actor_update")):
+        logger.error(f'Msprobe actor update directory not found: {os.path.join(msprobe_dir, "actor_update")}')
+        return False
+    
+    logger.info('All msprobe deliverables check passed!')
+    return True
+
+
 def clean_msprobe_output(msprobe_dir: str):
     """Clean up msprobe deliverables"""
     logger.info('Starting cleanup...')
@@ -96,6 +122,8 @@ def parse_args():
                       help="Path to profiler data directory")
     parser.add_argument("--msprobe-dir", type=str, default="./msprobe_dump",
                       help="Path to msprobe data directory")
+    parser.add_argument("--stage", type=str, default="grpo",
+                    help="The algorithm name")
     return parser.parse_args()
 
 
@@ -103,10 +131,16 @@ def main():
     args = parse_args()
 
     try:
-        if check_profiler_output(args.profiler_dir) and check_msprobe_output(args.msprobe_dir):
-            sys.exit(0)
-        else:
-            sys.exit(1)
+        if args.stage == "grpo":
+            if check_profiler_output(args.profiler_dir) and check_grpo_msprobe_output(args.msprobe_dir):
+                sys.exit(0)
+            else:
+                sys.exit(1)
+        elif args.stage == "dapo":
+            if check_profiler_output(args.profiler_dir) and check_dapo_msprobe_output(args.msprobe_dir):
+                sys.exit(0)
+            else:
+                sys.exit(1)
     finally:
         clean_profiler_output(args.profiler_dir)
         clean_msprobe_output(args.msprobe_dir)

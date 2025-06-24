@@ -4,6 +4,7 @@ import time
 import dataclasses
 import copy
 import gc
+from enum import Enum
 from typing import Callable
 
 import ray
@@ -24,6 +25,11 @@ from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
 from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step, is_multimodal
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
+
+
+class ActorState(Enum):
+    NONE = "none"
+    INFER = "infer"
 
 
 class ActorHybridWorkerBase(BaseWorker):
@@ -72,8 +78,10 @@ class ActorHybridWorkerBase(BaseWorker):
         self.num_floating_point_operations_so_far = 0
         self.actor_hybrid = None
         self.actor_offloader = None
+        self.state = ActorState.NONE
         self.actor_profiler = None
         self.prof_iteration = 1
+        self.idx = 0
 
     def initialize(self):
         self.setup_distributed_rank()
@@ -118,15 +126,20 @@ class ActorHybridWorkerBase(BaseWorker):
             context_parallel_size=self.megatron_config.context_parallel_size,
             entropy_coeff=self.rl_config.entropy_coeff,
             kl_penalty=self.rl_config.kl_penalty,
-            temperature=self.generate_config.sampling_config["temperature"]
+            temperature=self.generate_config.sampling_config["temperature"],
+            token_level_loss=self.rl_config.token_level_loss,
+            clip_higher_enable=self.rl_config.clip_higher_enable,
+            clip_ratio_low=self.rl_config.clip_ratio_low,
+            clip_ratio_high=self.rl_config.clip_ratio_high
         )
         self.empty_cache()
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
         MsProbe.config_init(self.msprobe_config)
 
-    def init_transfer_dock(self, td, mm_td):
+    def init_transfer_dock(self, td, mm_td, sampling_transfer_dock=None):
         self.td = td
         self.mm_td = mm_td
+        self.sampling_transfer_dock = sampling_transfer_dock
         self.empty_cache()
 
     def get_iteration(self):
@@ -134,6 +147,37 @@ class ActorHybridWorkerBase(BaseWorker):
 
     def get_consumed_train_samples(self):
         return self.args.consumed_train_samples
+    
+    def enter_infer_mode(self):
+        if self.state == ActorState.INFER:
+            return
+
+        start_time = time.time()
+        self.sharding_manager.enter_infer_mode()
+        self.state = ActorState.INFER
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[end_time - start_time],
+                cumulate=True
+            )
+        )
+
+    def exit_infer_mode(self):
+        if self.state != ActorState.INFER:
+            raise RuntimeError
+        start_time = time.time()
+        self.sharding_manager.exit_infer_mode()
+        self.state = ActorState.NONE
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[end_time - start_time],
+                cumulate=True
+            )
+        )
 
     @mstx_timer_decorator
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
@@ -147,16 +191,24 @@ class ActorHybridWorkerBase(BaseWorker):
 
         experience_consumer_stage = 'actor_train'
 
-        experience_columns = ['responses', 'advantages', 'old_log_prob',
-                             'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+        if self.megatron_config.stage == "ray_dapo":
+            experience_columns = ['responses', 'advantages', 'old_log_prob', 'input_ids', 'response_length', 'prompt_length']
+        else:
+            experience_columns = ['responses', 'advantages', 'old_log_prob', 'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+            
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids'])
 
         if self.rl_config.use_integrated_worker:
             experience_count = (
-                self.megatron_config.global_batch_size //
-                self.parallel_state.get_data_parallel_world_size()
+                    self.megatron_config.global_batch_size //
+                    self.parallel_state.get_data_parallel_world_size()
             )
+            if self.rl_config.filter_groups_enable:
+                experience_count = (
+                        self.rl_config.filter_groups_train_batch_size * self.rl_config.n_samples_per_prompt //
+                        self.parallel_state.get_data_parallel_world_size()
+                )
         else:
             experience_count = self.rl_config.actor_update_dispatch_size
 
@@ -167,9 +219,9 @@ class ActorHybridWorkerBase(BaseWorker):
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
-        ray.get(self.td.update_metrics.remote(key='grpo/lr', value=learning_rate))
-        sorted_indexes = self.get_dp_range_indexes(experience_count,
-                                                   use_vllm=False) if self.rl_config.guarantee_order else None
+        ray.get(self.td.update_metrics.remote(key='param/lr', value=learning_rate))
+        sorted_indexes = self.get_dp_range_indexes(experience_count, use_vllm=False,
+                                                   assign_batch_size=experience_count) if self.rl_config.guarantee_order else None
         actor_update_profiler = profiler_start(self.profiler_config, role="actor_update",
                                                profiler_iteration=self.prof_iteration)
         MsProbe.debugger_start(self.model[0], tag='actor_update')
@@ -229,9 +281,11 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def generate_sequences(self):
-        start_sharding_enter_infer = time.time()
-        self.sharding_manager.enter_infer_mode()
-        sharding_infer_interval = time.time() - start_sharding_enter_infer
+        sharding_infer_interval = 0
+        if not self.rl_config.filter_groups_enable:
+            start_sharding_enter_infer = time.time()
+            self.sharding_manager.enter_infer_mode()
+            sharding_infer_interval = time.time() - start_sharding_enter_infer
 
         experience_consumer_stage = 'actor_rollout'
         experience_columns = ['prompts', 'prompt_length']
@@ -315,16 +369,20 @@ class ActorHybridWorkerBase(BaseWorker):
         profiler_step(actor_generate_profiler)
         MsProbe.debugger_stop('actor_generate_sequences')
 
-        start_sharding_exit_infer = time.time()
-        self.sharding_manager.exit_infer_mode()
-        sharding_infer_interval += (time.time() - start_sharding_exit_infer)
-        ray.get(
-            self.td.update_metrics.remote(
-                "timing/resharding_to_infer",
-                value=[sharding_infer_interval],
-                cumulate=True
+        self.idx += 1
+        if not self.rl_config.filter_groups_enable:
+            start_sharding_exit_infer = time.time()
+            self.sharding_manager.exit_infer_mode()
+            sharding_infer_interval += (time.time() - start_sharding_exit_infer)
+
+            ray.get(
+                self.td.update_metrics.remote(
+                    "timing/resharding_to_infer",
+                    value=[sharding_infer_interval],
+                    cumulate=True
+                )
             )
-        )
+
 
     @mstx_timer_decorator
     def compute_log_prob(self):
@@ -335,8 +393,8 @@ class ActorHybridWorkerBase(BaseWorker):
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids', 'input_ids_length'])
         experience_count = self.rl_config.actor_logprob_dispatch_size
-        sorted_indexes = self.get_dp_range_indexes(experience_count,
-                                                   use_vllm=False) if self.rl_config.guarantee_order else None
+        sorted_indexes = self.get_dp_range_indexes(experience_count, use_vllm=False,
+                                                   assign_batch_size=experience_count) if self.rl_config.guarantee_order else None
 
         actor_compute_log_prob_profiler = profiler_start(self.profiler_config, role="actor_compute_log_prob",
                                                          profiler_iteration=self.prof_iteration)

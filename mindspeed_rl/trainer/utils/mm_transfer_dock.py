@@ -144,7 +144,7 @@ def trans_mm_experience_to_output(
             data = experience[i]
         elif experience_column in ['image_num', 'video_num', 'video_fps']:
             data = torch.tensor(experience[i]).reshape(-1, 1)
-        elif experience_column == 'image':
+        elif experience_column in ['image', 'video']:
             data = torch.concat(experience[i], dim=1)
         else:
             data = torch.concat(experience[i])

@@ -41,6 +41,11 @@ class GenerateConfig(BaseConfig):
     """
 
     def __init__(self, config_dict):
+        # 多图场景最多图片数量。
+        self.limit_mm_image_per_prompt = 1
+        # 多图场景最多视频数量。
+        self.limit_mm_video_per_prompt = 0
+
         self.data_parallel_size = None
         # 设置 tokenizer 的名称或路径，默认指向一个示例路径，可根据实际情况修改
         self.tokenizer_name_or_path = "/path/to/tokenizer"

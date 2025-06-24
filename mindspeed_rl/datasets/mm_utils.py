@@ -32,6 +32,8 @@ def process_image(image: ImageObject, max_pixels: int, min_pixels: int) -> Image
         image = Image.open(BytesIO(image["bytes"]))
     elif isinstance(image, bytes):
         image = Image.open(BytesIO(image))
+    elif isinstance(image, str):
+        image = Image.open(image)
         
     if (image.width * image.height) > max_pixels:
         resize_factor = math.sqrt(max_pixels / (image.width * image.height))
@@ -66,7 +68,7 @@ def get_video_sample_frames(video_stream: "Stream", **kwargs) -> int:
 
 def process_videos(video, **kwargs):
     with av.open(video, "r") as container:
-        video_stream = next(stream for stream in container.streams if stream.codec_type == "video")
+        video_stream = next(stream for stream in container.streams if stream.type == "video")
         total_frames = video_stream.frames
         sample_frames = get_video_sample_frames(video_stream, **kwargs)
         sample_indices = np.linspace(0, total_frames - 1, sample_frames).astype(np.int32)

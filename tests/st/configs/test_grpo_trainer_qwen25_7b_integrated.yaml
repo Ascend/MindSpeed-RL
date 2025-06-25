@@ -87,7 +87,6 @@ rl_config:
     num_npus: 8
 
 generate_config:
-  enforce_eager: True
   trust_remote_code: true
   offload_train_optimizer: true
   offload_train_grad: true

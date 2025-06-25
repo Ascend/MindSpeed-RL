@@ -184,7 +184,7 @@ class VLLMInferEngine(BaseInferEngine):
             enable_prefix_caching=enable_prefix_caching,
             num_scheduler_steps=num_scheduler_steps,
             dtype=dtype,
-            enforce_eager=enforce_eager,
+            enforce_eager=True,
             skip_tokenizer_init=False,
             gpu_memory_utilization=gpu_memory_utilization,
             max_num_seqs=max_num_seqs,

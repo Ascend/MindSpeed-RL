@@ -29,8 +29,6 @@ env_vars:
   VLLM_VERSION: '0.9.0'
   # 启用昇腾torchair图模式优化（1=启用），提升执行效率
   VLLM_ENABLE_GRAPH_MODE: '0'
-  # 启用vLLM的通算融合算子调度策略
-  VLLM_ENABLE_MC2: '0'
   # 使能vLLM TOPK性能优化
   VLLM_ASCEND_ENABLE_TOPK_OPTIMZE: "1"
   # 指定使用 Level 2 级别的算子下发队列优化

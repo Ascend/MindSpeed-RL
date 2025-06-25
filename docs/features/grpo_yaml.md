@@ -124,10 +124,9 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `HYDRA_FULL_ERROR`：设置 HYDRA 是否输出完整错误日志
 * `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型建议和EP一致，稠密模型设置为1
 * `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
-* `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），兼容性选项
+* `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），当前只支持 v1 ，需设置为 '1'。
 * `VLLM_VERSION`：指定使用的vLLM版本号
 * `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
-* `VLLM_ENABLE_MC2`：是否启用vLLM的通算融合算子调度策略
 * `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化
 * `TASK_QUEUE_ENABLE`：控制开启task_queue算子下发队列优化的等级，推荐设置为 '2' 使能 Level 2 优化。
 * `CPU_AFFINITY_CONF`：指定使用绑核优化，推荐设置为 '1'。

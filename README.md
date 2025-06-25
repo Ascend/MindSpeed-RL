@@ -103,7 +103,6 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <th>核心特性</th>
       <th>特性指南</th>
       <th>适用算法</th>
-      <th>适用模型</th>
       <th>发布状态</th>
     </tr>
   </thead>
@@ -112,50 +111,30 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td>训推共卡</td>
       <td><a href="docs/features/integrated_worker.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Released</td>
     </tr>
     <tr>
       <td>数据调度</td>
       <td><a href="docs/features/data_module_design.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>权重重切分</td>
       <td><a href="docs/features/resharding.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>填充移除</td>
       <td><a href="docs/features/remove_padding.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>长序列并行</td>
       <td><a href="docs/features/context_parallel.md">Doc</a></td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
   </tbody>
@@ -171,7 +150,6 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <th>工具特性</th>
       <th>特性指南</th>
       <th>适用算法</th>
-      <th>适用模型</th>
       <th>发布状态</th>
     </tr>
   </thead>
@@ -180,40 +158,24 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td>训练监控</td>
       <td>  <a href="docs/features/logging_wandb_tensorboard.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>性能调优</td>
       <td>  <a href="docs/features/profiler.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>数据采集</td>
       <td>  <a href="docs/features/msprobe.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
     <tr>
       <td>确定性计算</td>
       <td>  <a href="docs/features/deterministic_computation.md">Doc</a> </td>
       <td  rowspan="1">GRPO</td>
-      <td  rowspan="1">
-        Qwen2.5-7B <br>
-        Qwen2.5-32B <br>
-      </td>
       <td> Preview</td>
     </tr>
   </tbody>

@@ -64,7 +64,12 @@ def validate_rl_args(
         if not actor_config.reset_position_ids:
             raise ValueError(
                 "'use_remove_padding' feature requires 'reset_position_ids=True'! ")
-     
+
+    # 校验图模式配置
+    if not generate_config.enforce_eager:
+        raise ValueError(
+            "'enforce eager' feature is not available at present.")
+         
     # 校验资源分配合理性
     def _validate_resource(resource, t_size, p_size, c_size, component):
         product = t_size * p_size * c_size

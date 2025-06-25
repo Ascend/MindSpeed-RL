@@ -82,7 +82,7 @@ class MegatronStyleVllmWeightContainer:
         self._pp_group = self.parallel_state.get_pipeline_model_parallel_group()
         self._pp_size = self.parallel_state.get_pipeline_model_parallel_world_size()
         self._world_size = dist.get_world_size()
-        self.pp_group_size = self._world_size // self._pp_size
+
         ## vpp
         self._num_layer_list = self._build_num_layer_list(num_layer_list)
         self._vpp_rank = self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK if self.parallel_state._VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK else 0
@@ -118,7 +118,7 @@ class MegatronStyleVllmWeightContainer:
         self.infer_expert_tensor_parallel_size = 1
         self.num_process = 1
         self._infer_ep_size = self._infer_ep_size * self._infer_tp_size
-        self.experts_memory_expend_N = self._infer_ep_size // self._ep_size
+        self.experts_memory_expand_N = self._infer_ep_size // self._ep_size
 
         # validate parallel configs
         self._validate_parallel_config()
@@ -372,6 +372,7 @@ class MegatronStyleVllmWeightContainer:
         for vpp_rank in range(self._vpp_size):
             megatron_params_dict.update({vpp_rank: dict(true_megatron_model[vpp_rank].named_buffers())})
             megatron_params_dict[vpp_rank].update(true_megatron_model[vpp_rank].named_parameters())
+            megatron_params_dict[vpp_rank] = self.weight_adaptor.adjust_megatron_param_dict(megatron_params_dict[vpp_rank], self._tp_size)
 
         for hf_name, vpp_rank, megatron_name in name_pairs:
             if((self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name):
@@ -398,7 +399,7 @@ class MegatronStyleVllmWeightContainer:
                 combined_names_per_pp.extend(weight_names_per_stage)
             self.weight_buffer_meta = self.weight_adaptor.get_weight_buffer_meta(self.vllm_model, combined_names_per_pp)
             self.experts_weight_buffer_meta = get_weight_buffer_meta_from_buffer(self.weight_buffer_meta)
-            self.experts_memory_buffers = build_experts_memory_buffer(self.experts_weight_buffer_meta, self.experts_memory_expend_N)
+            self.experts_memory_buffers = build_experts_memory_buffer(self.experts_weight_buffer_meta, self.experts_memory_expand_N)
 
             # Step2 将weights_buffer上对应的权重放到experts_buffer中
             if(cur_pp_rank == pp_rank):
@@ -414,6 +415,7 @@ class MegatronStyleVllmWeightContainer:
                 for vpp_rank in range(self._vpp_size):
                     megatron_params_dict.update({vpp_rank: dict(true_megatron_model[vpp_rank].named_buffers())})
                     megatron_params_dict[vpp_rank].update(true_megatron_model[vpp_rank].named_parameters())
+                    megatron_params_dict[vpp_rank] = self.weight_adaptor.adjust_megatron_param_dict(megatron_params_dict[vpp_rank], self._tp_size)
 
                 for hf_name, vpp_rank, megatron_name in name_pairs:
                     if((self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name):
@@ -427,12 +429,12 @@ class MegatronStyleVllmWeightContainer:
             # broadcast专家权重（experts memory buffer中的）
             for dtype, experts_memory_buffer in self.experts_memory_buffers.items():
                 dist.broadcast(tensor=experts_memory_buffer.data, src=global_src, group=self._pp_group, async_op=False)
-                pp_group_rank = self._rank // self.pp_group_size
+                ep_expand_rank = self._rank // self._ep_size
 
                 # 获取对应的dtype
                 for name, tensor_indices_value in sorted(experts_memory_buffer.tensor_indices.items()):
                     shape = tensor_indices_value[1]  # 是*N的
-                    index = pp_group_rank % self.experts_memory_expend_N
+                    index = ep_expand_rank % self.experts_memory_expand_N
                     experts_tensor = experts_memory_buffer.get_by_name(name)
                     experts_tensor_reshape = experts_tensor.view(shape)
                     weight_tensor_infer = experts_tensor_reshape[index]

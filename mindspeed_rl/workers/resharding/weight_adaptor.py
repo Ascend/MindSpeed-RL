@@ -4,12 +4,21 @@ import torch
 
 
 class BaseWeightAdaptor(ABC):
-    def __init__(self):
+    def __init__(self, model_config):
         """
         Base class for weight adaptors.
         A weight adaptor provide a set of tools to transfer from training weight to inference weight.
         Currently, we support MegatronVLLMWeightAdaptor only.
         Args:
+        """
+        self.model_config = model_config
+        pass
+
+    @abstractmethod
+    def adjust_megatron_param_dict(self, param_dict, train_tp_size):
+        """
+        adjust megatron param dict to remove mindspeed only features such
+        as mla-split-mm in DSv3
         """
         pass
 
@@ -40,8 +49,7 @@ class BaseWeightAdaptor(ABC):
 
 class MegatronVLLMWeightAdaptor(BaseWeightAdaptor):
     def __init__(self, model_config):
-        super(MegatronVLLMWeightAdaptor, self).__init__()
-        self.model_config = model_config
+        super(MegatronVLLMWeightAdaptor, self).__init__(model_config)
         self.meta_info = None
         self.params_mapping = [
             # (megatron core gpt model name, vllm model name)
@@ -104,6 +112,26 @@ class MegatronVLLMWeightAdaptor(BaseWeightAdaptor):
             else:
                 weight_buffer_meta[name] = {'shape': param.shape, 'dtype': param.dtype}
         return weight_buffer_meta
+
+    def adjust_megatron_param_dict(self, param_dict, train_tp_size):
+        for name in list(param_dict.keys()):
+            # use mm split
+            if name.endswith("linear_qk_nope.weight"):
+                num_attention_heads_per_tp = int(self.model_config.num_attention_heads / train_tp_size)
+        
+                qk_nope_head_dim = self.model_config.qk_nope_head_dim
+                qk_rope_head_dim = self.model_config.qk_rope_head_dim
+                v_head_dim = self.model_config.v_head_dim
+        
+                prefix = name.replace("linear_qk_nope.weight", "")
+                param_dict[prefix + "linear_qb.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_qk_nope.weight"].reshape(num_attention_heads_per_tp, qk_nope_head_dim, -1), param_dict[prefix + "linear_qk_rope.weight"].reshape(num_attention_heads_per_tp, qk_rope_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_nope_head_dim + qk_rope_head_dim), -1))
+                param_dict[prefix + "linear_qb.weight"].tensor_model_parallel = True
+                param_dict[prefix + "linear_qb.weight"].partition_dim = param_dict[prefix + "linear_qk_nope.weight"].partition_dim
+                param_dict[prefix + "linear_kvb.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_kv_nope.weight"].reshape(num_attention_heads_per_tp, qk_nope_head_dim, -1), param_dict[prefix + "linear_v.weight"].reshape(num_attention_heads_per_tp, v_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_nope_head_dim + v_head_dim), -1))
+                param_dict[prefix + "linear_kvb.weight"].tensor_model_parallel = True
+                param_dict[prefix + "linear_kvb.weight"].partition_dim = param_dict[prefix + "linear_kv_nope.weight"].partition_dim
+        
+        return param_dict
 
     @staticmethod
     def global2local_layer(name, num_layer_list, vpp_rank=0, global2local_map=None):

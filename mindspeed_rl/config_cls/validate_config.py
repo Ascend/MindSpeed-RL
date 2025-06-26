@@ -68,7 +68,7 @@ def validate_rl_args(
     # 校验图模式配置
     if not generate_config.enforce_eager:
         raise ValueError(
-            "'enforce eager' feature is not available at present.")
+            "'enforce eager' feature is not available to be False at present.")
          
     # 校验资源分配合理性
     def _validate_resource(resource, t_size, p_size, c_size, component):
@@ -143,6 +143,10 @@ def validate_rl_args(
             generate_config.infer_tensor_parallel_size *
             generate_config.infer_pipeline_parallel_size)
 
+    if generate_config.infer_pipeline_parallel_size > 1:
+        raise ValueError(
+            "pipeline_parallel for vllm is not supported yet ! ")
+    
     ref_data_parallel_size = rl_config.reference_resource.num_npus // (
             ref_config.tensor_model_parallel_size *
             ref_config.pipeline_model_parallel_size *

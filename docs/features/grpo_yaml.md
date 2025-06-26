@@ -89,7 +89,7 @@ wandb开关:
 ### `generate_config:`
 #### 推理时的并行配置
 * `infer_tensor_parallel_size`：TP并行策略数；
-* `infer_pipeline_parallel_size`：PP并行策略数；
+* `infer_pipeline_parallel_size`：PP并行策略数，当前未支持该功能，设置为 '1'；
 * `infer_expert_parallel_size`：EP并行策略数；
 #### resharding 相关配置
 * `offload_train_optimizer`：卸载训练节点优化器；

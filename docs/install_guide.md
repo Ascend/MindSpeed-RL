@@ -95,7 +95,7 @@ cd ..
 ```shell
 git clone -b main https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout 908a851
+git checkout c46632439a59dd43f9062396128119b143561e8a
 pip install -e .
 ```
 

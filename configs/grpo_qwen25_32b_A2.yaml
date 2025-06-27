@@ -56,8 +56,6 @@ actor_config:
   no_load_rng: true
 
 rl_config:
-  use_dynamic_bsz: true
-  max_packing_token_size: 8192
   use_remove_padding: true
   blocking: true
   actor_forward_micro_batch_size: 64

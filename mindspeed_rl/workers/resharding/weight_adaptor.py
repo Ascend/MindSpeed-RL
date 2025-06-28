@@ -585,6 +585,7 @@ WEIGHT_ADAPTOR_REGISTRY = {
     "Qwen2ForCausalLM": QwenMVWeightAdaptor,
     "DeepseekV3ForCausalLM": DeepSeekMVWeightAdaptor,
     "DeepseekV2ForCausalLM": DeepSeekMVWeightAdaptor,
+    "CustomDeepseekV2ForCausalLM": DeepSeekMVWeightAdaptor,
     "CustomDeepseekV3ForCausalLM": DeepSeekMVWeightAdaptor,
     "Qwen2_5_VLForConditionalGeneration": Qwen2_5_VLWeightAdaptor,
 }

@@ -22,7 +22,8 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
-from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator, profiler_start, profiler_step, is_multimodal
+from mindspeed_rl.utils.utils import (num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator,
+                                      profiler_start, profiler_step, is_multimodal, replace_torch_compile)
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
 
 
@@ -86,8 +87,8 @@ class ActorHybridWorkerBase(BaseWorker):
             self.actor_offloader.offload_grad()
         if self.generate_config.offload_train_param:
             self.actor_offloader.offload_param()
-
-        self.inference_model = self._build_rollout()
+        with replace_torch_compile():
+            self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
         megatron_module = self.get_megatron_module()
 
@@ -274,7 +275,8 @@ class ActorHybridWorkerBase(BaseWorker):
                 gc.collect()
                 torch.cuda.empty_cache()
 
-                responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), extra_info=batch_data)
+                with replace_torch_compile():
+                    responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list))
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]
@@ -396,7 +398,6 @@ class ActorHybridWorkerBase(BaseWorker):
             self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
 
         sampling_config = {"num_completions": self.rl_config.n_samples_per_prompt,
-                           "best_of": self.rl_config.n_samples_per_prompt,
                            **self.generate_config.sampling_config}
 
         rollout = VLLMInferEngine(
@@ -418,6 +419,9 @@ class ActorHybridWorkerBase(BaseWorker):
             gpu_memory_utilization=self.generate_config.gpu_memory_utilization,
             trust_remote_code=self.generate_config.trust_remote_code,
             enforce_eager=self.generate_config.enforce_eager,
+            torchair_graph=self.generate_config.torchair_graph,
+            enable_expert_parallel=self.generate_config.enable_expert_parallel,
+            max_num_batched_tokens=self.generate_config.max_num_batched_tokens,
         )
         return rollout
 

@@ -116,6 +116,7 @@ class RLConfig(BaseConfig):
 
         self.use_dynamic_bsz = False
         self.max_packing_token_size = 4096
+        self.log_max_throughput = True
 
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():

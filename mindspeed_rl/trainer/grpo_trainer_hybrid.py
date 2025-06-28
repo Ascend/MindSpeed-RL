@@ -182,9 +182,13 @@ class RayGRPOTrainer(RayBaseTrainer):
 
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_timer.last)
-            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, all_timer.last)
-            update_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, metrics_result["timing/update"])
-            vllm_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt, metrics_result["timing/rollout"])
+            log_max_throughput = self.actor_worker.rl_config.log_max_throughput
+            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                              all_timer.last, log_max_throughput)
+            update_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                                     metrics_result["timing/update"], log_max_throughput)
+            vllm_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                                   metrics_result["timing/rollout"], log_max_throughput)
             metrics.update(value=metrics_result)
             metrics.update(value=grpo_data_metrics)
             metrics.update("e2e_tps", tps)

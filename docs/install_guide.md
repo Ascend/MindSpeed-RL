@@ -83,18 +83,18 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 ### vllm及相关依赖安装：
 （注：环境中需要安装git，因为vllm的安装过程依赖git）
 ```shell
-git clone https://github.com/vllm-project/vllm.git
+git clone -b releases/v0.9.1 https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout 5bc1ad6cee754405464a9957e86cf3a9302e4986
+git checkout b6553be1bc75f046b00046a4ad7576364d03c835
 VLLM_TARGET_DEVICE=empty pip install .
 cd ..
 ```
 
 ### vllm_ascend安装
 ```shell
-git clone -b main https://github.com/vllm-project/vllm-ascend.git
+git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout c46632439a59dd43f9062396128119b143561e8a
+git checkout dedace4c
 pip install -e .
 ```
 

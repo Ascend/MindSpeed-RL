@@ -1,8 +1,6 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 import os
-import re
-import subprocess
 from abc import ABC
 from typing import List, Callable
 import socket
@@ -10,7 +8,6 @@ import socket
 import torch
 import torch_npu
 import ray
-import torch.distributed as dist
 
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.utils.loggers import Loggers
@@ -34,7 +31,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
     get_context_parallel_group
 )
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
-from mindspeed_rl.utils.utils import get_current_dp_range_indexes
+from mindspeed_rl.utils.utils import get_current_dp_range_indexes, get_current_node_ip
 from mindspeed_rl.trainer.utils.transfer_dock import pack_experience_columns, unpack_pad_experience
 from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
 from mindspeed_rl.utils.utils import mstx_timer_decorator, is_multimodal
@@ -54,7 +51,7 @@ class BaseRayWorker:
         torch.npu.set_device(self._local_rank)
         current_device = torch.npu.current_device()
         if os.environ.get("MASTER_ADDR", 0) == "localhost":
-            self._master_addr = self._get_current_node_ip()
+            self._master_addr = get_current_node_ip()
             self._master_port = self._get_free_port()
             os.environ["MASTER_ADDR"] = self._master_addr
             os.environ["MASTER_PORT"] = str(self._master_port)
@@ -73,46 +70,6 @@ class BaseRayWorker:
     @property
     def rank(self):
         return self._rank
-
-    def _get_current_node_ip(self) -> str:
-        try:
-            # 创建一个 UDP 套接字（仅用于获取接口信息）
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                # 连接到一个外部地址（无需真实通信）
-                s.connect(("8.8.8.8", 80))  # Google DNS 服务器
-                local_ip = s.getsockname()[0]
-        except Exception:
-            local_ip = self._get_ip_by_ifname()
-            if not local_ip:
-                # 如果失败，回退到遍历接口
-                local_ip = "127.0.0.1"
-                hostname = socket.gethostname()
-                for addr in socket.getaddrinfo(hostname, None):
-                    ip = addr[4][0]
-                    if not ip.startswith("::"):
-                        local_ip = ip
-                        break
-        return local_ip
-
-    @staticmethod
-    def _get_ip_by_ifname():
-        """
-        通过接口名称（如 eth0、en0）获取 IPv4 地址
-        返回 IP 字符串，失败返回 None
-        """
-        try:
-            # 执行 ifconfig 命令并捕获输出
-            ifname = os.environ.get("HCCL_SOCKET_IFNAME", 0)
-            if ifname:
-                output = subprocess.check_output(["ifconfig", ifname], stderr=subprocess.STDOUT).decode()
-                # 正则匹配 IPv4 地址（排除 127.0.0.1）
-                matches = re.findall(r'inet (?:addr:)?((?:\d{1,3}\.){3}\d{1,3})', output)
-                for ip in matches:
-                    if ip != "127.0.0.1":
-                        return ip
-            return None
-        except subprocess.CalledProcessError:
-            return None
 
     @staticmethod
     def _get_free_port():

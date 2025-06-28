@@ -99,9 +99,13 @@ wandb开关:
 vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/latest/serving/engine_args.html)：
 * `max_num_seqs`：vllm 推理并发最大样本限制；
 * `max_model_len`：vllm 能够处理的最大输入序列长度(prompt+response)；
+* `max_num_batched_tokens`：vllm 单步能处理的最大 token 数量；
+* `enforce_eager`：使能PyTorch eager模式，默认开启，仅 DeepSeek V3 开启 torchair_graph 时需要关闭；
+* `torchair_graph`：DeepSeek V3 使能 torchair 图模式；
+* `enable_expert_parallel`：MOE 模型使能专家切分，需要 MOE 模型支持；
 * `dtype`：vllm 推理所使用的数据类型；
 * `gpu_memory_utilization`：GPU 内存利用率，指定推理时使用 GPU 内存的比例；
-* `num_scheduler_steps `：指的是在一个完整的调度周期内，调度器会将批处理请求分成多少个子步骤来执行；
+* `num_scheduler_steps`：指的是在一个完整的调度周期内，调度器会将批处理请求分成多少个子步骤来执行；
 #### 采样配置
 * `logprobs`：是否生成logprobs；
 * `max_tokens`：单条response最大生成token数量；
@@ -126,8 +130,8 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
 * `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），当前只支持 v1 ，需设置为 '1'。
 * `VLLM_VERSION`：指定使用的vLLM版本号
-* `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
 * `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化
+* `VLLM_ASCEND_ACL_OP_INIT_MODE`：vLLM aclop 初始化模式: 0: default, normal init.
 * `TASK_QUEUE_ENABLE`：控制开启task_queue算子下发队列优化的等级，推荐设置为 '2' 使能 Level 2 优化。
 * `CPU_AFFINITY_CONF`：指定使用绑核优化，推荐设置为 '1'。
 * `LCAL_COMM_ID`: 开启coc特性时配套启用，设置为'127.0.0.1:27001'。

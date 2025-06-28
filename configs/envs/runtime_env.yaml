@@ -12,12 +12,12 @@ env_vars:
   #设置 HCCL 执行超时时间
   HCCL_EXEC_TIMEOUT: '3600'
   #设置 HCCL 通信端口
-  HCCL_IF_BASE_PORT: '48000'
+  HCCL_IF_BASE_PORT: '12345'
   #设置设备最大连接数
   CUDA_DEVICE_MAX_CONNECTIONS: '1'
   #设置 HYDRA 是否输出完整错误日志
   HYDRA_FULL_ERROR: '1'
-  # vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型建议和EP一致，稠密模型设置为1
+  # vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型要求和EP一致，稠密模型设置为1
   VLLM_DP_SIZE: '1'
   # 指定不使用 LCCL 通信
   USING_LCCL_COM: '0'
@@ -26,11 +26,11 @@ env_vars:
   # 使用vLLM的V1 engine API（v1接口），兼容性选项
   VLLM_USE_V1: '1'
   # 指定使用的vLLM版本号
-  VLLM_VERSION: '0.9.0'
-  # 启用昇腾torchair图模式优化（1=启用），提升执行效率
-  VLLM_ENABLE_GRAPH_MODE: '0'
+  VLLM_VERSION: '0.9.1'
   # 使能vLLM TOPK性能优化
   VLLM_ASCEND_ENABLE_TOPK_OPTIMZE: "1"
+  # vLLM aclop init mode: 0: default, normal init.
+  VLLM_ASCEND_ACL_OP_INIT_MODE: '0'
   # 指定使用 Level 2 级别的算子下发队列优化
   TASK_QUEUE_ENABLE: "2"
   # 指定使能 CPU 绑核

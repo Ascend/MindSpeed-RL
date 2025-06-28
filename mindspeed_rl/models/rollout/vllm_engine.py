@@ -14,21 +14,7 @@ from torch_npu.contrib import transfer_to_npu
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoConfig
 
-
-def dummy_compile(*compile_args, **compile_kwargs):
-    def decorate(fn):
-        def wrapper(*args, **kwargs):
-            return fn(*args, **kwargs)
-
-        return wrapper
-
-    return decorate
-
-torch.compile = dummy_compile
-torch.jit.script = dummy_compile
-
 from vllm import LLM, SamplingParams
-from vllm.v1.core.kv_cache_utils import get_kv_cache_config, unify_kv_cache_configs
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.models.base.base_inference_engine import BaseInferEngine
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import initialize_parallel_state
@@ -55,18 +41,20 @@ class VLLMInferEngine(BaseInferEngine):
             infer_pipeline_parallel_size: int,
             infer_expert_parallel_size: int,
             sampling_config: dict,
-            infer_expert_tensor_parallel_size: int = 1,
             prompt_type: str = None,
             prompt_type_path: str = None,
             enable_prefix_caching: bool = False,
             num_scheduler_steps: int = 1,
             max_num_seqs: int = 1,
             max_model_len: int = 2048,
+            max_num_batched_tokens: int = 2048,
             dtype: str = "bfloat16",
             gpu_memory_utilization: float = 0.5,
             trust_remote_code: bool = True,
             load_format: str = "megatron",
             enforce_eager: bool = True,
+            enable_expert_parallel: bool = False,
+            torchair_graph: bool = False,
             **kwargs
     ):
         """
@@ -82,7 +70,6 @@ class VLLMInferEngine(BaseInferEngine):
             infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
             infer_expert_parallel_size (int): Expert parallel size during inference.
             sampling_config (dict): Configuration for text generation sampling.
-            infer_expert_tensor_parallel_size (int): Expert tensor parallel size during inference.
             enable_prefix_caching (bool): Whether to enable prefix caching.
             num_scheduler_steps (int): Num scheduler steps. Default is 1.
             max_num_seqs (int): Maximum number of sequences to process simultaneously. Default is 1.
@@ -108,14 +95,15 @@ class VLLMInferEngine(BaseInferEngine):
             max_model_len=max_model_len,
             dtype=dtype,
             gpu_memory_utilization=gpu_memory_utilization,
-            trust_remote_code=trust_remote_code
+            trust_remote_code=trust_remote_code,
+            enable_expert_parallel=enable_expert_parallel,
         )
         # Additional initialization logic for VLLMInferEngine
 
-        torch.compile = dummy_compile
         # vLLM Ascend must be patched in advance
         from vllm_ascend.patch import platform
         from vllm_ascend.patch import worker
+        from mindspeed_rl.models.rollout.vllm_adapter import engine_core
 
         # Initialize sampling parameters from SamplingConfig
         self.sampling_config = sampling_config
@@ -175,21 +163,29 @@ class VLLMInferEngine(BaseInferEngine):
             enable_prefix_caching=enable_prefix_caching,
             num_scheduler_steps=num_scheduler_steps,
             dtype=dtype,
-            enforce_eager=True,
+            enforce_eager=enforce_eager,
             skip_tokenizer_init=False,
             gpu_memory_utilization=gpu_memory_utilization,
             max_num_seqs=max_num_seqs,
             max_model_len=max_model_len,
             seed=self.sampling_params.seed,
+            max_num_batched_tokens=max_num_batched_tokens,
+            enable_expert_parallel=enable_expert_parallel,
             additional_config={
-                'expert_tensor_parallel_size': infer_expert_tensor_parallel_size,
-                'enable_graph_mode': int(os.environ.get('VLLM_ENABLE_GRAPH_MODE', '0')),
-                'ascend_scheduler_config': {},
+                "torchair_graph_config": {
+                    "enabled": torchair_graph,
+                    "use_cached_graph": False,
+                    "graph_batch_sizes_init": False,
+                    "graph_batch_sizes": [max_num_seqs],
+                },
+                "ascend_scheduler_config": {
+                    "enabled": True,
+                },
+                "refresh": True,
             }
         )
 
         self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.get_model()
-        self.kv_cache_configs = None
 
         self.cpu_model = {}
         for name, params in self.model.named_parameters():
@@ -197,41 +193,7 @@ class VLLMInferEngine(BaseInferEngine):
 
         if load_format == "megatron":
             self.free_cache_engine()
-            if os.environ['VLLM_USE_V1'] == '1':
-                self._initialize_kv_caches(self.llm.llm_engine.vllm_config)
             self.offload_model_weights()
-
-    from vllm.config import VllmConfig
-
-    def _initialize_kv_caches(self, vllm_config: VllmConfig):
-
-        # Get all kv cache needed by the model
-        kv_cache_specs = self.llm.llm_engine.engine_core.engine_core.model_executor.get_kv_cache_specs()
-
-        # Profiles the peak memory usage of the model to determine how much
-        # memory can be allocated for kv cache.
-        available_gpu_memory = self.llm.llm_engine.engine_core.engine_core.model_executor.determine_available_memory()
-
-        assert len(kv_cache_specs) == len(available_gpu_memory)
-        # Get the kv cache tensor size
-        self.kv_cache_configs = [
-            get_kv_cache_config(vllm_config, kv_cache_spec_one_worker,
-                                available_gpu_memory_one_worker)
-            for kv_cache_spec_one_worker, available_gpu_memory_one_worker in
-            zip(kv_cache_specs, available_gpu_memory)
-        ]
-
-        # Since we use a shared centralized controller, we need the
-        # `kv_cache_config` to be consistent across all workers to make sure
-        # all the memory operators can be applied to all workers.
-        unify_kv_cache_configs(self.kv_cache_configs)
-
-        # All workers have the same kv_cache_config except layer names, so use
-        # an arbitrary one to initialize the scheduler.
-        assert all([
-            cfg.num_blocks == self.kv_cache_configs[0].num_blocks
-            for cfg in self.kv_cache_configs
-        ])
 
     def init_cache_engine(self):
         if os.environ['VLLM_USE_V1'] == '1':
@@ -239,7 +201,7 @@ class VLLMInferEngine(BaseInferEngine):
             if not worker.model_runner.kv_caches:
                 # v1 使用显式初始化方法
                 self.llm.llm_engine.engine_core.engine_core.model_executor.initialize_from_config(
-                    self.kv_cache_configs)
+                    self.llm.llm_engine.engine_core.engine_core.kv_cache_configs)
         else:
             if self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine is None:
                 self.llm.llm_engine.model_executor.driver_worker.worker._init_cache_engine()
@@ -247,9 +209,7 @@ class VLLMInferEngine(BaseInferEngine):
     def free_cache_engine(self):
         if os.environ['VLLM_USE_V1'] == '1':
             worker = self.llm.llm_engine.model_executor.driver_worker.worker
-
             ctx = worker.model_runner.vllm_config.compilation_config.static_forward_context
-
         else:
             ctx = self.llm.llm_engine.model_executor.driver_worker.worker.compilation_config.static_forward_context
         from vllm.attention import AttentionType
@@ -289,7 +249,6 @@ class VLLMInferEngine(BaseInferEngine):
 
         gc.collect()
         torch.cuda.empty_cache()
-
 
     def offload_model_weights(self):
         for name, params in self.model.named_parameters():

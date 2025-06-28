@@ -78,6 +78,7 @@ rl_config:
   rule_reward: true
   verifier_function: ["math_17k_acc"]
   verifier_weight: [1.0]
+  log_max_throughput: false
   num_cpus_for_local_task: 1.0
   use_tensorboard: true
   actor_resource:

@@ -77,6 +77,7 @@ rl_config:
   shuffle_mini_batch: false
   n_samples_per_prompt: 16
   rule_reward: true
+  log_max_throughput: false
   verifier_function: ["base_acc"]
   verifier_weight: [1.0]
   actor_resource:

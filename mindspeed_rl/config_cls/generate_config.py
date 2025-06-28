@@ -22,12 +22,14 @@ class GenerateConfig(BaseConfig):
 
     max_num_seqs: Maximum number of sequences to process simultaneously. Default is 256.
     max_model_len: Maximum model length (in tokens). Default is 2048.
+    max_num_batched_tokens: The maximum number of tokens model can run in a single batch. Default is 2048.
     dtype: Data type for model weights. Default is "bfloat16".
     gpu_memory_utilization: GPU memory utilization factor. Default is 0.5.
 
-    enforce_eager: Whether to always use eager-mode PyTorch. If True, we will disable ACL graph and always execute the model in eager mode. 
-                   If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility. 
-
+    enforce_eager: Whether to always use eager-mode PyTorch. If True, we will disable ACL graph and always execute the model in eager mode.
+                   If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility.
+    torchair_graph: Whether to enable TorchAir graph optimization. If True, uses accelerated computational graph optimizations.
+    enable_expert_parallel: Whether to enable expert parallel computation for Mixture-of-Experts (MoE) layers.
     sampling_config: Configuration for text generation sampling. Default values are set for various sampling parameters.
         - num_completions: The number of independent completions to generate for each input prompt. Default is 1.
         - logprobs: The number of top tokens to return log probabilities for. Default is 1.
@@ -76,6 +78,8 @@ class GenerateConfig(BaseConfig):
         self.enable_prefix_caching = False
         self.num_scheduler_steps = 1
         self.enforce_eager = True
+        self.torchair_graph = False
+        self.enable_expert_parallel = False
 
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {
@@ -93,7 +97,7 @@ class GenerateConfig(BaseConfig):
             for key, _ in config_dict["sampling_config"].items():
                 if key not in self.sampling_config:
                     raise ValueError(f"The key: {key} is missing, causing the setup to fail. Please check."
-                            f" If necessary, register it in the config file.")    
+                            f" If necessary, register it in the config file.")
 
         # 如果提供了配置字典，则更新默认值
         self.update(config_dict)

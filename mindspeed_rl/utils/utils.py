@@ -2,12 +2,14 @@
 # Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 
 import os
+import re
+import socket
+import subprocess
 import sys
-import json
 
 import time
-import math
 import random
+from contextlib import contextmanager
 from functools import wraps
 from typing import Dict, List
 
@@ -15,6 +17,7 @@ import omegaconf
 import numpy as np
 import torch
 import torch_npu
+import torch.distributed as dist
 from torch import Tensor
 
 
@@ -232,7 +235,6 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
         non_overlap_reward_model_time = max(reward_end_time - max(old_log_p_end_time, reward_start_time), 0)
         metrics["timing/non_overlap_reward_model"] = non_overlap_reward_model_time
 
-
     metrics["timing/non_overlap_reference_model"] = non_overlap_reference_model_time
     metrics["timing/non_overlap_adv"] = non_overlap_adv_time
     metrics["timing/all"] = time_all
@@ -249,8 +251,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     return sorted_metric
 
 
-def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
-
+def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all, log_max_throughput):
     actor_resource = compute_kwargs.get('actor_resource', {})
     reference_resource = compute_kwargs.get('reference_resource', {})
     reward_resource = compute_kwargs.get('reward_resource', None)
@@ -261,7 +262,8 @@ def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all):
     reward_npus = reward_resource.get('num_npus', 0) if reward_resource is not None else 0
 
     world_size = actor_npus + reference_npus + reward_npus if not actor_resource_only else actor_npus
-    tps = (metrics_result['response_length/mean'] + metrics_result['prompt_length/mean']) * gbs * n_samples / world_size / time_all
+    length_type = 'max' if log_max_throughput else 'mean'
+    tps = (metrics_result[f'response_length/{length_type}'] + metrics_result[f'prompt_length/{length_type}']) * gbs * n_samples / world_size / time_all
     return tps
 
 
@@ -543,6 +545,84 @@ def profiler_start(profiler_config, role="profiler_data", profiler_iteration=Non
 def profiler_step(profiler):
     if profiler:
         profiler.step()
+
+
+_COMPILE = None
+
+
+def init_torch_compile(compile):
+    global _COMPILE
+    _COMPILE = compile
+
+
+@contextmanager
+def replace_torch_compile():
+    """Context manager to temporarily replace torch.compile with a dummy function"""
+    original_compile = torch.compile  # Save the original function
+    torch.compile = _COMPILE  # Replace with our dummy
+
+    try:
+        yield  # Execute the code inside the 'with' block
+    finally:
+        torch.compile = original_compile  # Restore the original function
+
+
+def get_cluster_info():
+    # 确保分布式环境已初始化
+    if not dist.is_initialized():
+        raise RuntimeError("Distributed environment not initialized")
+
+    world_size = dist.get_world_size()
+
+    # 获取当前节点的IP地址
+    ip_address = get_current_node_ip()
+
+    # 收集所有rank的IP地址
+    ip_list = [None] * world_size
+    dist.all_gather_object(ip_list, ip_address)
+
+    return ip_list
+
+
+def get_current_node_ip() -> str:
+    try:
+        # 创建一个 UDP 套接字（仅用于获取接口信息）
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # 连接到一个外部地址（无需真实通信）
+            s.connect(("8.8.8.8", 80))  # Google DNS 服务器
+            local_ip = s.getsockname()[0]
+    except Exception:
+        local_ip = _get_ip_by_ifname()
+        if not local_ip:
+            # 如果失败，回退到遍历接口
+            local_ip = "127.0.0.1"
+            hostname = socket.gethostname()
+            for addr in socket.getaddrinfo(hostname, None):
+                ip = addr[4][0]
+                if not ip.startswith("::"):
+                    local_ip = ip
+                    break
+    return local_ip
+
+
+def _get_ip_by_ifname():
+    """
+    通过接口名称（如 eth0、en0）获取 IPv4 地址
+    返回 IP 字符串，失败返回 None
+    """
+    try:
+        # 执行 ifconfig 命令并捕获输出
+        ifname = os.environ.get("HCCL_SOCKET_IFNAME", 0)
+        if ifname:
+            output = subprocess.check_output(["ifconfig", ifname], stderr=subprocess.STDOUT).decode()
+            # 正则匹配 IPv4 地址（排除 127.0.0.1）
+            matches = re.findall(r'inet (?:addr:)?((?:\d{1,3}\.){3}\d{1,3})', output)
+            for ip in matches:
+                if ip != "127.0.0.1":
+                    return ip
+        return None
+    except subprocess.CalledProcessError:
+        return None
 
 
 def is_multimodal():

@@ -11,6 +11,11 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer
 
+from mindspeed_rl.utils.utils import init_torch_compile, replace_torch_compile
+
+# Initialize torch.compile global variables to avoid training-related patches affecting vLLM graph mode enabling.
+init_torch_compile(torch.compile)
+
 from mindspeed_llm import megatron_adaptor
 import megatron
 from megatron.core import mpu
@@ -375,5 +380,6 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    test_actor = TestActor(args)
-    test_actor.generate_sequence(prompt_list)
+    with replace_torch_compile():
+        test_actor = TestActor(args)
+        test_actor.generate_sequence(prompt_list)

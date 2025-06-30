@@ -8,6 +8,7 @@ from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 
 
 @LossFuncFactory.register_loss('ray_grpo', 'reference')
+@LossFuncFactory.register_loss('ray_ppo', 'reference')
 class ReferenceLossFunc(BaseLossFunc):
     def __init__(self):
         super(ReferenceLossFunc, self).__init__()

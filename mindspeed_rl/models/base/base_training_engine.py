@@ -41,6 +41,7 @@ class BaseTrainingEngine(ABC):
         clip_higher_enable: bool = False   Whether to use higher clip for DAPO (limits the policy update range).
         clip_ratio_low: float = 0.1   The low clipping ratio threshold for DAPO (limits the policy update range).
         clip_ratio_high: float = 0.1   The high clipping ratio threshold for DAPO (limits the policy update range).
+        cliprange_value: float = 0.5 The clipping ratio threshold for PPO critic (limits the policy update range).
         **kwargs: Additional keyword arguments.
     """
 
@@ -72,6 +73,7 @@ class BaseTrainingEngine(ABC):
             clip_higher_enable: bool = False,
             clip_ratio_low: float = 0.1,
             clip_ratio_high: float = 0.1,
+            cliprange_value: float = 0.5,
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
@@ -99,6 +101,7 @@ class BaseTrainingEngine(ABC):
         self.clip_higher_enable = clip_higher_enable
         self.clip_ratio_low = clip_ratio_low
         self.clip_ratio_high = clip_ratio_high
+        self.cliprange_value = cliprange_value
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)
         self.kwargs = kwargs
 
@@ -348,6 +351,5 @@ class BaseTrainingEngine(ABC):
                 for metric in metric_micro_batch:
                     append_to_dict(metrics, metric)  # append the metric from this micro-batch to global metrics.
 
-        grad_norm = sum(grad_norm_list) / len(grad_norm_list)
-        metrics["grad_norm"] = grad_norm_list
+        metrics[f"{self.role}/grad_norm"] = grad_norm_list
         return metrics

@@ -92,7 +92,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
         self.ref_manager.offload_param()
         megatron_module = self.get_megatron_module()
-        
+
         self.reference = Reference(
             self.ref_model,
             beta=self.rl_config.beta,
@@ -141,6 +141,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         MsProbe.debugger_stop("reference_compute_log_prob")
         start_offload_time = time.time()
         self.ref_manager.offload_param()
+        torch.cuda.empty_cache()
         end_offload_time = time.time()
         ray.get(
             self.td.update_metrics.remote(

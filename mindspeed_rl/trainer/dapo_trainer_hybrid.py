@@ -322,7 +322,8 @@ class RayDAPOTrainer(RayBaseTrainer):
             experience_count=experience_count,
             tokenizer=self.tokenizer,
             global_batch_size=data_num,
-            guarantee_order=guarantee_order
+            guarantee_order=guarantee_order,
+            n_sample_per_prompt=self.n_samples_per_prompt
         )
         if blocking:
             ray.get(compute_advantage_ref)

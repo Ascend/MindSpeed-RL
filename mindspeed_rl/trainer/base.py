@@ -20,6 +20,7 @@ class RayBaseTrainer(object):
                  actor_worker: RayActorGroup = None,
                  ref_worker: RayActorGroup = None,
                  reward_list: List[Union[RayActorGroup, RuleReward]] = None,
+                 critic_worker: RayActorGroup = None,
                  train_iters: int = 1,
                  save_interval: int = 1,
                  gamma: float = 1.0,
@@ -45,6 +46,7 @@ class RayBaseTrainer(object):
         self.actor_worker = actor_worker
         self.ref_worker = ref_worker
         self.reward_list = reward_list
+        self.critic_worker = critic_worker
         self.train_iters = train_iters
         self.save_interval = save_interval
         self.gamma = gamma

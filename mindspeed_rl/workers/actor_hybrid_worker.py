@@ -6,6 +6,7 @@ import copy
 import gc
 from enum import Enum
 from typing import Callable
+import logging as logger
 
 import ray
 from torch import nn
@@ -147,7 +148,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
     def get_consumed_train_samples(self):
         return self.args.consumed_train_samples
-    
+
     def enter_infer_mode(self):
         if self.state == ActorState.INFER:
             return
@@ -181,8 +182,6 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
-        if skip_actor_log_prob:
-            self.sharding_manager.enter_forward_mode()
         start_sharding_enter_train = time.time()
         self.sharding_manager.enter_train_mode()
         sharding_train_interval = time.time() - start_sharding_enter_train
@@ -195,7 +194,7 @@ class ActorHybridWorkerBase(BaseWorker):
             experience_columns = ['responses', 'advantages', 'old_log_prob', 'input_ids', 'response_length', 'prompt_length']
         else:
             experience_columns = ['responses', 'advantages', 'old_log_prob', 'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
-            
+
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids'])
 
@@ -373,6 +372,7 @@ class ActorHybridWorkerBase(BaseWorker):
         if not self.rl_config.filter_groups_enable:
             start_sharding_exit_infer = time.time()
             self.sharding_manager.exit_infer_mode()
+            torch.cuda.empty_cache()
             sharding_infer_interval += (time.time() - start_sharding_exit_infer)
 
             ray.get(
@@ -382,6 +382,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     cumulate=True
                 )
             )
+            logger.info("finish generate_sequences")
 
 
     @mstx_timer_decorator
@@ -437,9 +438,12 @@ class ActorHybridWorkerBase(BaseWorker):
                             cumulate=True
                         )
                 )
+        self.sharding_manager.exit_forward_mode()
+        torch.cuda.empty_cache()
 
         profiler_step(actor_compute_log_prob_profiler)
         MsProbe.debugger_stop('actor_compute_log_prob')
+        logger.info("finish compute_log_prob")
 
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(

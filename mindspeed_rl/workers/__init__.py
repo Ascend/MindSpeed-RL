@@ -7,6 +7,7 @@ from .actor_hybrid_worker import ActorHybridWorker
 from .scheduler import RayActorGroup
 from .resharding.megatron_sharding_manager import MegatronShardingManager
 from .rule_reward import RuleReward
+from .critic_worker import CriticWorker
 
 __all__ = [
     'ReferenceWorker',
@@ -14,5 +15,6 @@ __all__ = [
     'ActorHybridWorker',
     'RayActorGroup',
     'MegatronShardingManager',
-    'RuleReward'
+    'RuleReward',
+    'CriticWorker'
 ]

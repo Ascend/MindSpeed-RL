@@ -19,7 +19,7 @@ launch remote worker task:
 """
 
 from types import ModuleType
-from typing import Type, Dict, Callable, Tuple, List, Optional
+from typing import Type, Dict, Callable, Tuple, List, Optional, Union
 from dataclasses import dataclass
 import acl
 
@@ -37,21 +37,25 @@ from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
+from mindspeed_rl.workers.critic_worker import CriticWorker
 
 
 def get_rl_resource_by_worker_type(rl_config: RLConfig, worker: Type[BaseWorker]):
     if (worker.__ray_actor_class__.__name__ ==
-            ActorHybridWorker.__ray_actor_class__.__name__):
+        ActorHybridWorker.__ray_actor_class__.__name__):
         return rl_config.actor_resource
     elif (worker.__ray_actor_class__.__name__ ==
-          IntegratedWorker.__ray_actor_class__.__name__):
+        IntegratedWorker.__ray_actor_class__.__name__):
         return rl_config.actor_resource
     elif (worker.__ray_actor_class__.__name__ ==
-          RewardWorker.__ray_actor_class__.__name__):
+        RewardWorker.__ray_actor_class__.__name__):
         return rl_config.reward_resource
     elif (worker.__ray_actor_class__.__name__ ==
-          ReferenceWorker.__ray_actor_class__.__name__):
+        ReferenceWorker.__ray_actor_class__.__name__):
         return rl_config.reference_resource
+    elif (worker.__ray_actor_class__.__name__ ==
+        CriticWorker.__ray_actor_class__.__name__):
+        return rl_config.critic_resource
     else:
         return None
 
@@ -106,6 +110,14 @@ def construct_placement_groups(num_npus, num_cpus, num_devices_per_node, num_nod
     return placement_groups
 
 
+def construct_colocate_placement_groups(rl_config) \
+        -> List[PlacementGroup]:
+    num_npus = get_npu_deployment(rl_config, ActorHybridWorker)
+    num_deivces_per_node, num_nodes = get_device_information(num_npus)
+    return construct_placement_groups(num_npus, rl_config.num_cpus_for_placement_group,
+                                      num_deivces_per_node, num_nodes)
+
+
 @dataclass
 class ActorHandlerParams:
     placement_group: PlacementGroup
@@ -120,7 +132,7 @@ class RayActorGroup:
     def __init__(
             self,
             worker: Type[BaseWorker],
-            placement_group: PlacementGroup,
+            placement_group: Union[PlacementGroup, List[PlacementGroup]],
             megatron_config: MegatronConfig,
             rl_config: RLConfig,
             model_provider: Callable,
@@ -152,6 +164,7 @@ class RayActorGroup:
         kwargs              : keyword arguments
         """
         self.worker = worker
+        self.placement_group = placement_group
         self.megatron_config = megatron_config
         self.rl_config = rl_config
         self.generate_config = generate_config
@@ -170,16 +183,17 @@ class RayActorGroup:
         self.num_devices_per_node, self.num_nodes = (
             get_device_information(self.num_npus))
         self.initialize_actor_handlers(placement_group)
-
+        
     def initialize_actor_handlers(self, placement_group):
         world_size = self.num_npus
         placement_group = self.get_placement_group(placement_group=placement_group)
-
+        self.placement_group = placement_group
         master_actor = self.build_master_actor(placement_group, world_size)
         if world_size > 1:
             self.build_worker_actor(master_actor, placement_group, world_size)
 
-    def get_placement_group(self, placement_group: PlacementGroup = None) -> PlacementGroup:
+    def get_placement_group(self, placement_group: PlacementGroup = None) \
+            -> Union[PlacementGroup, List[PlacementGroup]]:
         if placement_group is not None:
             return placement_group
         return construct_placement_groups(self.num_npus, self.rl_config.num_cpus_for_placement_group,
@@ -301,6 +315,25 @@ class RayActorGroup:
             actor_train_objs.append(actor.update.remote(kl_ctrl, skip_actor_log_prob))
         return ray.get(actor_train_objs)
 
+    def update_actor(self, skip_actor_log_prob, kl_ctrl=None):
+        actor_train_objs = []
+        for actor in self.actor_handlers:
+            actor_train_objs.append(actor.update.remote(kl_ctrl, skip_actor_log_prob))
+        return ray.get(actor_train_objs)
+
+    def update_critic(self, blocking=False, kl_ctrl=None):
+        actor_train_objs = []
+        for actor in self.actor_handlers:
+            actor_train_objs.append(actor.update.remote(kl_ctrl))
+        if blocking:
+            ray.get(actor_train_objs)
+
+    def compute_values(self, blocking=False):
+        for actor in self.actor_handlers:
+            self.temp_actor_ref_objs.append(actor.compute_values.remote())
+        if blocking:
+            ray.get(self.temp_actor_ref_objs)
+
     def save_checkpoint(self, iteration):
         actor_train_objs = []
         for actor in self.actor_handlers:
@@ -310,6 +343,7 @@ class RayActorGroup:
     def initialize(self):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.initialize.remote())
+        ray.get(self.temp_actor_ref_objs)
         return self
 
     def get_consumed_train_samples(self):

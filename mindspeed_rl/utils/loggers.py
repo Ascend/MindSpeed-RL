@@ -35,7 +35,7 @@ class Loggers(object):
             fmt_msg += f"iteration: {iteration} / {steps} | "
             if isinstance(msg, dict):
                 for key in msg:
-                    if key == "param/lr":
+                    if "lr" in key:
                         lr = "{:e}".format(msg[key])
                         fmt_msg += f"{key} : {lr} | "
                     else:

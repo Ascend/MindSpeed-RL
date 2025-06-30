@@ -61,11 +61,13 @@ class TestComputeGroupNormAdvantageReturn(DistributedTest):
     def test_compute_group_norm_advantage_return(self):
         import torch
         from mindspeed_rl.trainer.utils.compute_utils import compute_group_norm_advantage_return
-        token_level_rewards = torch.tensor([[1.0]])
-        eos_mask = torch.tensor([[True, True], [True, True]])
-        expected_advantages = torch.tensor([[1.0, 1.0], [1.0, 1.0]])
-        expected_returns = torch.tensor([[1.0, 1.0], [1.0, 1.0]])
-        advantages, returns = compute_group_norm_advantage_return(token_level_rewards, eos_mask)
+        token_level_rewards = torch.tensor([[1.0, 2.0]])
+        eos_mask = torch.tensor([[True, True]])
+        response_length = torch.tensor([[2], [2]])
+        n_sample_per_prompt = 2
+        expected_advantages = torch.tensor([[-0.7071, -0.7071], [0.7071, 0.7071]])
+        expected_returns = torch.tensor([[-0.7071, -0.7071], [0.7071, 0.7071]])
+        advantages, returns = compute_group_norm_advantage_return(token_level_rewards, eos_mask, response_length, n_sample_per_prompt)
         assert torch.allclose(advantages, expected_advantages)
         assert torch.allclose(returns, expected_returns)
 

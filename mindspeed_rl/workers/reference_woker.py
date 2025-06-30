@@ -159,7 +159,6 @@ class ReferenceWorkerBase(BaseWorker):
                     )
             )
         logger.info("finish compute ref log prob")
-        self.empty_cache()
 
 
 @ray.remote(resources={"NPU": 0.3})

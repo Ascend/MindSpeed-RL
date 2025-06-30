@@ -10,9 +10,10 @@ def validate_rl_args(
         ref_config: MegatronConfig,
         reward_config: MegatronConfig,
         rl_config: RLConfig,
-        generate_config: GenerateConfig
+        generate_config: GenerateConfig,
+        critic_config: MegatronConfig = None
     ):
-    
+
     #检查后端参数设置
     if hasattr(actor_config, "ai_framework"):
         ai_framework = actor_config.ai_framework
@@ -48,7 +49,7 @@ def validate_rl_args(
             f"Sequence length exceeds vLLM max_model_len! "
             f"Actor.seq_length={actor_config.seq_length} vs "
             f"GenerateConfig.max_model_len={generate_config.max_model_len}")
-        
+
     if actor_config.context_parallel_size > 1 and actor_config.context_parallel_algo is not None:
         if actor_config.context_parallel_algo not in ["ulysses_cp_algo"]:
             raise ValueError("Now just support ulysses CP")
@@ -138,13 +139,21 @@ def validate_rl_args(
 
     # 计算数据并行度
     actor_data_parallel_size = rl_config.actor_resource.num_npus // (
-            actor_config.tensor_model_parallel_size *
-            actor_config.pipeline_model_parallel_size *
-            actor_config.context_parallel_size)
+        actor_config.tensor_model_parallel_size *
+        actor_config.pipeline_model_parallel_size *
+        actor_config.context_parallel_size
+    )
 
     generate_config.data_parallel_size = rl_config.actor_resource.num_npus // (
-            generate_config.infer_tensor_parallel_size *
-            generate_config.infer_pipeline_parallel_size)
+        generate_config.infer_tensor_parallel_size *
+        generate_config.infer_pipeline_parallel_size
+    )
+
+    if rl_config.critic_resource:
+        critic_data_parallel_size = rl_config.critic_resource.num_npus // (
+            critic_config.tensor_model_parallel_size *
+            critic_config.pipeline_model_parallel_size *
+            critic_config.context_parallel_size)
 
     if generate_config.infer_pipeline_parallel_size > 1:
         raise ValueError(
@@ -152,9 +161,10 @@ def validate_rl_args(
 
     if ref_config:
         ref_data_parallel_size = rl_config.reference_resource.num_npus // (
-                ref_config.tensor_model_parallel_size *
-                ref_config.pipeline_model_parallel_size *
-                ref_config.context_parallel_size)
+            ref_config.tensor_model_parallel_size *
+            ref_config.pipeline_model_parallel_size *
+            ref_config.context_parallel_size
+        )
 
     _validate_data_parallel(actor_config.global_batch_size,
                             actor_data_parallel_size,
@@ -181,9 +191,10 @@ def validate_rl_args(
 
     if rl_config.reward_resource:
         reward_data_parallel_size = rl_config.reward_resource.num_npus // (
-                reward_config.tensor_model_parallel_size *
-                reward_config.pipeline_model_parallel_size *
-                reward_config.context_parallel_size)
+            reward_config.tensor_model_parallel_size *
+            reward_config.pipeline_model_parallel_size *
+            reward_config.context_parallel_size
+        )
 
         if not rl_config.use_integrated_worker:
             _validate_data_parallel(reward_config.global_batch_size,
@@ -207,9 +218,9 @@ def validate_rl_args(
     )
     if rl_config.reward_resource:
         reward_data_parallel_size = rl_config.reward_resource.num_npus // (
-                reward_config.tensor_model_parallel_size *
-                reward_config.pipeline_model_parallel_size *
-                reward_config.context_parallel_size)
+            reward_config.tensor_model_parallel_size *
+            reward_config.pipeline_model_parallel_size *
+            reward_config.context_parallel_size)
         rl_config.reward_dispatch_size = (
             rl_config.reward_dispatch_size or
             (reward_config.global_batch_size * rl_config.n_samples_per_prompt // reward_data_parallel_size)
@@ -224,6 +235,19 @@ def validate_rl_args(
         rl_config.actor_logprob_dispatch_size = \
             (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
         rl_config.adv_dispatch_size = (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt)
+
+    if rl_config.critic_resource:
+        rl_config.critic_update_dispatch_size = (
+            rl_config.critic_update_dispatch_size or
+            (critic_config.global_batch_size * rl_config.n_samples_per_prompt // critic_data_parallel_size)
+        )
+        rl_config.critic_value_dispatch_size = (
+            rl_config.critic_value_dispatch_size or
+            (critic_config.global_batch_size * rl_config.n_samples_per_prompt // critic_data_parallel_size)
+        )
+        rl_config.kl_dispatch_size = (
+            rl_config.kl_dispatch_size or (critic_config.global_batch_size * rl_config.n_samples_per_prompt)
+        )
 
     # 校验经验计数与全局批次关系
     def _validate_experience_ratio(global_batch, experience_count, component):
@@ -249,9 +273,19 @@ def validate_rl_args(
                                    rl_config.reward_dispatch_size,
                                    "Rule Reward")
 
-    _validate_experience_ratio(reward_config.global_batch_size,
+    _validate_experience_ratio(actor_config.global_batch_size,
                                rl_config.adv_dispatch_size,
                                "Advantages")
+    if rl_config.critic_resource:
+        _validate_experience_ratio(critic_config.global_batch_size,
+                                   rl_config.critic_value_dispatch_size,
+                                   "Critic Infer")
+        _validate_experience_ratio(critic_config.global_batch_size,
+                                   rl_config.kl_dispatch_size,
+                                   "KL")
+        _validate_experience_ratio(critic_config.global_batch_size,
+                                   rl_config.critic_update_dispatch_size,
+                                   "Critic Update")
 
     if not rl_config.use_integrated_worker:
         rl_config.actor_update_dispatch_size = (

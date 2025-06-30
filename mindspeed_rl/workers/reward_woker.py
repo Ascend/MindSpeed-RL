@@ -65,7 +65,7 @@ class RewardWorkerBase(BaseWorker):
         else:
             self.megatron_config.iteration = 0
             self.megatron_config.num_floating_point_operations_so_far = 0
-            
+
         megatron_module = self.get_megatron_module()
 
         self.reward = Reward(
@@ -134,7 +134,7 @@ class RewardWorkerBase(BaseWorker):
                         rm_score,
                         n_sample_batch=self.rl_config.n_samples_per_prompt
                     )
-                    output = {'rm_scores': rm_score, 'token_level_rewards': last_rewards}
+                    output = {'rm_scores': rm_score}
                 self.collect_transfer_dock_data(output, index)
                 end_time = time.time()
                 ray.get(

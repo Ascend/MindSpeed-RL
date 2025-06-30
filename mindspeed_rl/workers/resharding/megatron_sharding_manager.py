@@ -266,6 +266,21 @@ class MegatronShardingManager:
             self.megatron_offloader.onload_param()
 
     @mstx_timer_decorator
+    def exit_forward_mode(self):
+        """
+        Before:
+            Empty.
+
+        After:
+            With training param on NPU.
+
+        Process:
+            1. onload training param
+        """
+        if self.train_param_offload:
+            self.megatron_offloader.offload_param()
+
+    @mstx_timer_decorator
     def enter_train_mode(self):
         """
         Before:
@@ -282,6 +297,8 @@ class MegatronShardingManager:
             self.megatron_offloader.onload_optimizer()
         if self.grad_offload:
             self.megatron_offloader.onload_grad()
+        if self.train_param_offload:
+            self.megatron_offloader.onload_param()
 
     @mstx_timer_decorator
     def exit_train_mode(self):

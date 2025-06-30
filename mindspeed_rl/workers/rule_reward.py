@@ -38,7 +38,7 @@ class RuleReward(object):
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         cur_td = self.sampling_transfer_dock if self.sampling_transfer_dock else self.td
-        
+
         while not ray.get(cur_td.all_consumed.remote(experience_consumer_stage)):
             batch_data, index = ray.get(
                 cur_td.get_experience.remote(
@@ -63,20 +63,24 @@ class RuleReward(object):
                             use_verifier_mask[::self.n_samples_per_prompt]] for key, value in batch_data.items()}
                     ignore_token = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
-                    token_level_rewards, metrics, original_scores = compute_verifier_score(batch_data, self.megatron_config, self.rl_config,
-                                                                        self.hf_tokenizer, ignore_token)
+                    rm_scores, metrics, original_scores = compute_verifier_score(
+                        batch_data,
+                        self.megatron_config,
+                        self.rl_config,
+                        self.hf_tokenizer,
+                        ignore_token
+                    )
 
                     for key, value in metrics.items():
                         ray.get(self.td.update_metrics.remote(key, value=value, cumulate=True))
 
-                    output = {"rm_scores": token_level_rewards, "token_level_rewards": token_level_rewards,
-                            "reward_for_dapo": original_scores}
+                    output = {"rm_scores": rm_scores, "reward_for_dapo": original_scores}
                     if self.rl_config.filter_groups_enable:
                         metric = torch.tensor(metrics[self.rl_config.filter_groups_metric], dtype=torch.float32,
-                                            device=token_level_rewards.device)
-                        metric = metric.reshape(token_level_rewards.shape)
+                                            device=rm_scores.device)
+                        metric = metric.reshape(rm_scores.shape)
                         output["metric_for_dapo"] = metric
-
+                    logger.info("finish compute scores")
                     cur_td.put_experience.remote(data_dict=output, indexes=index)
                 else:
                     mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))

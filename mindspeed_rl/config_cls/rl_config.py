@@ -64,10 +64,12 @@ class RLConfig(BaseConfig):
         self.actor_resource = {"num_npus": None}
         self.reference_resource = None
         self.reward_resource = None
+        self.critic_resource = None
         self.num_samples_per_step = 1
         self.max_prompt_length = 512
         self.epochs = 1
         self.clip_ratio = 0.2
+        self.cliprange_value = 0.5
         self.entropy_coeff = 0.0
         self.gamma = 1.0
         self.lam = 0.95
@@ -108,6 +110,9 @@ class RLConfig(BaseConfig):
         self.reward_dispatch_size = None
         self.adv_dispatch_size = None
         self.actor_update_dispatch_size = None
+        self.critic_update_dispatch_size = None
+        self.critic_value_dispatch_size = None
+        self.kl_dispatch_size = None
 
         self.is_multimodal = False
         self.use_remove_padding = False

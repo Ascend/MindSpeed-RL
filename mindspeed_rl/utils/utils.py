@@ -215,7 +215,7 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
 
 def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     custom_order = ['timing/all', 'timing/update', 'timing/rollout', 'timing/old_log_p', 'timing/reference_model', 'timing/resharding_to_infer', 'timing/resharding_to_train', 'timing/adv', 'timing/non_overlap_reference_model']    
-    special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/non_overlap_adv', 'timing/rule_reward', 'timing/reward_model', 'timing/ref_onload', 'timing/ref_offload']
+    special_keys = ['timing/non_overlap_rule_reward', 'timing/non_overlap_reward_model', 'timing/non_overlap_adv', 'timing/rule_reward', 'timing/reward_model', 'timing/ref_onload', 'timing/ref_offload', "timing/critic_model", "timing/update_critic"]
     old_log_p_end_time = metrics.pop('end_time/old_log_p', None)
     end_adv_time = metrics.pop('end_time/end_adv_time', None)
 

@@ -128,16 +128,13 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
         device=reward_index.device
     ).reshape(reward_index.shape)
 
-    scores = scores.reshape(-1, rl_config.n_samples_per_prompt)
-    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-6)
-    scores = scores.reshape(reward_index.shape)
-
     scores = torch.tensor(
         scores,
         dtype=torch.float32,
         device=reward_index.device
     )
 
+    scores = scores.reshape(reward_index.shape)
     end_time = time.time()
     metrics["timing/rule_reward"] = [round(end_time, 4), round(start_time, 4)]
     metrics["start_time/rule_reward"] = [round(start_time, 4)]
@@ -163,6 +160,7 @@ def verifier(responses, data, config, **kwargs):
     Return:
         scores(List[`float`]): Final scores.
     """
+    logger.info(f"compute_verifier_score: verifier start")
     rule_verifier_function = {
         "acc": accuracy_reward,
         "format": format_reward,
@@ -170,7 +168,8 @@ def verifier(responses, data, config, **kwargs):
         "strict_format": strict_format_reward,
         "base_acc": base_model_accuracy_reward,
         "math_17k_acc": math_17k_accuracy_reward,
-        "acc_for_dapo": accuracy_reward_for_dapo
+        "acc_for_dapo": accuracy_reward_for_dapo,
+        "acc_for_ppo": ppo_accuracy_reward
     }
 
     labels = data["labels"]
@@ -188,7 +187,7 @@ def verifier(responses, data, config, **kwargs):
         metrics[f'grpo/{fun_verifier}_rewards/mean'] = scores
         rewards = [all_score + tmp_score * verifier_weight[idx]
                   for all_score, tmp_score in zip(rewards, scores)]
-
+    logger.info(f"compute_verifier_score: verifier end")
     return rewards, metrics
 
 
@@ -253,6 +252,15 @@ def math_17k_accuracy_reward(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
         box_match = new_acc(sequence, answer)
+        scores.append(box_match)
+
+    return scores
+
+
+def ppo_accuracy_reward(sequences, answers, *args, **kwargs):
+    scores = []
+    for sequence, answer in zip(sequences, answers):
+        box_match = math_acc_reward(sequence, answer)
         scores.append(box_match)
 
     return scores
@@ -460,3 +468,26 @@ def math_compute_score(predict_str: str, ground_truth: str, acc_ratio=0.9, forma
     Compute score for math questions by format and accuary reward.
     """
     return acc_ratio * math_acc_reward(predict_str, ground_truth) + format_ratio * math_format_reward(predict_str)
+
+
+def math_format_and_acc_score(predict_str: str, ground_truth: str, acc_ratio=0.95, format_ratio=0.05) -> float:
+    """
+    Compute score for math questions by format and accuary reward.
+    """
+    box_match = extract_boxed_content(predict_str)
+    if box_match:
+        if grade_answer(answer, ground_truth):
+            accuracy_score = 1.0
+        else:
+            accuracy_score = 0.05
+    else:
+        accuracy_score = 0.0
+
+    pattern = re.compile(r"<think>.*</think>.*<answer>.*\\boxed\{.*\}.*</answer>", re.DOTALL)
+    format_match = re.fullmatch(pattern, sequence)
+    if format_match:
+        format_score = 1.0
+    else:
+        format_score = 0.0
+
+    return acc_ratio * accuracy_score + format_ratio * format_score

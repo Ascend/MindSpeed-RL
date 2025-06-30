@@ -51,8 +51,16 @@ def validate_rl_args(
             f"GenerateConfig.max_model_len={generate_config.max_model_len}")
 
     if actor_config.context_parallel_size > 1 and actor_config.context_parallel_algo is not None:
-        if actor_config.context_parallel_algo not in ["ulysses_cp_algo"]:
-            raise ValueError("Now just support ulysses CP")
+        if actor_config.context_parallel_algo not in ["ulysses_cp_algo", "megatron_cp_algo"]:
+            raise ValueError("Now just support ulysses CP and megatron cp(ring)")
+    if actor_config.cp_attention_mask_type not in ["causal"]:
+        raise ValueError("Now just support causal attention_mask_type")
+    if actor_config.context_parallel_algo == "megatron_cp_algo" and actor_config.context_parallel_size > 1 and rl_config.use_remove_padding:
+        if not actor_config.reset_attention_mask:
+            raise ValueError("when use ring cp and remove_padding, reset_attention_mask must be true")
+    if actor_config.context_parallel_size <= 1 or actor_config.context_parallel_algo != "megatron_cp_algo" or not rl_config.use_remove_padding:
+        if actor_config.reset_attention_mask:
+            raise ValueError("Just when use ring cp >=2 with remove_padding, reset_attention_mask must be true; otherwise should be false")
 
     # 校验移除填充特性相关配置
     if rl_config.use_remove_padding:

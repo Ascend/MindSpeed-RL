@@ -247,7 +247,7 @@ def get_megatron_module():
     from megatron.training.training import setup_model_and_optimizer
     from megatron.core.enums import ModelType
     from megatron.core.distributed import finalize_model_grads
-    from mindspeed.utils import set_actual_seq_len
+    from mindspeed.utils import set_actual_seq_len, set_position_ids, get_actual_seq_len
 
     return {
         'parallel_state': parallel_state,
@@ -267,7 +267,9 @@ def get_megatron_module():
         'model_type': ModelType,
         'distributed_data_parallel': DistributedDataParallel,
         'finalize_model_grads': finalize_model_grads,
-        'set_actual_seq_len': set_actual_seq_len
+        'set_actual_seq_len': set_actual_seq_len,
+        'get_actual_seq_len': get_actual_seq_len,
+        'set_position_ids': set_position_ids
     }
 
 

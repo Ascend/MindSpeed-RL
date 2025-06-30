@@ -65,11 +65,10 @@ class RewardWorkerBase(BaseWorker):
         else:
             self.megatron_config.iteration = 0
             self.megatron_config.num_floating_point_operations_so_far = 0
-
-        megatron_module = self.get_megatron_module()
-
+            
         self.reward = Reward(
             self.model,
+            megatron_config=self.megatron_config,
             beta=self.rl_config.beta,
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
@@ -77,8 +76,9 @@ class RewardWorkerBase(BaseWorker):
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             max_packing_token_size=self.rl_config.max_packing_token_size,
             use_remove_padding=self.rl_config.use_remove_padding,
-            set_actual_seq_len=megatron_module['set_actual_seq_len'],
-            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            set_actual_seq_len=self.set_actual_seq_len,
+            get_actual_seq_len=self.get_actual_seq_len,
+            set_position_ids=self.set_position_ids,
             context_parallel_size=self.megatron_config.context_parallel_size,
             temperature=self.generate_config.sampling_config["temperature"]
         )

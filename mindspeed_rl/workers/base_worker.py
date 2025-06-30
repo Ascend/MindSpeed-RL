@@ -463,7 +463,10 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_mm_data = unpack_mm_experience(batch_mm_data)
                 padded_batch_data.update(batch_mm_data)
             else:
-                padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size * cp_size)
+                if cp_algo == "megatron_cp_algo":
+                    padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, 2 * tp_size * cp_size)
+                else:
+                    padded_batch_data = unpack_pad_experience(batch_data, batch_data_length, pad_id, tp_size * cp_size)
 
             return padded_batch_data, index_without_pad
         else:

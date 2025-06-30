@@ -11,12 +11,13 @@ import torch.nn.functional as F
 from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.models.loss.loss_func_factory import LossFuncFactory
 from mindspeed_rl.utils.utils import (
-    append_to_dict, generate_mask, generate_position_ids, get_tune_attention_mask, is_multimodal
+    append_to_dict, generate_mask, generate_position_ids, is_multimodal
 )
 from mindspeed_rl.utils.seqlen_balancing import rearrange_micro_batches, get_reverse_idx
 from mindspeed_rl.utils.remove_padding import preprocess_packed_seqs, postprocess_packed_seqs
 from mindspeed_rl.utils.compute import get_parallel_state
-from mindspeed_rl.utils.utils import get_batch_on_this_cp_rank, is_multimodal
+from mindspeed_rl.utils.context_parallel import get_batch_on_this_cp_rank, get_ring_degree, get_output_allgather_cp_with_pack, get_output_allgather_cp_without_pack
+from mindspeed_rl.utils.utils import is_multimodal
 
 
 class BaseTrainingEngine(ABC):
@@ -50,6 +51,7 @@ class BaseTrainingEngine(ABC):
             model,
             optimizer=None,
             opt_param_scheduler=None,
+            megatron_config=None,
             beta: float = 0,
             mini_batch_size_per_dp: int = 1,
             epochs: int = 1,
@@ -64,9 +66,10 @@ class BaseTrainingEngine(ABC):
             max_packing_token_size: bool = 4096,
             use_remove_padding: bool = False,
             set_actual_seq_len: Callable = None,
+            get_actual_seq_len: Callable = None,
+            set_position_ids: Callable = None,
             forward_backward_func: Callable = None,
             entropy_coeff: float = 0.0,
-            context_parallel_algo: str = "ulysses_cp_algo",
             context_parallel_size: int = 1,
             kl_penalty: str = "low_var_kl",
             token_level_loss: bool = False,
@@ -81,7 +84,10 @@ class BaseTrainingEngine(ABC):
         self.max_packing_token_size = max_packing_token_size
         self.use_remove_padding = use_remove_padding
         self.set_actual_seq_len = set_actual_seq_len
+        self.get_actual_seq_len = get_actual_seq_len
+        self.set_position_ids = set_position_ids
         self.model = model
+        self.megatron_config = megatron_config
         self.optimizer = optimizer
         self.opt_param_scheduler = opt_param_scheduler
         self.beta = beta
@@ -94,7 +100,6 @@ class BaseTrainingEngine(ABC):
         self.kl_penalty = kl_penalty
         self.clip_ratio = clip_ratio
         self.entropy_coeff = entropy_coeff
-        self.context_parallel_algo = context_parallel_algo
         self.context_parallel_size = context_parallel_size
         self.temperature = temperature
         self.token_level_loss = token_level_loss
@@ -168,13 +173,16 @@ class BaseTrainingEngine(ABC):
                                                      return_tensor=True)
                     output.div_(self.temperature)
             elif self.use_remove_padding:
-                input_ids, position_ids, process_batch, seqlens_in_batch, cu_seqlens_padded = self._get_forward_batch_info(batch_iter)
-                self.set_actual_seq_len(cu_seqlens_padded.tolist())
+                input_ids, position_ids, process_batch, seqlens_in_batch, cu_seqlens_padded, index = self._get_forward_batch_info(batch_iter)
                 output_orig = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
                 if not post_process:
                     output = output_orig
                     output.div_(self.temperature)
                 else:
+                    if cp_size > 1:
+                        output_orig = get_output_allgather_cp_with_pack(output_orig, cp_size, index)
+                    if self.megatron_config.cp_attention_mask_type == 'causal':
+                        cu_seqlens_padded *= get_ring_degree(self.megatron_config)
                     output = postprocess_packed_seqs(output=output_orig,
                                                      seqlens_in_batch=seqlens_in_batch,
                                                      cu_seqlens_padded=cu_seqlens_padded,
@@ -182,14 +190,11 @@ class BaseTrainingEngine(ABC):
                     for item in output:
                         item.div_(self.temperature)
             else:
-                input_ids, attention_mask, position_ids, process_batch = self._get_forward_batch_info(batch_iter)
-                output = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
+                input_ids, position_ids, process_batch, index = self._get_forward_batch_info(batch_iter)
+                output = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
                 if post_process:
                     if cp_size > 1:
-                        output_list = [torch.empty_like(output) for _ in range(cp_size)]
-                        torch.distributed.all_gather(output_list, output.detach(), group=get_parallel_state().get_context_parallel_group())
-                        output_list[get_parallel_state().get_context_parallel_rank()] = output
-                        output = torch.cat(output_list, dim=1)
+                        output = get_output_allgather_cp_without_pack(output, cp_size, index)
                 output.div_(self.temperature)
             return output, partial(self.loss_func.compute_loss,
                                    batch=process_batch,
@@ -225,33 +230,52 @@ class BaseTrainingEngine(ABC):
         """
         return {}
 
+    def _get_batch_data_with_cp(self, input_ids, position_ids):
+        batch_for_cp = {
+            'input_ids': input_ids,
+            'position_ids': position_ids
+        }
+        batch_cp, index = get_batch_on_this_cp_rank(self.megatron_config, batch_for_cp, self.get_actual_seq_len())
+        input_ids = batch_cp['input_ids']
+        position_ids = batch_cp['position_ids']
+        self.set_position_ids(position_ids.transpose(0, 1).contiguous())
+        return input_ids, position_ids, index
+
+
     def _get_forward_batch_info(self, batch_iter):
         batch = next(batch_iter)
         input_ids = batch['input_ids']
         attention_mask_1d = generate_mask(input_ids, batch['prompt_length'] + batch['response_length']).to(
             input_ids.device)
         cp_size = get_parallel_state().get_context_parallel_world_size()
+        index = None
         if self.use_remove_padding:
             tp_size = get_parallel_state().get_tensor_model_parallel_world_size()
+            if self.megatron_config.context_parallel_algo == "megatron_cp_algo":
+                multi = 2 * tp_size * cp_size
+            else:
+                multi = tp_size * cp_size
+            
             input_ids, position_ids, seqlens_in_batch, cu_seqlens_padded = preprocess_packed_seqs(
-                input_ids=input_ids, attention_mask_1d=attention_mask_1d, tp_size=tp_size)
-            return input_ids, position_ids, batch, seqlens_in_batch, cu_seqlens_padded
+                input_ids=input_ids, attention_mask_1d=attention_mask_1d, tp_size=multi)
+
+            if self.megatron_config.cp_attention_mask_type == 'causal': 
+                cu_seqlens_padded /= get_ring_degree(self.megatron_config)
+            self.set_actual_seq_len(cu_seqlens_padded.tolist())
+
+            if cp_size > 1:
+                input_ids, position_ids, index = self._get_batch_data_with_cp(input_ids, position_ids)
+                
+            return input_ids, position_ids, batch, seqlens_in_batch, cu_seqlens_padded, index
+        
         else:
             position_ids = torch.tensor(generate_position_ids(input_ids)).to(input_ids.device)
-            attention_mask = get_tune_attention_mask(attention_mask_1d)
+            
             if cp_size > 1:
-                batch_for_cp = {
-                    'input_ids': input_ids,
-                    'attention_mask': attention_mask,
-                    'position_ids': position_ids
-                }
-                batch_cp = get_batch_on_this_cp_rank(self.context_parallel_algo, self.context_parallel_size, batch_for_cp)
-                input_ids = batch_cp['input_ids']
-                attention_mask = None
-                position_ids = batch_cp['position_ids']
+                input_ids, position_ids, index = self._get_batch_data_with_cp(input_ids, position_ids)
 
-        return input_ids, attention_mask, position_ids, batch
-
+        return input_ids, position_ids, batch, index
+    
     def _get_mulitmodal_forward_batch_info(self, batch_iter):
         batch = next(batch_iter)
         input_ids = batch['input_ids']

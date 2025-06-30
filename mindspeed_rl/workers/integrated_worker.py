@@ -91,10 +91,10 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         self.load_checkpoint_with_path(self.ref_model, ref_model_load_path, ckpt_only=True)
         self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
         self.ref_manager.offload_param()
-        megatron_module = self.get_megatron_module()
-
+        
         self.reference = Reference(
             self.ref_model,
+            megatron_config=self.megatron_config,
             beta=self.rl_config.beta,
             mini_batch_size=self.rl_config.mini_batch_size,
             epochs=self.rl_config.epochs,
@@ -106,8 +106,9 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             max_packing_token_size=self.rl_config.max_packing_token_size,
             use_remove_padding=self.rl_config.use_remove_padding,
-            set_actual_seq_len=megatron_module['set_actual_seq_len'],
-            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            set_actual_seq_len=self.set_actual_seq_len,
+            get_actual_seq_len=self.get_actual_seq_len,
+            set_position_ids=self.set_position_ids,
             context_parallel_size=self.megatron_config.context_parallel_size,
             temperature=self.generate_config.sampling_config["temperature"]
         )

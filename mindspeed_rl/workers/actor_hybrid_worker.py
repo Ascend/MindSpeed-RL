@@ -98,13 +98,13 @@ class ActorHybridWorkerBase(BaseWorker):
 
         self.inference_model = self._build_rollout()
         self.sharding_manager = self._build_sharding_manager()
-        megatron_module = self.get_megatron_module()
 
         if self.generate_config.offload_train_param:
             self.actor_offloader.onload_param()
 
         self.actor_hybrid = ActorRolloutHybrid(
             self.model,
+            megatron_config=self.megatron_config,
             optimizer=self.optimizer,
             opt_param_scheduler=self.opt_param_scheduler,
             inference_model=self.inference_model,
@@ -122,8 +122,9 @@ class ActorHybridWorkerBase(BaseWorker):
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             max_packing_token_size=self.rl_config.max_packing_token_size,
             use_remove_padding=self.rl_config.use_remove_padding,
-            set_actual_seq_len=megatron_module['set_actual_seq_len'],
-            context_parallel_algo=self.megatron_config.context_parallel_algo,
+            set_actual_seq_len=self.set_actual_seq_len,
+            get_actual_seq_len=self.get_actual_seq_len,
+            set_position_ids=self.set_position_ids,
             context_parallel_size=self.megatron_config.context_parallel_size,
             entropy_coeff=self.rl_config.entropy_coeff,
             kl_penalty=self.rl_config.kl_penalty,

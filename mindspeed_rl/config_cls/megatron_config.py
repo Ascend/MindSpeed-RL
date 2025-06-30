@@ -201,6 +201,8 @@ class MegatronConfig(BaseConfig):
     moe_tp_extend_ep: use tp group to extend experts parallelism instead of sharding weight tensor of experts in tp group
     moe_alltoall_overlap_comm: moe_alltoall_overlap_comm
     noop_layers:  noop layers string
+    cp_attention_mask_type: attention mask type in cp
+    reset_attention_mask: reset attention_mask in cp
     use_ascend_coc: switch to open CoC feature (default: False)
     coc_mode: 0=original, 1=rewrite, 2=coc default
     coc_parallel_num: number of parallel in CoC features (default: 1)
@@ -370,6 +372,8 @@ class MegatronConfig(BaseConfig):
         self.swap_attention = False
         self.ai_framework = None
         self.noop_layers = None
+        self.cp_attention_mask_type = 'causal'
+        self.reset_attention_mask = False
 
         self.use_ascend_coc = False
         self.coc_mode = -1

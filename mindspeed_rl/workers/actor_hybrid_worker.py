@@ -276,7 +276,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 torch.cuda.empty_cache()
 
                 with replace_torch_compile():
-                    responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list))
+                    responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), extra_info=batch_data)
                 responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
 
                 responses_length = [torch.tensor([len(response)]) for response in responses]

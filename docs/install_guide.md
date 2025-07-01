@@ -95,6 +95,7 @@ cd ..
 git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
 git checkout dedace4c
+pip install -r requirements.txt
 pip install -e .
 ```
 

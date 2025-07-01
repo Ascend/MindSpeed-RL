@@ -19,9 +19,11 @@ export LCAL_COMM_ID=127.0.0.1:27001
 NNODES=1
 NPUS_PER_NODE=16
 #修改为对应主节点IP
-MASTER_ADDR="localhost"
-#获取当前机器IP
-CURRENT_IP=$(ip -4 addr show $(ip -o -4 route show to default | awk '{print $5}') | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+MASTER_ADDR="IP FOR MASTER NODE"
+#修改为当前节点的通信网卡
+SOCKET_IFNAME="SOCKET IFNAME FOR CURRENT NODE"
+#获取当前节点IP
+CURRENT_IP=$(ifconfig $SOCKET_IFNAME | grep -Eo 'inet (addr:)?([0-9]{1,3}\.){3}[0-9]{1,3}' | awk '{print $NF}')
 
 if [ "$MASTER_ADDR" = "$CURRENT_IP" ]; then
   # 主节点启动

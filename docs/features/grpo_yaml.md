@@ -126,7 +126,7 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `HCCL_IF_BASE_PORT`：HCCL 通信端口 
 * `CUDA_DEVICE_MAX_CONNECTIONS`：设备最大连接数
 * `HYDRA_FULL_ERROR`：设置 HYDRA 是否输出完整错误日志
-* `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型建议和EP一致，稠密模型设置为1
+* `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型要求和EP一致，稠密模型设置为1
 * `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
 * `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），当前只支持 v1 ，需设置为 '1'。
 * `VLLM_VERSION`：指定使用的vLLM版本号
@@ -135,3 +135,6 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `TASK_QUEUE_ENABLE`：控制开启task_queue算子下发队列优化的等级，推荐设置为 '2' 使能 Level 2 优化。
 * `CPU_AFFINITY_CONF`：指定使用绑核优化，推荐设置为 '1'。
 * `LCAL_COMM_ID`: 开启coc特性时配套启用，设置为'127.0.0.1:27001'。
+* `GLOO_SOCKET_IFNAME`：指定 GLOO 框架通信网卡。
+* `TP_SOCKET_IFNAME`：指定 TP 相关通信网卡。
+* `HCCL_SOCKET_IFNAME`：指定 HCCL 通信网卡。

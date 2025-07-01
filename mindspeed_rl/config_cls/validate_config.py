@@ -3,6 +3,7 @@ import os
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
+from mindspeed_rl.utils.utils import get_node_nums
 
 
 def validate_rl_args(
@@ -234,9 +235,14 @@ def validate_rl_args(
             (reward_config.global_batch_size * rl_config.n_samples_per_prompt // reward_data_parallel_size)
         )
     else:
+        rule_reward_num_process = get_node_nums()
         rl_config.reward_dispatch_size = (
-            rl_config.reward_dispatch_size or (reward_config.global_batch_size * rl_config.n_samples_per_prompt)
+            rl_config.reward_dispatch_size or (reward_config.global_batch_size * rl_config.n_samples_per_prompt // rule_reward_num_process)
         )
+        if reward_config.global_batch_size % rule_reward_num_process != 0:
+            raise ValueError(
+                f"Reward dispatch size configuration error!"
+                f"global_batch_size {reward_config.global_batch_size} must be divisible by the number of nodes in the ray cluster")
 
     # 若开启dapo动态采样，需要更新用于计算adv和logp的dispatch_size
     if rl_config.filter_groups_enable:
@@ -295,12 +301,12 @@ def validate_rl_args(
                                    rl_config.critic_update_dispatch_size,
                                    "Critic Update")
 
-    if not rl_config.use_integrated_worker:
-        rl_config.actor_update_dispatch_size = (
-            rl_config.actor_update_dispatch_size or
-            (actor_config.global_batch_size  * rl_config.n_samples_per_prompt // actor_data_parallel_size)
-        )
+    rl_config.actor_update_dispatch_size = (
+        rl_config.actor_update_dispatch_size or
+        (actor_config.global_batch_size  * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+    )
 
+    if not rl_config.use_integrated_worker:
         # 若开启dapo动态采样，需要更新用于actor更新的dispatch_size
         if rl_config.filter_groups_enable:
             rl_config.actor_update_dispatch_size = \

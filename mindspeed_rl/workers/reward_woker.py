@@ -92,13 +92,7 @@ class RewardWorkerBase(BaseWorker):
         experience_columns = ['input_ids', 'prompt_length', "responses", "response_length",
                               *self.megatron_config.dataset_additional_keys]
 
-        if self.rl_config.use_integrated_worker:
-            experience_count = (
-                    self.megatron_config.global_batch_size //
-                    self.parallel_state.get_data_parallel_world_size()
-            )
-        else:
-            experience_count = self.rl_config.reward_dispatch_size
+        experience_count = self.rl_config.reward_dispatch_size
 
         sorted_indexes = self.get_dp_range_indexes(experience_count,
                                                    use_vllm=False) if self.rl_config.guarantee_order else None

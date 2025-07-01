@@ -40,31 +40,23 @@ from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.workers.critic_worker import CriticWorker
 
 
-def get_rl_resource_by_worker_type(rl_config: RLConfig, worker: Type[BaseWorker]):
-    if (worker.__ray_actor_class__.__name__ ==
-        ActorHybridWorker.__ray_actor_class__.__name__):
-        return rl_config.actor_resource
-    elif (worker.__ray_actor_class__.__name__ ==
-        IntegratedWorker.__ray_actor_class__.__name__):
-        return rl_config.actor_resource
-    elif (worker.__ray_actor_class__.__name__ ==
-        RewardWorker.__ray_actor_class__.__name__):
-        return rl_config.reward_resource
-    elif (worker.__ray_actor_class__.__name__ ==
-        ReferenceWorker.__ray_actor_class__.__name__):
-        return rl_config.reference_resource
-    elif (worker.__ray_actor_class__.__name__ ==
-        CriticWorker.__ray_actor_class__.__name__):
-        return rl_config.critic_resource
-    else:
-        return None
+resource_mapping: Dict[str, Callable[[RLConfig], int]] = {
+    ActorHybridWorker.__ray_actor_class__.__name__: lambda config: config.actor_resource,
+    IntegratedWorker.__ray_actor_class__.__name__: lambda config: config.actor_resource,
+    RewardWorker.__ray_actor_class__.__name__: lambda config: config.reward_resource,
+    ReferenceWorker.__ray_actor_class__.__name__: lambda config: config.reference_resource,
+    CriticWorker.__ray_actor_class__.__name__: lambda config: config.critic_resource
+}
+
+
+def get_rl_resource_by_worker_type(rl_config: RLConfig, worker: Type[BaseWorker]) -> Optional[int]:
+    actor_class = worker.__ray_actor_class__.__name__
+    return resource_mapping.get(actor_class, lambda _: None)(rl_config)
 
 
 def get_npu_deployment(rl_config: RLConfig, worker: Type[BaseWorker]):
     resource = get_rl_resource_by_worker_type(rl_config, worker)
-    if resource is None:
-        return 0
-    return resource.num_npus
+    return resource.num_npus if resource else 0
 
 
 def get_device_information(num_npus: int) \

@@ -34,7 +34,6 @@ megatron_training:
   no_shuffle: true
   full_shuffle_instruction_dataset: false
 
-
 actor_config:
   model: qwen25_7b
   micro_batch_size: 1

@@ -19,7 +19,7 @@ from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
-from mindspeed_rl.utils.utils import MsProbe
+from mindspeed_rl.utils.utils import MsProbe, get_node_nums
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
@@ -29,7 +29,7 @@ from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeCon
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 from mindspeed_rl.workers.rule_reward import RuleReward
-from mindspeed_rl.trainer.ppo_trainer import RayPPOTrainer
+from mindspeed_rl.trainer.ppo_trainer_hybrid import RayPPOTrainer
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reference_woker import ReferenceWorker
@@ -147,10 +147,6 @@ def train(config):
             get_megatron_module=get_megatron_module,
             global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
-
-    def get_node_nums():
-        nodes = ray.nodes()
-        return len([node for node in nodes if node.get("Alive", False)])
 
     rule_reward_num_process = get_node_nums()
     if rl_config.rule_reward:

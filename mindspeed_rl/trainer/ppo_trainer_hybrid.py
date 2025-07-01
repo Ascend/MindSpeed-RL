@@ -95,7 +95,7 @@ class RayPPOTrainer(RayBaseTrainer):
         self.kwargs = kwargs
         self.set_actor_log_prob_skip_flag()
         self.addition_columns = ['values']
-        self.addition_consumers = ["compute_kl", "critic_train", "critic_compute_values"]
+        self.addition_consumers = ["compute_kl", "critic_train", "critic_compute_values", "ppo_metrics"]
         if self.dataset_additional_keys:
             self.addition_columns.extend(self.dataset_additional_keys)
         self.transfer_dock_init()
@@ -129,7 +129,7 @@ class RayPPOTrainer(RayBaseTrainer):
         """
         The utils loop of PPO
         """
-        logger = Loggers('ppo_trainer')
+        logger = Loggers('ppo_trainer_hybrid')
         metrics = Metric()
         iteration = self.actor_worker.get_iteration()
 

@@ -63,7 +63,7 @@ class RuleReward(object):
                             use_verifier_mask[::self.n_samples_per_prompt]] for key, value in batch_data.items()}
                     ignore_token = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
 
-                    rm_scores, metrics, original_scores = compute_verifier_score(
+                    rm_scores, metrics = compute_verifier_score(
                         batch_data,
                         self.megatron_config,
                         self.rl_config,
@@ -74,7 +74,7 @@ class RuleReward(object):
                     for key, value in metrics.items():
                         ray.get(self.td.update_metrics.remote(key, value=value, cumulate=True))
 
-                    output = {"rm_scores": rm_scores, "reward_for_dapo": original_scores}
+                    output = {"rm_scores": rm_scores}
                     if self.rl_config.filter_groups_enable:
                         metric = torch.tensor(metrics[self.rl_config.filter_groups_metric], dtype=torch.float32,
                                             device=rm_scores.device)

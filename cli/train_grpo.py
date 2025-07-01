@@ -19,7 +19,7 @@ from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.utils import seed_all
-from mindspeed_rl.utils.utils import MsProbe
+from mindspeed_rl.utils.utils import MsProbe, get_node_nums
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import parse_args_from_config
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
@@ -124,10 +124,6 @@ def train(config):
             ).initialize()
 
             reward_list.append(reward_worker)
-
-    def get_node_nums():
-        nodes = ray.nodes()
-        return len([node for node in nodes if node.get("Alive", False)])
 
     rule_reward_num_process = get_node_nums()
     if rl_config.rule_reward:

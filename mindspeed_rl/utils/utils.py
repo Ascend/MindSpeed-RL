@@ -4,18 +4,23 @@
 import os
 import sys
 import json
-
 import time
 import math
 import random
 from functools import wraps
 from typing import Dict, List
 
+import ray
 import omegaconf
 import numpy as np
 import torch
 import torch_npu
 from torch import Tensor
+
+
+def get_node_nums():
+    nodes = ray.nodes()
+    return len([node for node in nodes if node.get("Alive", False)])
 
 
 def get_current_dp_range_indexes(experience_count, assign_batch_size, current_dp_rank=0):

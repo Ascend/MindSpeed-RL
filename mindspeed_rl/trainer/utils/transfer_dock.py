@@ -288,7 +288,6 @@ class GRPOTransferDock(TransferDock):
             "advantages",
             "returns",
             "metric_for_dapo",
-            "reward_for_dapo"
         ]
         self.experience_consumers = [
             "trainer",

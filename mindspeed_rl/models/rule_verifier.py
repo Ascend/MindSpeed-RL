@@ -118,30 +118,18 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
 
     scores = torch.tensor(
         scores,
-        dtype=torch.float64,
-        device=reward_index.device
-    )
-
-    original_scores = torch.tensor(
-        scores,
-        dtype=torch.float32,
-        device=reward_index.device
-    ).reshape(reward_index.shape)
-
-    scores = torch.tensor(
-        scores,
         dtype=torch.float32,
         device=reward_index.device
     )
-
     scores = scores.reshape(reward_index.shape)
+
     end_time = time.time()
     metrics["timing/rule_reward"] = [round(end_time, 4), round(start_time, 4)]
     metrics["start_time/rule_reward"] = [round(start_time, 4)]
     metrics["end_time/rule_reward"] = [round(end_time, 4)]
 
 
-    return scores, metrics, original_scores
+    return scores, metrics
 
 
 def verifier(responses, data, config, **kwargs):

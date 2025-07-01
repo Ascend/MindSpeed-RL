@@ -163,14 +163,8 @@ class CriticWorkerBase(BaseWorker):
         experience_columns = ['responses', 'advantages', 'old_log_prob', 'values', 'returns',
                              'input_ids', 'response_length', 'prompt_length']
 
-        if self.rl_config.use_integrated_worker:
-            experience_count = (
-                self.megatron_config.global_batch_size //
-                self.parallel_state.get_data_parallel_world_size()
-            )
-        else:
-            experience_count = self.rl_config.critic_update_dispatch_size
-
+        experience_count = self.rl_config.critic_update_dispatch_size
+        
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']

@@ -165,7 +165,7 @@ def dynamic_sampling(num_prompt_in_batch, data_num, n_samples_per_prompt, sampli
     logger = Loggers('dynamic_sampling')
     experience_consumer_stage = 'dynamic_sampling'
     experience_columns = ['prompts', 'prompt_length', 'responses', 'labels', 'response_length',
-                          'input_ids', 'rm_scores', 'metric_for_dapo', 'reward_for_dapo']
+                          'input_ids', 'rm_scores', 'metric_for_dapo']
     sorted_indexes = get_current_dp_range_indexes(experience_count=data_num,
                                                   assign_batch_size=data_num) if guarantee_order else None
     while not ray.get(sampling_transfer_dock.all_consumed.remote(experience_consumer_stage)):
@@ -401,7 +401,6 @@ def compute_dapo_data_metrics(
         "returns",
         "prompt_length",
         "response_length",
-        "reward_for_dapo"
     ]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
@@ -416,7 +415,6 @@ def compute_dapo_data_metrics(
             sequence_score = batch["rm_scores"].sum(-1)
             prompt_length = batch["prompt_length"]
             response_length = batch["response_length"]
-            reward_for_dapo = batch["reward_for_dapo"]
 
             metrics = {
                 # score
@@ -431,8 +429,6 @@ def compute_dapo_data_metrics(
                 "prompt_length/mean": torch.mean(prompt_length, dtype=torch.float32).detach().item(),
                 "prompt_length/max": torch.max(prompt_length).detach().item(),
                 "prompt_length/min": torch.min(prompt_length).detach().item(),
-
-                "dapo/reward_for_dapo/mean": torch.mean(reward_for_dapo).detach().item(),
             }
             return metrics
 
@@ -453,7 +449,7 @@ def compute_ppo_data_metrics(
     Returns:
         Dictionary containing various metric values
     """
-    experience_consumer_stage = "grpo_metrics"
+    experience_consumer_stage = "ppo_metrics"
     experience_columns = [
         "rm_scores",
         "token_level_rewards",

@@ -64,6 +64,7 @@ class BaseTrainingEngine(ABC):
             micro_batch_size: int = 1,
             use_dynamic_bsz: bool = False,
             max_packing_token_size: bool = 4096,
+            dynamic_max_batch_size: int = None,
             use_remove_padding: bool = False,
             set_actual_seq_len: Callable = None,
             get_actual_seq_len: Callable = None,
@@ -82,6 +83,7 @@ class BaseTrainingEngine(ABC):
         self.micro_batch_size = micro_batch_size
         self.use_dynamic_bsz = use_dynamic_bsz
         self.max_packing_token_size = max_packing_token_size
+        self.dynamic_max_batch_size = dynamic_max_batch_size
         self.use_remove_padding = use_remove_padding
         self.set_actual_seq_len = set_actual_seq_len
         self.get_actual_seq_len = get_actual_seq_len
@@ -132,11 +134,11 @@ class BaseTrainingEngine(ABC):
         return batches
 
     @staticmethod
-    def _split_batches_with_dynamic_bsz(batch: Dict, max_packing_token: int) -> (List[Dict], List[List[int]]):
+    def _split_batches_with_dynamic_bsz(batch: Dict, max_packing_token: int, dynamic_max_batch_size: int) -> tuple[List[Dict], List[List[int]]]:
         seq_len_list = []
         for prompt_len, response_len in zip(batch['prompt_length'], batch['response_length']):
             seq_len_list.append(prompt_len.item() + response_len.item())
-        partitions = rearrange_micro_batches(seq_len_list, max_packing_token)
+        partitions = rearrange_micro_batches(seq_len_list, max_packing_token, dynamic_max_batch_size=dynamic_max_batch_size)
         batches = []
         for key, tensors in batch.items():
             for batch_idx, partition in enumerate(partitions):
@@ -147,7 +149,7 @@ class BaseTrainingEngine(ABC):
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):
         if self.use_dynamic_bsz:
-            batches, indices = self._split_batches_with_dynamic_bsz(batch, self.max_packing_token_size)
+            batches, indices = self._split_batches_with_dynamic_bsz(batch, self.max_packing_token_size, self.dynamic_max_batch_size)
         else:
             batches = self._split_batches(batch, batch_size=self.micro_batch_size,
                                           shuffle_mini_batch=self.shuffle_mini_batch)

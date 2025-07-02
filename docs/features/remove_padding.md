@@ -66,9 +66,10 @@ rl_config:
 
 ---
 
-## 参数说明：max_packing_token_size
+## 参数说明：
 
-`max_packing_token_size` 是动态批大小（Dynamic Batch Size）机制中的核心参数，用于限制每个拼接后的 micro batch 中 token 的总数，防止因拼接过多序列而导致显存溢出（OOM）。  
+`max_packing_token_size` 是动态批大小（Dynamic Batch Size）机制中的核心参数，用于限制每个拼接后的 micro batch 中 token 的总数，防止因拼接过多序列而导致显存溢出（OOM）。
+`dynamic_max_batch_size` 用于限制最大的 micro batch，防止在长序列训练场景下，有多个短序列放入同一批次导致 micro batch size 过大，进而导致 OOM。
 
 **使用限制**：每条样本的 token 长度必须满足：
 ```text
@@ -79,7 +80,9 @@ prompt_length[i] + response_length[i] <= max_packing_token_size
 ```text
 max_packing_token_size = (rl_config.max_prompt_length + generate_config.sampling_config.max_tokens) * 2
 ```
-可以根据实际需求调整。
+`dynamic_max_batch_size` 是可选参数。如果长序列训练过程发生 OOM，且发生在计算得出 logits 之后，可以通过设置或减小该值减少显存占用，建议最小设置为2，若设置为1，则 Dynamic Batch Size 无意义。
+
+二者可以根据实际需求调整。
 
 ---
 
@@ -91,6 +94,7 @@ max_packing_token_size = (rl_config.max_prompt_length + generate_config.sampling
 rl_config:
   use_dynamic_bsz: true
   max_packing_token_size: 8192
+  dynamic_max_batch_size: 8 # 可选参数
 ```
 
 # 📦 数据并行负载均衡（DP Batch Balance）特性

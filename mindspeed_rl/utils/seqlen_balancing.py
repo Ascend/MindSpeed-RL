@@ -186,7 +186,7 @@ def get_seqlen_balanced_partitions(seqlen_list: List[int], k_partitions: int, eq
     return _check_and_sort_partitions(partitions)
 
 
-def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dp_group=None):
+def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dynamic_max_batch_size=None, dp_group=None):
     """get order of seq lengths to make partitions balanced, this is
         used in balancing sum of seq length across dp ranks and micro batches
     Parameters:
@@ -202,11 +202,11 @@ def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dp_group
     
     # Calculate the minimum number of bins
     total_sum_of_seqlen = sum(seqlen_list)
-    if total_sum_of_seqlen % max_token_len == 0:
-        k_partitions = total_sum_of_seqlen // max_token_len
-    else:
-        k_partitions = total_sum_of_seqlen // max_token_len + 1
+    k_partitions = (total_sum_of_seqlen + max_token_len - 1) // max_token_len
 
+    if dynamic_max_batch_size is not None:
+        k_partitions = max(k_partitions, (len(seqlen_list) + dynamic_max_batch_size - 1) // dynamic_max_batch_size)
+        
     if dist.is_initialized():
         k_partitions = torch.tensor([k_partitions], device='npu')
         dist.all_reduce(k_partitions, op=dist.ReduceOp.MAX, group=dp_group)

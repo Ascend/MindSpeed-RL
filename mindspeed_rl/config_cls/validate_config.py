@@ -74,6 +74,11 @@ def validate_rl_args(
         if not actor_config.reset_position_ids:
             raise ValueError(
                 "'use_remove_padding' feature requires 'reset_position_ids=True'! ")
+            
+        if rl_config.is_multimodal:
+            raise ValueError(
+                "'multimodal' models cannot use 'use_remove_padding' feature! "
+                "Please set 'use_remove_padding=False' in the RLConfig.")
 
     # 校验图模式配置
     if not generate_config.enforce_eager:

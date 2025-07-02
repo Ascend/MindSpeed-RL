@@ -169,26 +169,26 @@ class BaseTrainingEngine(ABC):
                     output = postprocess_packed_seqs(output=output['logits'],
                                                      seqlens_in_batch=seqlens_in_batch,
                                                      cu_seqlens_padded=cu_seqlens_padded,
-                                                     seq_len=seq_len,
-                                                     return_tensor=True)
+                                                     seq_len=seq_len)
                     output.div_(self.temperature)
+                
             elif self.use_remove_padding:
                 input_ids, position_ids, process_batch, seqlens_in_batch, cu_seqlens_padded, index = self._get_forward_batch_info(batch_iter)
-                output_orig = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
-                if not post_process:
-                    output = output_orig
-                    output.div_(self.temperature)
-                else:
+                output = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
+                if post_process:
                     if cp_size > 1:
-                        output_orig = get_output_allgather_cp_with_pack(output_orig, cp_size, index)
+                        output = get_output_allgather_cp_with_pack(output, cp_size, index)
                     if self.megatron_config.cp_attention_mask_type == 'causal':
                         cu_seqlens_padded *= get_ring_degree(self.megatron_config)
-                    output = postprocess_packed_seqs(output=output_orig,
-                                                     seqlens_in_batch=seqlens_in_batch,
-                                                     cu_seqlens_padded=cu_seqlens_padded,
-                                                     seq_len=seq_len)
-                    for item in output:
-                        item.div_(self.temperature)
+                output.div_(self.temperature)
+                return output, partial(self.loss_func.compute_loss,
+                                       batch=process_batch,
+                                       forward_only=forward_only,
+                                       use_remove_padding=self.use_remove_padding,
+                                       seqlens_in_batch=seqlens_in_batch,
+                                       cu_seqlens_padded=cu_seqlens_padded,
+                                       use_dynamic_bsz=self.use_dynamic_bsz,
+                                       actual_micro_batch_size=batch_size / n_micro_batch)
             else:
                 input_ids, position_ids, process_batch, index = self._get_forward_batch_info(batch_iter)
                 output = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
@@ -196,6 +196,7 @@ class BaseTrainingEngine(ABC):
                     if cp_size > 1:
                         output = get_output_allgather_cp_without_pack(output, cp_size, index)
                 output.div_(self.temperature)
+                
             return output, partial(self.loss_func.compute_loss,
                                    batch=process_batch,
                                    forward_only=forward_only,

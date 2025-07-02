@@ -47,23 +47,20 @@ class DAPOActorLossFunc(BaseLossFunc):
     def compute_loss(self, output: torch.Tensor,
                      batch: Dict[str, torch.Tensor],
                      forward_only=False,
-                     use_dynamic_bsz=False,
-                     actual_micro_batch_size=1,
-                     non_loss_data=True) -> Tuple[torch.Tensor, Dict]:
+                     non_loss_data=True,
+                     **kwargs) -> Tuple[torch.Tensor, Dict]:
         """
         计算损失函数，子类必须实现。
         :param output: 模型的输出 logits。
         :param batch: 输入数据，包含 responses、attention_mask 等。
         :param forward_only: 是否只进行前向计算。
-        :param use_dynamic_bsz: 是否使用动态批量大小,如果使用则根据实际批次大小对每个微批次加权。
-        :param actual_micro_batch_size: 配置的微批量大小。
         :return: 损失值和统计信息。
         """
         # compute log probs
         if forward_only:
-            log_probs = super().compute_log_probs(output=output, batch=batch)
+            log_probs = super().compute_log_probs(output=output, batch=batch, **kwargs)
             return log_probs
-        log_probs, entropy = super().compute_log_probs(output=output, batch=batch, update=True)
+        log_probs, entropy = super().compute_log_probs(output=output, batch=batch, update=True, **kwargs)
 
         response_mask, old_log_prob, advantages = self._get_policy_loss_input(batch=batch)
         # compute policy loss
@@ -80,6 +77,9 @@ class DAPOActorLossFunc(BaseLossFunc):
                                                         clip_ratio_low=self.clip_ratio_low,
                                                         clip_ratio_high=self.clip_ratio_high,
                                                         token_level_loss=self.token_level_loss)
+        
+        use_dynamic_bsz = kwargs.get('use_dynamic_bsz', False)
+        actual_micro_batch_size = kwargs.get('actual_micro_batch_size', None)
         if use_dynamic_bsz and not forward_only:
             policy_loss = pg_loss * (batch['responses'].size(0) / actual_micro_batch_size)
         else:

@@ -17,7 +17,7 @@ env_vars:
   CUDA_DEVICE_MAX_CONNECTIONS: '1'
   #设置 HYDRA 是否输出完整错误日志
   HYDRA_FULL_ERROR: '1'
-  # vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型建议和EP一致，稠密模型设置为1
+  # vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，稠密模型需要设置为1，MOE模型要求必须和EP一致
   VLLM_DP_SIZE: '1'
   # 指定不使用 LCCL 通信
   USING_LCCL_COM: '0'

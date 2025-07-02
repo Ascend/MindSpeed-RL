@@ -15,11 +15,10 @@ class ReferenceLossFunc(BaseLossFunc):
     def compute_loss(self, output: torch.Tensor,
                      batch: Dict[str, torch.Tensor],
                      forward_only=False,
-                     use_dynamic_bsz=False,
-                     actual_micro_batch_size=1,
-                     non_loss_data=True) -> Tuple[torch.Tensor, Dict]:
+                     non_loss_data=True,
+                     **kwargs) -> Tuple[torch.Tensor, Dict]:
         # compute log probs
-        log_probs = super().compute_log_probs(output=output, batch=batch)
+        log_probs = super().compute_log_probs(output=output, batch=batch, **kwargs)
         if forward_only:
             return log_probs
         return None

@@ -126,7 +126,7 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `HCCL_IF_BASE_PORT`：HCCL 通信端口 
 * `CUDA_DEVICE_MAX_CONNECTIONS`：设备最大连接数
 * `HYDRA_FULL_ERROR`：设置 HYDRA 是否输出完整错误日志
-* `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，MOE模型要求和EP一致，稠密模型设置为1
+* `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，稠密模型需要设置为1，MOE模型要求必须和EP一致
 * `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
 * `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），当前只支持 v1 ，需设置为 '1'。
 * `VLLM_VERSION`：指定使用的vLLM版本号

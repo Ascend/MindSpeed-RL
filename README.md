@@ -86,7 +86,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         <a href="docs/solutions/r1_zero_qwen25_7b.md">Qwen2.5-7B</a> <br>
         <a href="docs/solutions/r1_zero_qwen25_32b.md">Qwen2.5-32B</a> <br>
-        <a> DeepSeek-R1-671B </a> <br>
+        <a href="examples/grpo/grpo_trainer_deepseek_r1_671b.sh"> DeepSeek-R1-671B </a> <br>
       </td>
       <td> Released</td>
     </tr>

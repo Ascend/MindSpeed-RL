@@ -45,7 +45,7 @@ actor_config:
   num_layer_list: 9,10,10,10,11,11
   recompute_granularity: full
   recompute_method: block
-  recompute_num_layers: 6
+  recompute_num_layers: 9
   lr: 1e-6
   lr_decay_style: constant
   min_lr: 0.0

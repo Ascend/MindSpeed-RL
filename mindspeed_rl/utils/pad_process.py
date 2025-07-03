@@ -1,6 +1,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 from typing import Dict, List, Tuple, Union
 from torch import Tensor
+from tensordict import TensorDict
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -9,7 +10,39 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 @mstx_timer_decorator
-def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int, to_list: bool = False) -> List[
+def padding_dict_to_tensor_dict(experience_data: Dict[str, Union[Tensor, List[Tensor]]]):
+    experience_batch = {}
+    experience_data_length = []
+    for experience_column, value in experience_data.items():
+        max_length = max(len(exp) for exp in value)
+        padded_tensors = [torch.nn.functional.pad(exp, (0, max_length - len(exp)),
+                                                  mode='constant', value=0) for exp in value]
+        experience_batch[experience_column] = torch.stack(padded_tensors, dim=0)
+        experience_data_length.extend([torch.tensor(len(exp)) for exp in value])
+    experience_batch['original_length'] = torch.stack(experience_data_length)
+    experience_batch = TensorDict.from_dict(experience_batch)
+    return experience_batch
+
+
+@mstx_timer_decorator
+def remove_padding_tensor_dict_to_dict(data_dict: TensorDict[str, Union[Tensor, List[Tensor]]]):
+    remove_padding_tensors = {}
+    if data_dict is None:
+        return remove_padding_tensors
+    if 'original_length' not in data_dict.keys():
+        return data_dict
+    data_lengths = data_dict['original_length']
+    for idx, (key, dict_value) in enumerate(data_dict.items()):
+        if key == 'original_length':
+            continue
+        remove_padding_tensors[key] = truncate_rows(dict_value,
+                                                    data_lengths[idx * len(dict_value): (idx + 1) * len(dict_value)])
+    return remove_padding_tensors
+
+
+@mstx_timer_decorator
+def remove_padding_and_split_to_list(responses: torch.Tensor, eos_token_id: int, pad_token_id: int,
+                                     to_list: bool = False) -> List[
     torch.Tensor]:
     output = []
     for i in range(responses.shape[0]):

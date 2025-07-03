@@ -1,13 +1,14 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 import copy
 import time
-from typing import List, Union
+from typing import List, Union, Dict
 import time
 import ray
 import torch
 from codetiming import Timer
 from torch.utils.data import DataLoader
 
+from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
@@ -139,7 +140,9 @@ class RayGRPOTrainer(RayBaseTrainer):
             ray.get(self.transfer_dock.clear.remote())
 
             batch = next(data_iters)
-            ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
+            batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
+
             if is_multimodal():
                 ray.get(self.mm_transfer_dock.clear.remote())
                 ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))

@@ -5,6 +5,7 @@ import pytest
 
 import ray
 import torch
+from tensordict import TensorDict
 
 from mindspeed_rl.trainer.utils import TransferDock, GRPOTransferDock
 from tests.test_tools.dist_test import DistributedTest
@@ -125,10 +126,11 @@ class TestGRPOTransferDock(DistributedTest):
         put_mbs = 4
         get_mbs = 2
         prompts = [torch.randn(1, 8) for _ in range(put_mbs)]
+
         put_indexes = random.sample(range(16), put_mbs)
         get_indexes = random.sample(put_indexes, get_mbs)
-
-        ray.get(self.td.put_experience.remote(data_dict={"prompts": prompts}, indexes=put_indexes))
+        test_experience_data = TensorDict.from_dict({"prompts": torch.stack(prompts, dim=0)})
+        ray.get(self.td.put_experience.remote(data_dict=test_experience_data, indexes=put_indexes))
 
         experience_batch, output_indexes = ray.get(
             self.td.get_experience.remote(
@@ -143,8 +145,8 @@ class TestGRPOTransferDock(DistributedTest):
         put_mbs = 4
         prompts = [torch.randn(1, 8) for _ in range(put_mbs)]
         put_indexes = random.sample(range(16), put_mbs)
-
-        ray.get(self.td.put_experience.remote(data_dict={"prompts": prompts}, indexes=put_indexes))
+        test_experience_data = TensorDict.from_dict({"prompts": torch.stack(prompts, dim=0)})
+        ray.get(self.td.put_experience.remote(data_dict=test_experience_data, indexes=put_indexes))
 
         for index in put_indexes:
             experience_batch, output_indexes = ray.get(
@@ -162,7 +164,8 @@ class TestGRPOTransferDock(DistributedTest):
         def actor_put(td, n_actor, gbs, actor_id):
             put_num = gbs // n_actor
             data = torch.randn(put_num, 1024)
-            ray.get(td.put_experience.remote({f"prompts": data},
+            test_experience_data = TensorDict.from_dict({"prompts": data})
+            ray.get(td.put_experience.remote(data_dict=test_experience_data,
                     indexes=[index for index in range(actor_id * put_num, (actor_id + 1) * put_num)]))
 
         ray.get([actor_put.remote(self.td, n_actor, self.max_len, actor_id) for actor_id in range(n_actor)])
@@ -186,9 +189,10 @@ class TestGRPOTransferDock(DistributedTest):
                     )
                 )
 
+        test_experience_data = TensorDict.from_dict({"prompts": torch.randn(self.max_len, 1024)})
         ray.get(
             self.td.put_experience.remote(
-                data_dict={f"prompts": torch.randn(self.max_len, 1024)}, indexes=[i for i in range(self.max_len)]
+                data_dict=test_experience_data, indexes=[i for i in range(self.max_len)]
             )
         )
 

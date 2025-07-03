@@ -12,7 +12,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
-from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock
+from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_dapo_data_metrics, dynamic_sampling
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
@@ -156,15 +156,20 @@ class RayDAPOTrainer(RayBaseTrainer):
         while iteration < self.train_iters:
             start_time = time.time()
             batch = next(data_iters)
+
             data_num = self.global_batch_size * self.n_samples_per_prompt
             if self.should_filter:
                 ray.get(self.sampling_transfer_dock.clear.remote())
                 index_list = ray.get(self.sampling_transfer_dock.prefetch_request_index.remote(data_num))
                 if index_list:
-                    ray.get(self.sampling_transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys, index_list))
+                    batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt,
+                                                            self.dataset_additional_keys, indexes=index_list)
+                    ray.get(self.sampling_transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
             else:
                 ray.get(self.transfer_dock.clear.remote())
-                ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
+                batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt,
+                                                        self.dataset_additional_keys)
+                ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
             
             # generate sequences
             logger.info(f"dapo fit generate_sequences")

@@ -7,6 +7,7 @@ import torch
 from mindspeed_rl.models.rule_verifier import compute_verifier_score, math_compute_score
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
+from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, padding_dict_to_tensor_dict
 from mindspeed_rl.utils.utils import get_current_dp_range_indexes, is_multimodal
 
 logger = Loggers("rule_reward")
@@ -48,7 +49,7 @@ class RuleReward(object):
                     indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None
                 )
             )  # cpu数据
-
+            batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if batch_data and index:
                 batch_data = pad_experience(batch_data, pad_token_id) # multiple, tp_size
                 if not is_multimodal():
@@ -81,6 +82,7 @@ class RuleReward(object):
                         metric = metric.reshape(rm_scores.shape)
                         output["metric_for_dapo"] = metric
                     logger.info("finish compute scores")
+                    output = padding_dict_to_tensor_dict(output)
                     cur_td.put_experience.remote(data_dict=output, indexes=index)
                 else:
                     mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
@@ -106,4 +108,5 @@ class RuleReward(object):
                     reward_tensor_normalized = (reward_tensor_reshaped - reward_mean) / reward_std
                     reward_tensor = reward_tensor_normalized.reshape(original_shape)
                     output = {"rm_scores": rm_scores, "token_level_rewards": reward_tensor}
+                    output = padding_dict_to_tensor_dict(output)
                     self.td.put_experience.remote(data_dict=output, indexes=index)

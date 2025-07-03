@@ -14,6 +14,7 @@ import torch.distributed as dist
 
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.utils.loggers import Loggers
+from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, padding_dict_to_tensor_dict
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
@@ -301,6 +302,7 @@ class BaseWorker(BaseRayWorker, ABC):
                                                        experience_count, indexes=indexes,
                                                        get_n_samples=get_n_samples,
                                                        use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+            batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
@@ -327,6 +329,8 @@ class BaseWorker(BaseRayWorker, ABC):
         )
 
         if index[0].item() == -1:
+            self.sampling_transfer_dock.print_consumer_status(experience_consumer_stage, "sampling_transfer_dock")
+            self.td.print_consumer_status(experience_consumer_stage, "td")
             return None, None
 
         if rank_flg:
@@ -477,6 +481,7 @@ class BaseWorker(BaseRayWorker, ABC):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
+            output = padding_dict_to_tensor_dict(output)
             if self.sampling_transfer_dock and ray.get(self.sampling_transfer_dock.get_cur_index.remote()):
                 self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index)
             else:

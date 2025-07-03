@@ -13,6 +13,7 @@ from torch import Tensor
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pad_sequence
 from mindspeed_rl.utils.loggers import Loggers
+from mindspeed_rl.utils.pad_process import padding_dict_to_tensor_dict, remove_padding_tensor_dict_to_dict
 
 logger = Loggers("transfer_dock")
 
@@ -435,6 +436,7 @@ class GRPOTransferDock(TransferDock):
         experience_batch = {}
         for i, experience_column in enumerate(experience_columns):
             experience_batch[experience_column] = experience[i]
+        experience_batch = padding_dict_to_tensor_dict(experience_batch)
         return experience_batch, indexes
 
     def put_experience(
@@ -456,53 +458,7 @@ class GRPOTransferDock(TransferDock):
             raise ValueError(
                 "put experience into TD without indexes, indexes must be provided"
             )
-        experience_columns, experience = trans_input_to_experience(data_dict)
-        self._put(experience_columns, experience, indexes)
-
-    def put_prompts_experience(
-        self, 
-        batch: Dict[str, Tensor], 
-        dataset_additional_keys: List[str] = None, 
-        indexes = None
-    ):
-        """Put data into specified columns and rows.
-
-        Args:
-            batch: Batch datas from original dataloader.
-            dataset_additional_keys: The additional experience types from the dataset.
-            indexes: Batch datas indexes.
-
-        Returns: None
-
-        """
-
-        prompts = batch["prompts"]
-        prompt_length = []
-        for prompt in prompts:
-            for _ in range(self.n_samples_per_prompt):
-                prompt_length.append(torch.tensor([len(prompt)]))
-
-        prompts_data = prompts
-        prompts = []
-        for prompt in prompts_data:
-            for _ in range(self.n_samples_per_prompt):
-                prompts.append(copy.deepcopy(prompt))
-
-        add_vals = {}
-        for add_keys in dataset_additional_keys:
-            if add_keys in batch.keys():
-                values = []
-                for value in batch[add_keys]:
-                    for _ in range(self.n_samples_per_prompt):
-                        values.append(value)
-                add_vals[add_keys] = values
-
-        if indexes is None:
-            indexes = [i for i in range(len(prompt_length))]
-
-        data_dict = dict(
-            {"prompt_length": prompt_length, "prompts": prompts}, **add_vals
-        )
+        data_dict = remove_padding_tensor_dict_to_dict(data_dict)
         experience_columns, experience = trans_input_to_experience(data_dict)
 
         self._put(experience_columns, experience, indexes)
@@ -639,6 +595,12 @@ class GRPOTransferDock(TransferDock):
                 self.experience_consumer_status[consumer][sampled_indexes] = 1
 
         return sampled_indexes
+
+    def print_consumer_status(self, consumer: str, td_type: str):
+        if consumer == 'actor_train':
+            logger.info(f"td_type={td_type},consumer status ={self.experience_consumer_status[consumer]}")
+
+
 
     def all_consumed(self, consumer: str):
         """If consumer has consumed all data in GRPOTransferDock.
@@ -1034,3 +996,44 @@ def unpack_pad_experience(batch_data, batch_data_length, pad_id, multiple):
     return padded_batch_data
 
 
+def put_prompts_experience(
+        batch: Dict[str, torch.Tensor], n_samples_per_prompt, dataset_additional_keys: List[str] = None, indexes=None,
+):
+    """Put data into specified columns and rows.
+
+    Args:
+        batch: Batch datas from original dataloader.
+        n_samples_per_prompt: n_samples_per_prompt
+        dataset_additional_keys: The additional experience types from the dataset.
+        indexes: Batch datas indexes.
+    Returns: TensorDict
+
+    """
+
+    prompts = batch["prompts"]
+    prompt_length = []
+    for prompt in prompts:
+        for _ in range(n_samples_per_prompt):
+            prompt_length.append(torch.tensor([len(prompt)]))
+
+    prompts_data = prompts
+    prompts = []
+    for prompt in prompts_data:
+        for _ in range(n_samples_per_prompt):
+            prompts.append(copy.deepcopy(prompt))
+
+    add_vals = {}
+    for add_keys in dataset_additional_keys:
+        if add_keys in batch.keys():
+            values = []
+            for value in batch[add_keys]:
+                for _ in range(n_samples_per_prompt):
+                    values.append(value)
+            add_vals[add_keys] = values
+    if indexes is None:
+        indexes = [i for i in range(len(prompt_length))]
+
+    data_dict = dict(
+        {"prompt_length": prompt_length, "prompts": prompts}, **add_vals
+    )
+    return padding_dict_to_tensor_dict(data_dict), indexes

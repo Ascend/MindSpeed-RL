@@ -14,7 +14,7 @@ Core functions to implement PPO algorithms.
 The function implemented in this file should be used by trainer with different distributed strategies to
 implement PPO
 """
-
+import time
 from copy import deepcopy
 
 import ray
@@ -22,7 +22,8 @@ import torch
 import numpy as np
 
 import mindspeed_rl.utils.torch_functional as F
-from mindspeed_rl.utils.pad_process import truncate_rows
+from mindspeed_rl.utils.pad_process import truncate_rows, remove_padding_tensor_dict_to_dict, \
+    padding_dict_to_tensor_dict
 from mindspeed_rl.utils.utils import generate_mask, get_current_dp_range_indexes, extract_from_dict
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 from mindspeed_rl.utils.utils import mstx_timer_decorator
@@ -172,6 +173,7 @@ def dynamic_sampling(num_prompt_in_batch, data_num, n_samples_per_prompt, sampli
         batch_data, index = ray.get(
             sampling_transfer_dock.get_experience.remote(experience_consumer_stage, experience_columns, experience_count=data_num,
                                                      indexes=sorted_indexes.pop(0) if guarantee_order else None))
+        batch_data = remove_padding_tensor_dict_to_dict(batch_data)
         if batch_data and index:
             # filter by metric values
             metric_values = batch_data['metric_for_dapo']
@@ -190,6 +192,7 @@ def dynamic_sampling(num_prompt_in_batch, data_num, n_samples_per_prompt, sampli
             experience_data = extract_from_dict(batch_data, kept_idx_list)
             index_list = ray.get(transfer_dock.prefetch_request_index.remote(len(kept_idx_list)))
             if index_list:
+                experience_data = padding_dict_to_tensor_dict(experience_data)
                 ray.get(transfer_dock.put_experience.remote(experience_data, index_list))
 
     return num_prompt_in_batch
@@ -271,6 +274,7 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
                 indexes=sorted_indexes.pop(0) if guarantee_order else None
             )
         )
+        batch_data = remove_padding_tensor_dict_to_dict(batch_data)
         if batch_data and index:
             batch_data = pad_experience(batch_data, pad_token_id) # multiple, tp_size
             response_mask = generate_mask(batch_data["responses"], batch_data["response_length"])
@@ -301,6 +305,7 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
                 "advantages": advantages,
                 "returns": returns,
             }
+            output = padding_dict_to_tensor_dict(output)
             td.put_experience.remote(data_dict=output, indexes=index)
 
 
@@ -354,6 +359,7 @@ def compute_grpo_data_metrics(
             td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
                                      indexes=sorted_indexes.pop(0) if guarantee_order else None)
         )
+        batch = remove_padding_tensor_dict_to_dict(batch)
         if batch and index:
             batch = pad_experience(batch, pad_token_id) # multiple, tp_size
             sequence_score = batch["rm_scores"].sum(-1)
@@ -410,6 +416,7 @@ def compute_dapo_data_metrics(
             td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
                                      indexes=sorted_indexes.pop(0) if guarantee_order else None)
         )
+        batch = remove_padding_tensor_dict_to_dict(batch)
         if batch and index:
             batch = pad_experience(batch, pad_token_id) # multiple, tp_size
             sequence_score = batch["rm_scores"].sum(-1)

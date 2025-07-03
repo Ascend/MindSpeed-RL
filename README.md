@@ -81,7 +81,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </thead>
   <tbody>
     <tr>
-      <td> GRPO</td>
+      <td rowspan="2">GRPO</td>
       <td><a href="docs/algorithms/grpo.md">Doc</a></td>
       <td  rowspan="1">
         <a href="docs/solutions/r1_zero_qwen25_7b.md">Qwen2.5-7B</a> <br>
@@ -90,9 +90,18 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       </td>
       <td> Released</td>
     </tr>
+    <tr>
+      <td><a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Doc</a></td>
+      <td  rowspan="1">
+        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-3B</a> <br>
+        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-7B</a> <br>
+        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-32B</a> <br>
+      </td>
+      <td> Released</td>
+    </tr>
   </tbody>
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
+注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
 
 注：使用Ray拉起任务的算法，如GRPO，环境变量需要在[runtime_env.yaml](./configs/envs/runtime_env.yaml)处配置
 
@@ -141,7 +150,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tbody>
 
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
+注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
 
 ### 效率工具
 
@@ -181,7 +190,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
   </tbody>
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
+注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
 
 ## 版本维护策略
 
@@ -215,7 +224,7 @@ MindSpeed RL由华为公司的下列部门以及昇腾生态合作伙伴联合�
 华为公司：
 
 - 计算产品线
-- 2012实验室 
+- 2012实验室
 - 公共开发部
 - 全球技术服务部
 - 华为云计算

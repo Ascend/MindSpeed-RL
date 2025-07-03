@@ -66,6 +66,10 @@ def check_grpo_msprobe_output(msprobe_dir: str) -> bool:
                      f'{os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")}')
         return False
     
+    if not os.path.isdir(os.path.join(msprobe_dir, "actor_generate_sequences")):
+        logger.error(f'Msprobe actor generate_sequences directory not found: {os.path.join(msprobe_dir, "actor_generate_sequences")}')
+        return False
+    
     if not os.path.isdir(os.path.join(msprobe_dir, "actor_update")):
         logger.error(f'Msprobe actor update directory not found: {os.path.join(msprobe_dir, "actor_update")}')
         return False

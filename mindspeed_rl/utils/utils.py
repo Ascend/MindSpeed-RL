@@ -409,7 +409,10 @@ class MsProbe:
             return
         cls.debugger.service.first_start = True if model not in cls.hooked_model else False
         cls.debugger.service.config.dump_path = os.path.join(cls.config.dump_path, tag)
-        cls.debugger.start(model=model)
+        if tag == "actor_generate_sequences":
+            cls.debugger.start(model=model, token_range=[cls.config.token_range_start, cls.config.token_range_end])
+        else:
+            cls.debugger.start(model=model)
         if not cls.debugger.service.first_start and model not in cls.hooked_model:
             cls.hooked_model.append(model)
 

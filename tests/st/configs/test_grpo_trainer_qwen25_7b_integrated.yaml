@@ -137,6 +137,9 @@ msprobe_config:
   dump_path: "./msprobe_dump"
   key_data_dump: true
   configurations_dump: true
+  actor_infer_dump: true
+  token_range_start: 0
+  token_range_end: 0
   actor_train_dump: true
   reference_dump: true
   step_start: 0

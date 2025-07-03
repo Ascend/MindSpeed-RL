@@ -22,6 +22,9 @@ msprobe_config:
   dump_path: "./msprobe_dump"
   key_data_dump: false
   configurations_dump: false
+  actor_infer_dump: false
+  token_range_start: 0
+  token_range_end: 0
   actor_train_dump: false
   reference_dump: false
   step_start: 0
@@ -36,15 +39,19 @@ msprobe_config:
 | dump_path | 存盘路径 | str，默认值"./msprobe_dump" |
 | key_data_dump | 关键过程数据采集 | true/false，默认false，是否采集关键过程数据，包括prompt、response、ref_log_prob、advantage、log_prob、kl_loss、loss的统计量信息（最大值、最小值、均值、L2norm值）和真实数据 |
 | configurations_dump | 训练配置采集 | true/false，默认false，是否采集训练配置 |
+| actor_infer_dump | actor的推理阶段模型层输入输出 | true/false，默认false，是否采集actor_generate_sequences阶段的模型层数据 |
+| token_range_start | 采集推理生成token的开始范围 | int，默认0，与token_range_end搭配使用，表示采集推理生成的从第几个到第几个范围内的token数据 |
+| token_range_end | 采集推理生成token的结束范围 | int，默认0，如果只想采某一个token的数据，设置为跟token_range_start一样 |
 | actor_train_dump | actor的训练阶段模型层输入输出 | true/false，默认false，是否采集actor_compute_log_prob、actor_update阶段的模型层数据 |
 | reference_dump | reference的模型层输入输出 | true/false，默认false，是否采集reference的模型层数据 |
-| step_start | 采集开始步数 | int，默认0，只对actor_train_dump、reference_dump生效 |
-| step_end | 采集结束步数 | int，默认0，只对actor_train_dump、reference_dump生效。如果只想采某一步的数据，设置为跟step_start一样 |
+| step_start | 采集开始步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences生效 |
+| step_end | 采集结束步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences生效。如果只想采某一步的数据，设置为跟step_start一样 |
 
 ### 落盘数据说明
 
 ```txt
 msprobe_dump/
+├── actor_generate_sequences/  # actor_generate_sequences阶段的模型层数据
 ├── actor_compute_log_prob/  # actor_compute_log_prob阶段的模型层数据
 ├── actor_update/  # actor_update阶段的模型层数据
 ├── reference_compute_log_prob/  # reference的模型层数据

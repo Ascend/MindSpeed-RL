@@ -71,6 +71,8 @@ class MsprobeConfig(BaseConfig):
         self.configurations_dump = False
         self.actor_train_dump = False
         self.actor_infer_dump = False
+        self.token_range_start = 0
+        self.token_range_end = 0
         self.reference_dump = False
         self.step_start = 0
         self.step_end = 0

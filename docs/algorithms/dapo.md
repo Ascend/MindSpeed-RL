@@ -102,3 +102,8 @@ rl_config:
       ref_model_load_path: ./Qwen2.5-32-tp8 <------- 断点续训时，应在 ref_model_load_path 中配置原始模型权重路径，供 reference model 加载
   ```
 
+## 性能数据
+| 模型          |   机器型号  | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
+|---------------|------------|-----|-----------|-------------------|------------|------------|  
+| Qwen3-30B-A3B | Atlas A3   | 32  |      8    | 2048              | 2048       | 44         | 
+

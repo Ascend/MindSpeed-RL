@@ -69,6 +69,7 @@ class VLLMInferEngine(BaseInferEngine):
             enforce_eager: bool = False,
             limit_mm_image_per_prompt: int = 1,
             limit_mm_video_per_prompt: int = 0,
+            enable_expert_parallel: bool = False,
             **kwargs
     ):
         """
@@ -191,6 +192,7 @@ class VLLMInferEngine(BaseInferEngine):
             max_model_len=max_model_len,
             seed=self.sampling_params.seed,
             limit_mm_per_prompt=limit_mm_per_prompt_dict,
+            enable_expert_parallel=enable_expert_parallel,
             additional_config={
                 'expert_tensor_parallel_size': infer_expert_tensor_parallel_size,
                 'enable_graph_mode': int(os.environ.get('VLLM_ENABLE_GRAPH_MODE', '0')),
@@ -266,7 +268,7 @@ class VLLMInferEngine(BaseInferEngine):
 
         layer_need_kv_cache = []
         for layer_name in ctx:
-            if ctx[layer_name].attn_type in (AttentionType.DECODER, AttentionType.ENCODER_DECODER):
+            if hasattr(ctx[layer_name], 'attn_type') and ctx[layer_name].attn_type in (AttentionType.DECODER, AttentionType.ENCODER_DECODER):
                 layer_need_kv_cache.append(layer_name)
 
         pipeline_parallel_size = self.llm.llm_engine.vllm_config.parallel_config.pipeline_parallel_size

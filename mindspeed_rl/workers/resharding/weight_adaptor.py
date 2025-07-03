@@ -609,12 +609,58 @@ class Qwen2_5_VLWeightAdaptor(MegatronVLLMWeightAdaptor):
         return weight_names_per_pp
 
 
+class Qwen3MoeMVWeightAdaptor(MegatronVLLMWeightAdaptor):
+    """
+    Megatron-vLLM WeightAdaptor for Qwen3 model architectures.
+    """
+    def __init__(self, model_config):
+        super(Qwen3MoeMVWeightAdaptor, self).__init__(model_config)
+        self.params_mapping = [
+            # (megatron core gpt model name, vllm model name)
+            ("embedding.word_embeddings", "model.embed_tokens"),
+            ("self_attention.linear_qkv", "self_attn.qkv_proj"),
+            ("self_attention.linear_proj", "self_attn.o_proj"),
+            ("input_layernorm", "input_layernorm"),
+            ("pre_mlp_layernorm", "post_attention_layernorm"),
+            ("decoder.final_layernorm", "model.norm"),
+            ("output_layer", "lm_head"),
+
+            ("mlp.experts.weight1", "mlp.experts.w13_weight"),
+            ("mlp.experts.weight2", "mlp.experts.w2_weight"),
+            ('mlp.router', 'mlp.gate'),
+            ("self_attention.q_layernorm", "self_attn.q_norm"),
+            ("self_attention.k_layernorm", "self_attn.k_norm"),
+        ]
+
+    def replace_name_i2t(self, inference_name):
+        """
+        transfer inference weight name to training weight name
+        """
+        for m_name, v_name in self.params_mapping:
+            if v_name not in inference_name:
+                continue
+            if "layers" in inference_name:  # deal with decoder layers
+                inference_name = inference_name.replace("model", "decoder")
+                vllm_name_list = inference_name.split(".")
+                param_name_list = vllm_name_list[:3]
+                weight_or_bias = vllm_name_list[-1]
+                param_name_list.append(m_name)
+                if weight_or_bias in ['weight', 'bias']:
+                    param_name_list.append(weight_or_bias)
+                param_name = ".".join(param_name_list)
+                return param_name
+            else:
+                param_name = inference_name.replace(v_name, m_name)
+                return param_name
+
+
 WEIGHT_ADAPTOR_REGISTRY = {
     "Qwen2ForCausalLM": QwenMVWeightAdaptor,
     "DeepseekV3ForCausalLM": DeepSeekMVWeightAdaptor,
     "DeepseekV2ForCausalLM": DeepSeekMVWeightAdaptor,
     "CustomDeepseekV3ForCausalLM": DeepSeekMVWeightAdaptor,
     "Qwen2_5_VLForConditionalGeneration": Qwen2_5_VLWeightAdaptor,
+    "CustomQwen3MoeForCausalLM": Qwen3MoeMVWeightAdaptor,
 }
 
 

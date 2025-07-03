@@ -290,6 +290,11 @@ def initialize_model_parallel_for_vllm(
                 group_ranks.append(list(ranks))
         logger.info(f"EP rank: {group_ranks}")
 
+    ps._EP = init_model_parallel_group(group_ranks,
+                                       get_world_group().local_rank,
+                                       backend,
+                                       group_name="ep")
+
     ascend_ps._EP = init_model_parallel_group(group_ranks,
                                        get_world_group().local_rank,
                                        backend,

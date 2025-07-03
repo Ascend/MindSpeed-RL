@@ -81,7 +81,8 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td> DAPO</td>
       <td><a href="docs/algorithms/dapo.md">Doc</a></td>
       <td  rowspan="1">
-        Qwen2.5-32B <br>
+        <a href="examples/dapo/dapo_trainer_qwen25_32b.sh">Qwen2.5-32B</a> <br>
+        <a href="examples/dapo/dapo_trainer_qwen3_30b_a3b.sh">Qwen3-30B-A3B</a> <br>
       </td>
       <td> Preview</td>
     </tr>

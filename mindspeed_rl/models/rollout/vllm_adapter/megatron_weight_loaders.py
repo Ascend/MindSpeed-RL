@@ -61,6 +61,19 @@ def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
             else:
                 q_weight, k_weight, v_weight = qkv_split_weight(loaded_weight, infer_paralle_config, hf_config)
                 loaded_weight.copy_(torch.cat([q_weight, k_weight, v_weight], dim=0))
+        
+        if "mlp.experts.w13_weight" in name:
+            loaded_weight.copy_(loaded_weight.view(
+                hf_config.num_experts // infer_paralle_config.infer_expert_parallel_size,
+                hf_config.hidden_size,
+                -1
+            ).transpose(2, 1).contiguous())
+        if "mlp.experts.w2_weight" in name:
+            loaded_weight.copy_(loaded_weight.view(
+                hf_config.num_experts // infer_paralle_config.infer_expert_parallel_size,
+                -1,
+                hf_config.hidden_size
+            ).transpose(2, 1).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 
@@ -218,6 +231,7 @@ def parallel_weight_loader(self, param: torch.Tensor, loaded_weight: torch.Tenso
 MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "LlamaForCausalLM": llama_megatron_core_weight_loader,
     "Qwen2ForCausalLM": qwen_megatron_weight_loader,
+    "CustomQwen3MoeForCausalLM": qwen_megatron_weight_loader,
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
     "DeepseekV2ForCausalLM": deepseek_megatron_weight_loader,
     "CustomDeepseekV3ForCausalLM": deepseek_megatron_weight_loader,

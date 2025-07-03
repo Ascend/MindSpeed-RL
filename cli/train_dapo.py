@@ -298,7 +298,7 @@ def gpt_model_provider(pre_process, post_process):
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm, qk_layernorm=args.qk_layernorm)
 
     model = GPTModel(
         config=config,
@@ -343,7 +343,7 @@ def rm_model_provider(pre_process, post_process):
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm, qk_layernorm=args.qk_layernorm)
 
     if (not args.untie_embeddings_and_output_weights) and (args.pipeline_model_parallel_size > 1):
         args.untie_embeddings_and_output_weights = True

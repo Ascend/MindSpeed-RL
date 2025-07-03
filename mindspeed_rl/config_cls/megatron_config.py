@@ -382,5 +382,8 @@ class MegatronConfig(BaseConfig):
 
         # used for multimodal models
         self.mm_model = None
+        self.attention_bias = False
+        self.moe_aux_loss_coeff = 0.001
+        self.gemm_gradient_accumulation_fusion = False
 
         self.update(training_config, model_config)

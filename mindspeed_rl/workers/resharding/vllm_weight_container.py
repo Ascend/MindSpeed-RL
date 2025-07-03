@@ -107,6 +107,9 @@ class MegatronStyleVllmWeightContainer:
         if hasattr(self.model_config, "n_routed_experts"):
             self.num_experts = self.model_config.n_routed_experts
             self.num_local_experts = self.num_experts // self._ep_size
+        elif hasattr(self.model_config, "num_experts"):
+            self.num_experts = self.model_config.num_experts
+            self.num_local_experts = self.num_experts // self._ep_size
 
         # infer configs
         self._infer_tp_size = infer_tensor_parallel_size

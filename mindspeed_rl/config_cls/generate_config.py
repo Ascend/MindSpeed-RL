@@ -81,6 +81,7 @@ class GenerateConfig(BaseConfig):
         self.enable_prefix_caching = False
         self.num_scheduler_steps = 1
         self.enforce_eager = True
+        self.enable_expert_parallel = False
 
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {

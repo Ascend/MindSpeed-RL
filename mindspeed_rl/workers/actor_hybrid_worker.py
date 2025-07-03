@@ -478,8 +478,9 @@ class ActorHybridWorkerBase(BaseWorker):
             trust_remote_code=self.generate_config.trust_remote_code,
             enforce_eager=self.generate_config.enforce_eager,
             limit_mm_image_per_prompt=self.generate_config.limit_mm_image_per_prompt,
-            limit_mm_video_per_prompt=self.generate_config.limit_mm_video_per_prompt
-        )
+            limit_mm_video_per_prompt=self.generate_config.limit_mm_video_per_prompt,
+            enable_expert_parallel=self.generate_config.enable_expert_parallel,
+            )
         return rollout
 
     def _build_sharding_manager(self):

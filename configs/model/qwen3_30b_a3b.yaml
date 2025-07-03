@@ -1,0 +1,33 @@
+qwen3_30b_a3b:
+  use_mcore_models: true
+  num_layers: 48
+  hidden_size: 2048
+  ffn_hidden_size: 8192
+  num_attention_heads: 32
+  rotary_base: 1000000
+  max_position_embeddings: 40960
+  make_vocab_size_divisible_by: 1
+  padded_vocab_size: 151936
+  untie_embeddings_and_output_weights: true
+  disable_bias_linear: true
+  group_query_attention: true
+  num_query_groups: 4
+  position_embedding_type: rope
+  normalization: RMSNorm
+  swiglu: true
+  attention_softmax_in_fp32: true
+  attention_bias: false
+  qk_layernorm: true
+
+  num_experts: 128
+  moe_router_topk: 8
+  moe_router_load_balancing_type: aux_loss
+  moe_intermediate_size: 768
+  moe_grouped_gemm: true
+  moe_permutation_async_comm: true
+  moe_token_dispatcher_type: alltoall
+  moe_aux_loss_coeff: 0.001
+
+  kv_channels: 128
+  norm_topk_prob: true
+  no_gradient_accumulation_fusion: true

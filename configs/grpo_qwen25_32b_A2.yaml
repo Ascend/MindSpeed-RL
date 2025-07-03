@@ -39,8 +39,8 @@ megatron_training:
 actor_config:
   model: qwen25_32b
   micro_batch_size: 2
-  tensor_model_parallel_size: 8
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 4
   lr: 1e-6
   lr_decay_style: constant
   min_lr: 0.0

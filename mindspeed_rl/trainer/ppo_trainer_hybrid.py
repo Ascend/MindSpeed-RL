@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
-from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock
+from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_ppo_data_metrics, apply_kl_penalty
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
@@ -142,7 +142,8 @@ class RayPPOTrainer(RayBaseTrainer):
             ray.get(self.transfer_dock.clear.remote())
 
             batch = next(data_iters)
-            ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
+            batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences

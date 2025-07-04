@@ -329,8 +329,6 @@ class BaseWorker(BaseRayWorker, ABC):
         )
 
         if index[0].item() == -1:
-            self.sampling_transfer_dock.print_consumer_status(experience_consumer_stage, "sampling_transfer_dock")
-            self.td.print_consumer_status(experience_consumer_stage, "td")
             return None, None
 
         if rank_flg:

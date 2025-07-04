@@ -73,6 +73,7 @@ def apply_kl_penalty(td, experience_count, global_batch_size, guarantee_order, t
                 indexes=sorted_indexes.pop(0) if guarantee_order else None
             )
         )
+        batch_data = remove_padding_tensor_dict_to_dict(batch_data)
         if batch_data and index:
             batch_data = pad_experience(batch_data, pad_token_id)
             token_level_scores = batch_data["rm_scores"]
@@ -475,6 +476,7 @@ def compute_ppo_data_metrics(
             td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
                                      indexes=sorted_indexes.pop(0) if guarantee_order else None)
         )
+        batch = remove_padding_tensor_dict_to_dict(batch)
         if batch and index:
             batch = pad_experience(batch, pad_token_id)
             sequence_score = batch["rm_scores"].sum(-1)

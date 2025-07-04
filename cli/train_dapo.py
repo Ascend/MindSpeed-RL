@@ -28,6 +28,7 @@ from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeCon
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
+from mindspeed_rl.workers.dynamic_sampling import DynamicSampling
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
@@ -109,19 +110,24 @@ def train(config):
 
             reward_list.append(reward_worker)
 
-    rule_reward_num_process = get_node_nums()
+    num_process = get_node_nums()
+    pg = placement_group(
+        [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(num_process)],
+        strategy='SPREAD'
+    )
+    ray.get(pg.ready())
     if rl_config.rule_reward:
-        pg = placement_group(
-            [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(rule_reward_num_process)],
-            strategy='SPREAD'
-        )
-
-        ray.get(pg.ready())
-
-        for i in range(rule_reward_num_process):
+        for i in range(num_process):
             rule_reward = RuleReward.options(placement_group=pg, placement_group_bundle_index=i).remote()
             rule_reward.initialize.remote(reward_config, rl_config, tokenizer)
             reward_list.append(rule_reward)
+
+    dynamic_sampling_list = []
+    if rl_config.filter_groups_enable:
+        for i in range(num_process):
+            dynamic_sampling = DynamicSampling.options(placement_group=pg, placement_group_bundle_index=i).remote()
+            dynamic_sampling.initialize.remote(reward_config, rl_config)
+            dynamic_sampling_list.append(dynamic_sampling)
 
     train_ds, _, _ = build_train_valid_test_datasets(
         data_prefix=[actor_config.data_path, ],
@@ -158,6 +164,7 @@ def train(config):
     trainer = RayDAPOTrainer(
         actor_worker,
         reward_list,
+        dynamic_sampling_list,
         tokenizer=tokenizer,
         global_batch_size=actor_config.global_batch_size,
         micro_batch_size=rl_config.adv_dispatch_size,

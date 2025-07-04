@@ -218,18 +218,37 @@ def validate_rl_args(
                                     "Reward")
 
     # 初始化经验计数配置
-    rl_config.actor_logprob_dispatch_size = (
-        rl_config.actor_logprob_dispatch_size or
-        (actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
-    )
+    if rl_config.filter_groups_enable:
+        # 若开启dapo动态采样，logp和adv的gbs=filter_groups_train_batch_size
+        rl_config.actor_logprob_dispatch_size = (
+            rl_config.actor_logprob_dispatch_size or
+            (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+        )
+        rl_config.adv_dispatch_size = (
+            rl_config.adv_dispatch_size or
+            (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt)
+        )
+
+        num_process = get_node_nums()
+        rl_config.dynamic_sampling_dispatch_size = (
+            rl_config.dynamic_sampling_dispatch_size or
+            (reward_config.global_batch_size * rl_config.n_samples_per_prompt // num_process)
+        )
+    else:
+        rl_config.actor_logprob_dispatch_size = (
+            rl_config.actor_logprob_dispatch_size or
+            (actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+        )
+        rl_config.adv_dispatch_size = (
+            rl_config.adv_dispatch_size or (actor_config.global_batch_size * rl_config.n_samples_per_prompt)
+        )
+
     if ref_config:
         rl_config.ref_dispatch_size = (
             rl_config.ref_dispatch_size or
             (ref_config.global_batch_size * rl_config.n_samples_per_prompt // ref_data_parallel_size)
         )
-    rl_config.adv_dispatch_size = (
-        rl_config.adv_dispatch_size or (actor_config.global_batch_size * rl_config.n_samples_per_prompt)
-    )
+
     if rl_config.reward_resource:
         reward_data_parallel_size = rl_config.reward_resource.num_npus // (
             reward_config.tensor_model_parallel_size *
@@ -248,12 +267,6 @@ def validate_rl_args(
             raise ValueError(
                 f"Reward dispatch size configuration error!"
                 f"global_batch_size {reward_config.global_batch_size} must be divisible by the number of nodes in the ray cluster")
-
-    # 若开启dapo动态采样，需要更新用于计算adv和logp的dispatch_size
-    if rl_config.filter_groups_enable:
-        rl_config.actor_logprob_dispatch_size = \
-            (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
-        rl_config.adv_dispatch_size = (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt)
 
     if rl_config.critic_resource:
         rl_config.critic_update_dispatch_size = (
@@ -274,9 +287,29 @@ def validate_rl_args(
             raise ValueError(
                 f"{component} global_batch_size {global_batch} "
                 f"must be divisible by experience_count {experience_count}")
-    _validate_experience_ratio(actor_config.global_batch_size,
-                               rl_config.actor_logprob_dispatch_size,
-                               "Actor Infer")
+
+    if rl_config.filter_groups_enable:
+        _validate_experience_ratio(rl_config.filter_groups_train_batch_size,
+                                   rl_config.actor_logprob_dispatch_size,
+                                   "Actor Infer")
+        _validate_experience_ratio(rl_config.filter_groups_train_batch_size,
+                                   rl_config.adv_dispatch_size,
+                                   "Advantages")
+
+        _validate_experience_ratio(reward_config.global_batch_size,
+                                   rl_config.dynamic_sampling_dispatch_size,
+                                   "Dynamic Sampling")
+        if rl_config.dynamic_sampling_dispatch_size % rl_config.n_samples_per_prompt != 0:
+            raise ValueError(
+                f"dynamic sampling dispatch size {rl_config.dynamic_sampling_dispatch_size} "
+                f"must be divisible by n samples per prompt {rl_config.n_samples_per_prompt}")
+    else:
+        _validate_experience_ratio(actor_config.global_batch_size,
+                                   rl_config.actor_logprob_dispatch_size,
+                                   "Actor Infer")
+        _validate_experience_ratio(actor_config.global_batch_size,
+                                   rl_config.adv_dispatch_size,
+                                   "Advantages")
 
     if ref_config:
         _validate_experience_ratio(ref_config.global_batch_size,
@@ -292,9 +325,6 @@ def validate_rl_args(
                                    rl_config.reward_dispatch_size,
                                    "Rule Reward")
 
-    _validate_experience_ratio(actor_config.global_batch_size,
-                               rl_config.adv_dispatch_size,
-                               "Advantages")
     if rl_config.critic_resource:
         _validate_experience_ratio(critic_config.global_batch_size,
                                    rl_config.critic_value_dispatch_size,
@@ -306,18 +336,21 @@ def validate_rl_args(
                                    rl_config.critic_update_dispatch_size,
                                    "Critic Update")
 
-    rl_config.actor_update_dispatch_size = (
-        rl_config.actor_update_dispatch_size or
-        (actor_config.global_batch_size  * rl_config.n_samples_per_prompt // actor_data_parallel_size)
-    )
-
-    if not rl_config.use_integrated_worker:
-        # 若开启dapo动态采样，需要更新用于actor更新的dispatch_size
-        if rl_config.filter_groups_enable:
-            rl_config.actor_update_dispatch_size = \
-                (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
-
-        _validate_experience_ratio(reward_config.global_batch_size,
+    if rl_config.filter_groups_enable:
+        # 若开启dapo动态采样，update的gbs=filter_groups_train_batch_size
+        rl_config.actor_update_dispatch_size = (
+            rl_config.actor_update_dispatch_size or
+            (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+        )
+        _validate_experience_ratio(rl_config.filter_groups_train_batch_size,
+                                   rl_config.actor_update_dispatch_size,
+                                   "Actor Update")
+    else:
+        rl_config.actor_update_dispatch_size = (
+            rl_config.actor_update_dispatch_size or
+            (actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+        )
+        _validate_experience_ratio(actor_config.global_batch_size,
                                    rl_config.actor_update_dispatch_size,
                                    "Actor Update")
 
@@ -344,8 +377,8 @@ def validate_rl_args(
     if rl_config.clip_higher_enable:
         if rl_config.clip_ratio_low > rl_config.clip_ratio_high:
             raise ValueError(
-                f"clip_ratio_low {actor_config.clip_ratio_low} "
-                f"must less than clip_ratio_high {actor_config.clip_ratio_high}")
+                f"clip_ratio_low {rl_config.clip_ratio_low} "
+                f"must less than clip_ratio_high {rl_config.clip_ratio_high}")
 
 
 def validate_data_handler_config(config):

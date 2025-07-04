@@ -287,8 +287,7 @@ class GRPOTransferDock(TransferDock):
             "old_log_prob",
             "ref_log_prob",
             "advantages",
-            "returns",
-            "metric_for_dapo",
+            "returns"
         ]
         self.experience_consumers = [
             "trainer",
@@ -299,9 +298,7 @@ class GRPOTransferDock(TransferDock):
             "compute_advantage",
             "rule_reward",
             "reward_scores",
-            "grpo_metrics",
-            "dynamic_sampling",
-            "dapo_metrics"
+            "grpo_metrics"
         ]
         self.batch_seqlen_balance_mapper = {
             "ref_log_prob": ["prompt_length", "response_length"],

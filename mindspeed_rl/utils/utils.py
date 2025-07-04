@@ -198,7 +198,10 @@ def metrics_post_processing(metrics) -> Dict[str, Tensor]:
     for key, value in metrics.metric.items():
         if "timing" in key:
             if isinstance(value, list):
-                new_metrics[key] = metrics.compute_max(key, value) - metrics.compute_min(key, value)
+                if "resharding" in key:
+                    new_metrics[key] = metrics.compute_max(key, value)
+                else:
+                    new_metrics[key] = metrics.compute_max(key, value) - metrics.compute_min(key, value)
             else:
                 new_metrics[key] = value
         elif "start_time" in key:

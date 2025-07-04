@@ -162,6 +162,7 @@ class BaseWorker(BaseRayWorker, ABC):
         self.model = None
         self.td = None
         self.mm_td = None
+        self.sampling_transfer_dock = None
         self.args = None
 
     @mstx_timer_decorator

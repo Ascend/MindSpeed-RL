@@ -139,6 +139,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td><a href="docs/features/remove_padding.md">Doc</a></td>
       <td  rowspan="1">
         GRPO <br>
+        DAPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -148,6 +149,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td><a href="docs/features/context_parallel.md">Doc</a></td>
       <td  rowspan="1">
         GRPO <br>
+        DAPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -174,6 +176,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td>  <a href="docs/features/logging_wandb_tensorboard.md">Doc</a> </td>
       <td  rowspan="1">
         GRPO <br>
+        DAPO <br>
       </td>
       </td>
       <td> Preview</td>

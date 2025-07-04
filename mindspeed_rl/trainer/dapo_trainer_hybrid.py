@@ -1,23 +1,19 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
-import copy
-import time
+
 from typing import List, Union
 import time
 import ray
-import torch
-from codetiming import Timer
-from torch.utils.data import DataLoader
 
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
+from mindspeed_rl.workers.dynamic_sampling import DynamicSampling
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
-from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
-from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_dapo_data_metrics, dynamic_sampling
+from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_dapo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, compute_vllm_throughput, metrics_sort
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
 
 
 class RayDAPOTrainer(RayBaseTrainer):
@@ -47,6 +43,7 @@ class RayDAPOTrainer(RayBaseTrainer):
             self,
             actor_worker: RayActorGroup,
             reward_list: List[Union[RayActorGroup, RuleReward]],
+            dynamic_sampling_list: List[DynamicSampling],
             train_iters: int = 1,
             save_interval: int = 1,
             kl_ctrl_type: str = 'fixed',
@@ -93,47 +90,46 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.should_filter = self.kwargs['filter_groups_enable']
         self.max_num_prompt_in_batch = self.kwargs['filter_groups_train_batch_size']
         self.max_num_gen_batches = self.kwargs['filter_groups_max_batches']
-        self.transfer_dock_init()
         self.num_prompt_in_batch = 0
         self.num_gen_batches = 0
+        self.dynamic_sampling_list = dynamic_sampling_list
+        self.addition_columns = ['metric_for_dapo']
+        self.addition_consumers = ["dynamic_sampling", "dapo_metrics"]
+        if self.dataset_additional_keys:
+            self.addition_columns.extend(self.dataset_additional_keys)
+        self.transfer_dock_init()
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
         if self.should_filter:
             # 存储动态采样过滤后的数据，用于计算损失、更新权重等
             self.transfer_dock = GRPOTransferDock.remote(self.max_num_prompt_in_batch, self.n_samples_per_prompt,
-                                                         self.metrics, addition_columns=self.dataset_additional_keys)
+                                                         self.metrics, addition_columns=self.addition_columns,
+                                                         addition_consumers=self.addition_consumers)
             # 存储动态采样过滤前的数据，用于生成response、计算奖励等
-            self.sampling_transfer_dock = GRPOTransferDock.remote(self.global_batch_size,
-                                                              self.n_samples_per_prompt,
-                                                              self.metrics,
-                                                              addition_columns=self.dataset_additional_keys)
-            self.actor_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
-            if self.ref_worker:
-                self.ref_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
-            for reward in self.reward_list:
-                if hasattr(reward, 'sync_init_transfer_dock'):
-                    reward.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
-                else:
-                    reward.init_transfer_dock.remote(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+            self.sampling_transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
+                                                                  self.metrics, addition_columns=self.addition_columns,
+                                                                  addition_consumers=self.addition_consumers)
+            for sampling in self.dynamic_sampling_list:
+                sampling.init_transfer_dock.remote(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
         else:
             self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
-                                                         self.metrics, addition_columns=self.dataset_additional_keys)
-            self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
-            if self.ref_worker:
-                self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
-            for reward in self.reward_list:
-                if hasattr(reward, 'sync_init_transfer_dock'):
-                    reward.sync_init_transfer_dock(self.transfer_dock)
-                else:
-                    reward.init_transfer_dock.remote(self.transfer_dock)
+                                                         self.metrics, addition_columns=self.addition_columns,
+                                                         addition_consumers=self.addition_consumers)
+
+        self.actor_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+        if self.ref_worker:
+            self.ref_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+        for reward in self.reward_list:
+            if hasattr(reward, 'sync_init_transfer_dock'):
+                reward.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+            else:
+                reward.init_transfer_dock.remote(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
-        global_batch_size = self.actor_worker.megatron_config.global_batch_size
         mini_batch_size = self.actor_worker.rl_config.mini_batch_size
-        n_samples_per_prompt = self.actor_worker.rl_config.n_samples_per_prompt
         epochs = self.actor_worker.rl_config.epochs
-        self.skip_actor_log_prob = (global_batch_size * n_samples_per_prompt == mini_batch_size and epochs == 1)
+        self.skip_actor_log_prob = (self.max_num_prompt_in_batch * self.n_samples_per_prompt == mini_batch_size and epochs == 1)
         self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
     def fit(self, data_iters):
@@ -194,7 +190,7 @@ class RayDAPOTrainer(RayBaseTrainer):
             if self.should_filter:
                 # dynamic sampling
                 logger.info(f"dapo fit dynamic_sampling")
-                should_continue = self.dynamic_sampling(data_num)
+                should_continue = self.dynamic_sampling()
                 if should_continue:
                     end_time = time.time()
                     all_time += end_time - start_time
@@ -233,28 +229,43 @@ class RayDAPOTrainer(RayBaseTrainer):
             metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
             end_time = time.time()
             all_time += end_time - start_time
-            sharding_infer_intervals = metrics_result.metric.get("timing/resharding_to_infer", [])
-            sharding_infer_interval = metrics_result.compute_sum(sharding_infer_intervals)
             if self.should_filter:
                 filter_intervals = metrics_result.metric.get("timing/filter", [])
                 filter_interval = metrics_result.compute_sum(filter_intervals)
+                enter_infer_time_list = metrics_result.metric.get("timing/resharding_enter_infer", [])
+                exit_infer_time_list = metrics_result.metric.get("timing/resharding_exit_infer", [])
+                resharding_to_infer_time_list = [enter_infer_time + exit_infer_time for 
+                                                 enter_infer_time, exit_infer_time in 
+                                                 zip(enter_infer_time_list, exit_infer_time_list)]
 
+                metrics_result.update("timing/resharding_to_infer", resharding_to_infer_time_list)
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_time)
-            tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
-                              all_time)
-            vllm_throughput = compute_vllm_throughput(self.kwargs, dapo_data_metrics, self.global_batch_size,
-                                                      self.n_samples_per_prompt, metrics_result["timing/rollout"])
             metrics.update(value=metrics_result)
             metrics.update(value=dapo_data_metrics)
-            metrics.update("tokens/p/s", tps)
-            metrics.update("vllm_throughput", vllm_throughput)
-            metrics.update("train/num_gen_batches", self.num_gen_batches)
-            metrics.update("timing/resharding_to_infer", sharding_infer_interval)
-            metrics.update("timing/rule_reward", rule_reward_time)
-            metrics.update("timing/rollout", rollout_time - rule_reward_time)
+
             if self.should_filter:
+                metrics.update("timing/rule_reward", rule_reward_time)
+                metrics.update("timing/rollout", rollout_time - rule_reward_time)
                 metrics.update("timing/filter", filter_interval)
+                metrics.update("train/num_gen_batches", self.num_gen_batches)
+                tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size * self.num_gen_batches,
+                                  self.n_samples_per_prompt, all_time)
+                update_tps = compute_tps(self.kwargs, dapo_data_metrics, self.max_num_prompt_in_batch,
+                                         self.n_samples_per_prompt, metrics_result["timing/update"])
+                vllm_tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size * self.num_gen_batches,
+                                       self.n_samples_per_prompt, metrics.metric["timing/rollout"])
+            else:
+                tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size,
+                                  self.n_samples_per_prompt, all_time)
+                update_tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size,
+                                         self.n_samples_per_prompt, metrics_result["timing/update"])
+                vllm_tps = compute_tps(self.kwargs, dapo_data_metrics, self.global_batch_size,
+                                       self.n_samples_per_prompt, metrics_result["timing/rollout"])
+            metrics.update("e2e_tps", tps)
+            metrics.update("update_tps", update_tps)
+            metrics.update("vllm_tps", vllm_tps)
+
             metrics.remove_key("timing/non_overlap_reference_model")
             metrics.remove_key("timing/non_overlap_rule_reward")
             metrics.remove_key("timing/non_overlap_adv")
@@ -285,19 +296,18 @@ class RayDAPOTrainer(RayBaseTrainer):
         logger.info('after dapo training is done')
         ray.shutdown()
 
-    def dynamic_sampling(self, data_num):
+    def dynamic_sampling(self):
+        logger = Loggers("dynamic_sampling")
         start_filter_time = time.time()
         self.num_gen_batches += 1
-        dynamic_sampling_ref = dynamic_sampling.options(num_cpus=self.num_cpus_for_local_task).remote(
-            self.num_prompt_in_batch,
-            data_num,
-            self.n_samples_per_prompt,
-            self.sampling_transfer_dock,
-            self.transfer_dock,
-            self.guarantee_order
-        )
 
-        self.num_prompt_in_batch = ray.get(dynamic_sampling_ref)
+        sampling_list = []
+        for sampling in self.dynamic_sampling_list:
+            sampling_list.append(sampling.dynamic_sampling.remote())
+        ray.get(sampling_list)
+        experience_data_num = ray.get(self.transfer_dock.get_cur_index.remote())
+        self.num_prompt_in_batch = experience_data_num // self.n_samples_per_prompt
+        logger.info(f"dynamic_sampling: num_prompt_in_batch {self.num_prompt_in_batch}")
         end_filter_time = time.time()
         ray.get(
             self.transfer_dock.update_metrics.remote(

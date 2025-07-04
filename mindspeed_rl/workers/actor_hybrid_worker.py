@@ -161,7 +161,7 @@ class ActorHybridWorkerBase(BaseWorker):
         end_time = time.time()
         ray.get(
             self.td.update_metrics.remote(
-                "timing/resharding_to_infer",
+                "timing/resharding_enter_infer",
                 value=[end_time - start_time],
                 cumulate=True
             )
@@ -176,7 +176,7 @@ class ActorHybridWorkerBase(BaseWorker):
         end_time = time.time()
         ray.get(
             self.td.update_metrics.remote(
-                "timing/resharding_to_infer",
+                "timing/resharding_exit_infer",
                 value=[end_time - start_time],
                 cumulate=True
             )
@@ -201,12 +201,6 @@ class ActorHybridWorkerBase(BaseWorker):
             experience_columns.extend(['attention_mask', 'position_ids'])
 
         experience_count = self.rl_config.actor_update_dispatch_size
-        
-        if self.rl_config.filter_groups_enable:
-            experience_count = (
-                    self.rl_config.filter_groups_train_batch_size * self.rl_config.n_samples_per_prompt //
-                    self.parallel_state.get_data_parallel_world_size()
-            )
 
         if skip_actor_log_prob:
             experience_columns.remove('old_log_prob')

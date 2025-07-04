@@ -113,8 +113,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
         exceed_len = [length.item() - expected_len for length in batch["response_length"]]
         overlong_penalty_factor = rl_config.overlong_buffer_penalty_factor
         overlong_reward = [min(-length / overlong_buffer_len * overlong_penalty_factor, 0) for length in exceed_len]
-        for score, reward in zip(scores, overlong_reward):
-            score += reward
+        scores = [score + reward for score, reward in zip(scores, overlong_reward)]
 
     scores = torch.tensor(
         scores,

@@ -108,6 +108,7 @@ class RLConfig(BaseConfig):
         self.actor_logprob_dispatch_size = None
         self.ref_dispatch_size = None
         self.reward_dispatch_size = None
+        self.dynamic_sampling_dispatch_size = None
         self.adv_dispatch_size = None
         self.actor_update_dispatch_size = None
         self.critic_update_dispatch_size = None

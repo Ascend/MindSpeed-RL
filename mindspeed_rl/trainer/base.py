@@ -38,6 +38,7 @@ class RayBaseTrainer(object):
                  tokenizer: BaseTokenizer = None,
                  dataset_additional_keys: List[str] = None,
                  blocking: bool = False,
+                 async_engine: bool = False,
                  guarantee_order: bool = False,
                  use_dp_batch_balance: bool = False,
                  num_cpus_for_local_task: float = 0.1,
@@ -64,6 +65,7 @@ class RayBaseTrainer(object):
         self.tokenizer = tokenizer
         self.dataset_additional_keys = dataset_additional_keys
         self.blocking = blocking
+        self.async_engine = async_engine
         self.guarantee_order = guarantee_order
         self.use_dp_batch_balance = use_dp_batch_balance
         self.num_cpus_for_local_task = num_cpus_for_local_task

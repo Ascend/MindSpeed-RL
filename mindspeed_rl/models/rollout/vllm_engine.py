@@ -3,6 +3,7 @@
 # Copyright 2023 The vLLM team.
 
 import os
+import uuid
 from contextlib import contextmanager
 
 import gc
@@ -200,6 +201,7 @@ class VLLMInferEngine(BaseInferEngine):
             }
         )
 
+        self.engine = self.llm.llm_engine
         self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.get_model()
         self.kv_cache_configs = None
 
@@ -365,6 +367,30 @@ class VLLMInferEngine(BaseInferEngine):
             outs = self._post_process_outputs(response)
         self.free_cache_engine()
         return outs
+
+    @torch.no_grad()
+    def async_generate_sequences(self, idx_list, indexes, n_samples_per_prompt=None, **kwargs):
+        with self.update_sampling_params(**kwargs):
+            for i, prompt_token_ids in enumerate(idx_list):
+                request_id = f"req_{indexes[i]}_{uuid.uuid4().hex[:6]}"
+
+                self.engine.add_request(
+                    request_id=request_id,
+                    prompt={"prompt_token_ids": prompt_token_ids},
+                    params=self.sampling_params
+                )
+
+            while self.engine.has_unfinished_requests():
+                step_outputs = self.engine.step()
+                for output in step_outputs:
+                    if output.finished:
+                        request_id = output.request_id
+                        index = int(request_id.split("_")[1])
+                        prompt_ids = [torch.tensor(idx_list[indexes.index(index)])]
+                        index = [index]
+                        response_ids = self._post_process_outputs([output])
+                        yield (prompt_ids, *response_ids), index
+
 
     def _post_process_outputs(self, request_outputs):
         output_token_ids = []

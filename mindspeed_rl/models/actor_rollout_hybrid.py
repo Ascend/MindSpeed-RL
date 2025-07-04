@@ -80,9 +80,26 @@ class ActorRolloutHybrid(ABC):
         self.sharding_manager = sharding_manager
 
     @mstx_timer_decorator
-    def generate_sequences(self, prompts_list: List[List[int]], **kwargs) -> Tensor:
-        responses = self.inference_actor.generate_sequences(prompts_list, **kwargs)[0]
-        return responses
+    def generate_sequences(
+            self,
+            prompts_list: List[List[int]],
+            indexes=None,
+            n_samples_per_prompt=None,
+            async_engine=False,
+            max_tokens=128,
+            **kwargs) -> Tensor:
+        if async_engine:
+            res = self.inference_actor.async_generate_sequences(
+                prompts_list, 
+                indexes,
+                n_samples_per_prompt=n_samples_per_prompt,
+                max_tokens=max_tokens,
+                **kwargs
+            )
+        else:
+            res = self.inference_actor.generate_sequences(prompts_list, **kwargs)[0]
+
+        return res
 
     @mstx_timer_decorator
     def compute_log_prob(self, data: Dict) -> Tensor:

@@ -308,54 +308,19 @@ class ActorHybridWorkerBase(BaseWorker):
                 start_time = time.time()
                 start_time_defined = True
             if batch_data and index:
-                indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
-                prompts_data = batch_data['prompts'][indexes]
-                prompt_length_data = batch_data['prompt_length'][indexes]
-                # preprocess, remove padding
-                prompts = truncate_rows(prompts_data, prompt_length_data)
-                prompts_list = [prompt.numpy().tolist() for prompt in prompts]
 
                 gc.collect()
                 torch.cuda.empty_cache()
 
-                responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), extra_info=batch_data)
-                responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
-
-                responses_length = [torch.tensor([len(response)]) for response in responses]
-
-                if is_multimodal():
-                    prompts_data = batch_data['input_ids'][indexes].cpu().unbind()
+                if self.rl_config.async_engine:
+                    logger.info(f"do async generate process.")
+                    prompts_data = batch_data['prompts']
+                    prompt_length_data = batch_data['prompt_length']
+                    prompts = truncate_rows(prompts_data, prompt_length_data)
+                    prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+                    self.async_generate_process(experience_count, index, pad_token_id, prompts_list, start_time)
                 else:
-                    prompts_data = prompts
-
-                prompts = []
-                for prompt in prompts_data:
-                    for _ in range(self.rl_config.n_samples_per_prompt):
-                        prompts.append(copy.deepcopy(prompt))
-
-                input_ids_list = []
-                for prompt, response in zip(prompts, responses):
-                    input_ids_list.append(torch.cat((prompt, response), dim=0))
-
-                outputs = {
-                    'responses': responses,
-                    'input_ids': input_ids_list,
-                    'response_length': responses_length
-                }
-                if is_multimodal():
-                    outputs['prompt_length'] = batch_data['input_ids_length']
-                self.collect_transfer_dock_data(outputs, index, use_vllm=True)
-                end_time = time.time()
-
-                MsProbe.save_data({"responses": responses, "prompts": prompts})
-
-                ray.get(
-                        self.td.update_metrics.remote(
-                            "timing/rollout",
-                            value=[round(end_time, 4), round(start_time, 4)],
-                            cumulate=True
-                        )
-                )
+                    self.sync_generate_process(batch_data, experience_count, index, pad_token_id, start_time)
         profiler_step(actor_generate_profiler)
         MsProbe.debugger_stop('actor_generate_sequences')
 
@@ -375,6 +340,85 @@ class ActorHybridWorkerBase(BaseWorker):
             )
             logger.info("finish generate_sequences")
 
+    def sync_generate_process(self, batch_data, experience_count, index, pad_token_id, start_time):
+        indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
+        prompts_data = batch_data['prompts'][indexes]
+        prompt_length_data = batch_data['prompt_length'][indexes]
+        # preprocess, remove padding
+        prompts = truncate_rows(prompts_data, prompt_length_data)
+        prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+
+        responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), indexes,
+                                                                   n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
+                                                                   async_engine=self.rl_config.async_engine,
+                                                                   extra_info=batch_data)
+        responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
+        responses_length = [torch.tensor([len(response)]) for response in responses]
+        if is_multimodal():
+            prompts_data = batch_data['input_ids'][indexes].cpu().unbind()
+        else:
+            prompts_data = prompts
+        prompts = []
+        for prompt in prompts_data:
+            for _ in range(self.rl_config.n_samples_per_prompt):
+                prompts.append(copy.deepcopy(prompt))
+        input_ids_list = []
+        for prompt, response in zip(prompts, responses):
+            input_ids_list.append(torch.cat((prompt, response), dim=0))
+        outputs = {
+            'responses': responses,
+            'input_ids': input_ids_list,
+            'response_length': responses_length
+        }
+        if is_multimodal():
+            outputs['prompt_length'] = batch_data['input_ids_length']
+        self.collect_transfer_dock_data(outputs, index, use_vllm=True)
+        end_time = time.time()
+        MsProbe.save_data({"responses": responses, "prompts": prompts})
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/rollout",
+                value=[round(end_time, 4), round(start_time, 4)],
+                cumulate=True
+            )
+        )
+
+    def async_generate_process(self, experience_count, index, pad_token_id, prompts_list, start_time):
+        # inference
+        self.actor_hybrid.inference_actor.init_cache_engine()
+        response_generator = self.actor_hybrid.generate_sequences(
+            copy.deepcopy(prompts_list),
+            indexes=index,
+            max_tokens=self.generate_config.sampling_config["max_tokens"],
+            n_samples_per_prompt=1,
+            n=1,
+            async_engine=True,
+        )
+        for samples, idx in response_generator:
+            prompts, responses, log_probs = samples
+            responses = remove_padding_and_split_to_list(responses, self.tokenizer.eod, pad_token_id)
+            responses_length = [torch.tensor([len(response)]) for response in responses]
+
+            input_ids_list = []
+            for prompt, response in zip(prompts, responses):
+                input_ids_list.append(torch.cat((prompt, response), dim=0))
+
+            outputs = {
+                'responses': responses,
+                'input_ids': input_ids_list,
+                'response_length': responses_length
+            }
+            self.collect_transfer_dock_data(outputs, idx, use_vllm=True)
+
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/rollout",
+                value=[round(end_time, 4), round(start_time, 4)],
+                cumulate=True
+            )
+        )
+        self.actor_hybrid.inference_actor.free_cache_engine()
 
     @mstx_timer_decorator
     def compute_log_prob(self):

@@ -48,6 +48,7 @@ class RLConfig(BaseConfig):
     wandb_exp_name: The wandb experiment name. If use_wandb is True, you need to set the wandb experiment name (default: "")
     wandb_save_dir: Path to save the wandb results locally. (default: "")
     blocking: Whether to enable blocking mode (default: False)
+    async_engine: Whether to enable the asynchronous generate process, which means that sample completed first will come out first.  (default: False)
     num_cpus_for_local_task: Number of CPUs for local ray task (default: 1)
     num_cpus_for_placement_group: Number of CPUs for ray worker placement group
 
@@ -96,6 +97,7 @@ class RLConfig(BaseConfig):
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
         self.blocking = True
+        self.async_engine = False
         self.guarantee_order = False
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8

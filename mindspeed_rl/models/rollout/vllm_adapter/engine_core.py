@@ -20,7 +20,9 @@ def _initialize_kv_caches(
     # memory can be allocated for kv cache.
     available_gpu_memory = self.model_executor.determine_available_memory()
 
-    assert len(kv_cache_specs) == len(available_gpu_memory)
+    if len(kv_cache_specs) != len(available_gpu_memory):
+        raise ValueError(f"Length of kv_cache_specs ({len(kv_cache_specs)}) must match length of available_gpu_memory ({len(available_gpu_memory)})")
+
     # Get the kv cache tensor size
     self.kv_cache_configs = [
         get_kv_cache_config(vllm_config, kv_cache_spec_one_worker,
@@ -36,10 +38,9 @@ def _initialize_kv_caches(
 
     # All workers have the same kv_cache_config except layer names, so use
     # an arbitrary one to initialize the scheduler.
-    assert all([
-        cfg.num_blocks == self.kv_cache_configs[0].num_blocks
-        for cfg in self.kv_cache_configs
-    ])
+    if any(cfg.num_blocks != self.kv_cache_configs[0].num_blocks for cfg in self.kv_cache_configs):
+        raise ValueError("All kv_cache_configs must have the same num_blocks")
+        
     num_gpu_blocks = self.kv_cache_configs[0].num_blocks
     num_cpu_blocks = 0
     scheduler_kv_cache_config = self.kv_cache_configs[0]

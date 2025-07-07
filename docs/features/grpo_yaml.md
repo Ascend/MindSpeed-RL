@@ -23,9 +23,9 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 * `其余参数`: 其余参数为Megatron训练中的特性配置；
 
 #### 全量重计算
-* `recompute-granularity`: 对于内存非常有限的情况，全量重计算只保存 Transformer 层或层组的输入激活值，其他部分全部重新计算，设置该属性为 full；
-* `recompute-num-layers`: 指定重计算分组层数 or 指定重计算层数；
-* `recompute-method`: 在全量重计算的前提下，设置 recompute-method 为 uniform 代表将Transformer 层均匀划分组（每组大小 recompute-num-layers），按组存储输入和激活值；设置为 block 代表将前 recompute-num-layers 个 Transformer 层重计算，剩余层不进行重计算；
+* `recompute-granularity`: 可选，对于内存非常有限的情况，全量重计算只保存 Transformer 层或层组的输入激活值，其他部分全部重新计算，设置该属性为 full；
+* `recompute-num-layers`: 可选，指定重计算分组层数 or 指定重计算层数；
+* `recompute-method`: 可选，在全量重计算的前提下，设置 recompute-method 为 uniform 代表将Transformer 层均匀划分组（每组大小 recompute-num-layers），按组存储输入和激活值；设置为 block 代表将前 recompute-num-layers 个 Transformer 层重计算，剩余层不进行重计算；
 
 
 ### `actor_config：`
@@ -43,16 +43,19 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 * `save`：模型保存的路径；
 * `no_load_optim`：续训加载优化器状态，默认为false；
 * `no_load_rng`：续训加载数据随机数生成器，默认为false；
-* `no_save_optim`：保存优化器状态，默认为false；
-* `no_save_rng`：保存数据随机数生成器，默认为false；
+* `no_save_optim`：可选，保存优化器状态，默认为false；
+* `no_save_rng`：可选，保存数据随机数生成器，默认为false；
 
 
 ### `rl_config: `
 * `use_integrated_worker`：是否开启全共卡模式，默认为 true;
 * `blocking`：是否开启异步，默认为 true;
+* `gamma`：奖励折扣因子，默认为 1.0;
+* `lam`：GAE参数，默认为 0.95;
 * `actor_forward_micro_batch_size`：actor model 前向计算 logp 的 mbs 大小;
 * `ref_forward_micro_batch_size`：ref model 前向计算 logp 的 mbs 大小;
 * `adv_estimator`：优势计算方法;
+* `kl_penalty`：kl 散度惩罚系数;
 * `kl_ctrl_type`：kl loss 计算方法;
 * `init_kl_coef`：kl loss 所占权重;
 * `mini_batch_size`：每 mini batch size 之后 actor 会更新一次;
@@ -62,6 +65,8 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 * `n_samples_per_prompt`：每条prompt的重用次数，一条 prompt 输入能输出 n 条 responese;
 * `guarantee_order`: 是否开启TransferDock保序，默认 False;
 * `shuffle_mini_batch`：Actor 训练时是否对 minibatch 进行 shuffle，默认为 False;
+* `log_max_throughput`: 配置tps计算时是否使用max值，默认为 true；
+* `num_cpus_for_local_task`: ray 进程配置的 cpu 数量，默认为1；
 * `actor_resource` ：分配给 Actor 、Reference模型的显卡数量;
 
 #### 显卡资源配置
@@ -92,6 +97,7 @@ wandb开关:
 * `infer_pipeline_parallel_size`：PP并行策略数，当前未支持该功能，设置为 '1'；
 * `infer_expert_parallel_size`：EP并行策略数；
 #### resharding 相关配置
+* `trust_remote_code`： 是否信任远程代码执行；
 * `offload_train_optimizer`：卸载训练节点优化器；
 * `offload_train_grad`：卸载训练节点梯度；
 * `offload_train_param`：卸载模型权重；
@@ -125,6 +131,7 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 * `VLLM_DP_SIZE`：vLLM数据并行度（Data Parallelism）大小，控制数据分片数量，稠密模型需要设置为1，MOE模型要求必须和EP一致
 * `HCCL_BUFFSIZE`：HCCL通信层单次传输的最大缓冲区大小（单位MB），影响跨设备通信效率
 * `VLLM_USE_V1`：使用vLLM的V1 engine API（v1接口），当前只支持 v1 ，需设置为 '1'。
+* `USING_LCCL_COM`：指定不使用 LCCL 通信
 * `VLLM_VERSION`：指定使用的vLLM版本号
 * `VLLM_ENABLE_GRAPH_MODE`：启用昇腾torchair图模式优化（1=启用），提升执行效率
 * `VLLM_ENABLE_TOPK_OPTIMZE`：使能vLLM TOPK性能优化

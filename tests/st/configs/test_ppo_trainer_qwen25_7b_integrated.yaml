@@ -16,20 +16,19 @@ megatron_training:
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
-  tokenizer_name_or_path: ./Qwen2.5-7B-Instruct
-  global_batch_size: 256
+  tokenizer_name_or_path: /data/for_dt/weights/Qwen2.5-7B
+  global_batch_size: 4
   seq_length: 2048
-  save_interval: 200
-  train_iters: 20000
+  save_interval: 50
+  train_iters: 1
   stage: ray_ppo
   attention_dropout: 0.0
   init_method_std: 0.01
   hidden_dropout: 0.0
   distributed_backend: nccl
   no_shared_storage: true
-  variable_seq_lengths: true
   dataset_additional_keys: ['labels',]
-  data_path: ./data
+  data_path: /data/for_dt/datasets/pe-nlp/data
   split: 100,0,0
   no_shuffle: true
   full_shuffle_instruction_dataset: false
@@ -48,7 +47,7 @@ actor_config:
   adam_beta1: 0.9
   adam_beta2: 0.95
   finetune: true
-  load: ./ckpt
+  load: /data/for_dt/weights/Qwen2.5-7B-tp4
   save: ./ckpt
   no_load_optim: true
   no_load_rng: true
@@ -69,7 +68,7 @@ critic_config:
   finetune: true
   no_load_optim: True
   no_load_rng: True
-  load: ./ckpt
+  load: /data/for_dt/weights/Qwen2.5-7B-tp4-orm
   save: ./ckpt
 
 rl_config:
@@ -83,15 +82,15 @@ rl_config:
   adv_estimator: gae
   kl_penalty: kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.0
-  mini_batch_size: 256
+  init_kl_coef: 0
+  mini_batch_size: 4
   max_prompt_length: 2048
   epochs: 1
   clip_ratio: 0.2
   cliprange_value: 0.5
   entropy_coeff: 0
   shuffle_mini_batch: false
-  n_samples_per_prompt: 1
+  n_samples_per_prompt: 2
   rule_reward: true
   verifier_function: ["acc_for_ppo"]
   verifier_weight: [1.0]
@@ -130,3 +129,35 @@ generate_config:
     min_p: 0.0
     temperature: 1.0
     detokenize: false
+
+msprobe_config:
+  msprobe: true
+  dump_path: "./msprobe_dump"
+  key_data_dump: true
+  configurations_dump: true
+  actor_infer_dump: false
+  token_range_start: 0
+  token_range_end: 0
+  actor_train_dump: false
+  critic_train_dump: true
+  reference_dump: true
+  step_start: 0
+  step_end: 0
+
+profiler_config:
+  integrated:
+    profile: true
+    mstx: false
+    stage: actor_update
+    profile_save_path: ./profiler_data
+    profile_export_type: db
+    profile_step_start: 1
+    profile_step_end: 2
+    profile_level: level1
+    profile_with_memory: false
+    profile_record_shapes: false
+    profile_with_cpu: true
+    profile_with_npu: true
+    profile_with_module: false
+    profile_analysis: true
+    profile_ranks: [0, 1]

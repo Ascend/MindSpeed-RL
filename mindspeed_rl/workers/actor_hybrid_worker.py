@@ -210,23 +210,32 @@ class ActorHybridWorkerBase(BaseWorker):
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
         ray.get(self.td.update_metrics.remote(key='param/lr', value=learning_rate))
-        sorted_indexes = self.get_dp_range_indexes(experience_count, use_vllm=False,
-                                                   assign_batch_size=experience_count) if self.rl_config.guarantee_order else None
-        actor_update_profiler = profiler_start(self.profiler_config, role="actor_update",
-                                               profiler_iteration=self.prof_iteration)
-        MsProbe.debugger_start(self.model[0], tag='actor_update')
-        start_time_defined = False
+        sorted_indexes = self.get_dp_range_indexes(
+            experience_count,
+            use_vllm=False,
+            assign_batch_size=experience_count
+        ) if self.rl_config.guarantee_order else None
 
+        actor_update_profiler = profiler_start(
+            self.profiler_config,
+            role="actor_update",
+            profiler_iteration=self.prof_iteration
+        )
+
+        MsProbe.debugger_start(self.model[0], tag='actor_update')
+
+        start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
-                                                                 experience_columns,
-                                                                 experience_count,
-                                                                 self.megatron_config.tensor_model_parallel_size,
-                                                                 self.megatron_config.context_parallel_size,
-                                                                 self.megatron_config.context_parallel_algo,
-                                                                 indexes=sorted_indexes.pop(
-                                                                     0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=False)
+            batch_data, index = self.dispatch_transfer_dock_data(
+                experience_consumer_stage,
+                experience_columns,
+                experience_count,
+                self.megatron_config.tensor_model_parallel_size,
+                self.megatron_config.context_parallel_size,
+                self.megatron_config.context_parallel_algo,
+                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                get_n_samples=False
+            )
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -262,6 +271,7 @@ class ActorHybridWorkerBase(BaseWorker):
             )
         )
         profiler_step(self.actor_profiler)
+        logger.info("finish actor update")
 
     def save_ckpt(self, iteration: int):
         self.sharding_manager.enter_train_mode()
@@ -429,31 +439,40 @@ class ActorHybridWorkerBase(BaseWorker):
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids', 'input_ids_length'])
         experience_count = self.rl_config.actor_logprob_dispatch_size
-        sorted_indexes = self.get_dp_range_indexes(experience_count, use_vllm=False,
-                                                   assign_batch_size=experience_count) if self.rl_config.guarantee_order else None
 
-        actor_compute_log_prob_profiler = profiler_start(self.profiler_config, role="actor_compute_log_prob",
-                                                         profiler_iteration=self.prof_iteration)
+        sorted_indexes = self.get_dp_range_indexes(
+            experience_count,
+            use_vllm=False,
+            assign_batch_size=experience_count
+        ) if self.rl_config.guarantee_order else None
+
+        actor_compute_log_prob_profiler = profiler_start(
+            self.profiler_config,
+            role="actor_compute_log_prob",
+            profiler_iteration=self.prof_iteration
+        )
+
         MsProbe.debugger_start(self.model[0], tag='actor_compute_log_prob')
+
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
-                                                                 experience_columns,
-                                                                 experience_count,
-                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
-                                                                 cp_size=self.megatron_config.context_parallel_size,
-                                                                 cp_algo=self.megatron_config.context_parallel_algo,
-                                                                 indexes=sorted_indexes.pop(
-                                                                     0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=False)
+            batch_data, index = self.dispatch_transfer_dock_data(
+                experience_consumer_stage,
+                experience_columns,
+                experience_count,
+                tp_size=self.megatron_config.tensor_model_parallel_size,
+                cp_size=self.megatron_config.context_parallel_size,
+                cp_algo=self.megatron_config.context_parallel_algo,
+                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                get_n_samples=False
+            )
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
             if batch_data and index:
                 output, batch = self.actor_hybrid.compute_log_prob(batch_data)
                 if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    # only on last rank. It should be on every tp rank
-                    log_probs = torch.cat(output, dim=0)  # (bs, seq_size)
+                    log_probs = torch.cat(output, dim=0)
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'old_log_prob': log_probs}

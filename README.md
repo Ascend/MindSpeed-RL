@@ -86,6 +86,14 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       </td>
       <td> Preview</td>
     </tr>
+    <tr>
+      <td> PPO</td>
+      <td><a href="docs/algorithms/ppo.md">Doc</a></td>
+      <td  rowspan="1">
+        <a href="examples/ppo/ppo_trainer_qwen25_32b.sh">Qwen2.5-32B</a> <br>
+      </td>
+      <td> Preview</td>
+    </tr>
   </tbody>
 </table>
 注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本 
@@ -110,6 +118,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Released</td>
@@ -120,6 +129,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -130,6 +140,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -140,6 +151,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -150,6 +162,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -177,6 +190,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -187,6 +201,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -197,6 +212,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>
@@ -207,6 +223,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td  rowspan="1">
         GRPO <br>
         DAPO <br>
+        PPO <br>
       </td>
       </td>
       <td> Preview</td>

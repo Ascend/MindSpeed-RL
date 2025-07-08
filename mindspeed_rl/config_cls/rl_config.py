@@ -28,6 +28,7 @@ class RLConfig(BaseConfig):
     kl_target: Target value for KL divergence (used in adaptive methods) (default: 100.0)
     adv_estimator: Method for estimating advantages (e.g., 'group_norm', 'gae') (default: 'group_norm')
     kl_penalty: Type of KL penalty to apply (e.g., 'kl', 'reverse_kl') (default: 'kl')
+    use_kl_in_reward: Whether to enable in-reward kl penalty. (default: 'False').
 
     actor_forward_micro_batch_size: micro batch size for actor log_p calculation
     ref_forward_micro_batch_size: micro batch size for ref log_p calculation
@@ -86,6 +87,7 @@ class RLConfig(BaseConfig):
         self.verifier_parallel = 1
         self.verifier_timeout = 30
         self.integrated_mode_config = None
+        self.use_kl_in_reward = False
 
         self.shuffle_mini_batch = False
         self.enable_sharding_validate = False

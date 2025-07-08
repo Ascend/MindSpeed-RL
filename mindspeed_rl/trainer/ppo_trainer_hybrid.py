@@ -8,6 +8,7 @@ import torch
 from codetiming import Timer
 from torch.utils.data import DataLoader
 
+from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
@@ -65,6 +66,7 @@ class RayPPOTrainer(RayBaseTrainer):
             blocking: bool = False,
             guarantee_order: bool = False,
             num_cpus_for_local_task: int = 1,
+            use_kl_in_reward: bool = False,
             **kwargs
     ):
         super().__init__(
@@ -87,6 +89,7 @@ class RayPPOTrainer(RayBaseTrainer):
             blocking=blocking,
             guarantee_order=guarantee_order,
             num_cpus_for_local_task=num_cpus_for_local_task,
+            use_kl_in_reward=use_kl_in_reward,
             **kwargs
         )
 
@@ -122,7 +125,7 @@ class RayPPOTrainer(RayBaseTrainer):
         mini_batch_size = self.actor_worker.rl_config.mini_batch_size
         n_samples_per_prompt = self.actor_worker.rl_config.n_samples_per_prompt
         epochs = self.actor_worker.rl_config.epochs
-        self.skip_actor_log_prob = (self.adv_estimator != "gae" and global_batch_size * n_samples_per_prompt == mini_batch_size and epochs == 1)
+        self.skip_actor_log_prob = (not self.use_kl_in_reward and global_batch_size * n_samples_per_prompt == mini_batch_size and epochs == 1)
         self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
     def fit(self, data_iters):
@@ -175,7 +178,8 @@ class RayPPOTrainer(RayBaseTrainer):
                     if hasattr(reward, 'wait_all_ref_objs_run_over'):
                         reward.wait_all_ref_objs_run_over()
 
-                self.apply_kl_penalty(blocking=False, guarantee_order=self.guarantee_order)
+                if self.use_kl_in_reward: 
+                    self.apply_kl_penalty(blocking=False, guarantee_order=self.guarantee_order)
 
                 # compute advantages, executed on the driver process
                 self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
@@ -233,7 +237,8 @@ class RayPPOTrainer(RayBaseTrainer):
             tokenizer=self.tokenizer,
             global_batch_size=self.global_batch_size * self.n_samples_per_prompt,
             guarantee_order=guarantee_order,
-            n_sample_per_prompt=self.n_samples_per_prompt
+            n_sample_per_prompt=self.n_samples_per_prompt,
+            use_kl_in_reward=self.use_kl_in_reward
         )
         if blocking:
             ray.get(compute_advantage_ref)

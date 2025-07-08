@@ -27,6 +27,7 @@ msprobe_config:
   token_range_end: 0
   actor_train_dump: false
   reference_dump: false
+  critic_train_dump: false
   step_start: 0
   step_end: 0
 ```
@@ -44,8 +45,9 @@ msprobe_config:
 | token_range_end | 采集推理生成token的结束范围 | int，默认0，如果只想采某一个token的数据，设置为跟token_range_start一样 |
 | actor_train_dump | actor的训练阶段模型层输入输出 | true/false，默认false，是否采集actor_compute_log_prob、actor_update阶段的模型层数据 |
 | reference_dump | reference的模型层输入输出 | true/false，默认false，是否采集reference的模型层数据 |
-| step_start | 采集开始步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences生效 |
-| step_end | 采集结束步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences生效。如果只想采某一步的数据，设置为跟step_start一样 |
+| critic_train_dump | critic的训练阶段模型层输入输出 | true/false，默认false，是否采集critic_compute_values、critic_update阶段的模型层数据 |                                                       |
+| step_start | 采集开始步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences、critic_train_dump生效 |
+| step_end | 采集结束步数 | int，默认0，只对actor_train_dump、reference_dump、actor_generate_sequences、critic_train_dump生效。如果只想采某一步的数据，设置为跟step_start一样 |
 
 ### 落盘数据说明
 
@@ -53,16 +55,20 @@ msprobe_config:
 msprobe_dump/
 ├── actor_generate_sequences/  # actor_generate_sequences阶段的模型层数据
 ├── actor_compute_log_prob/  # actor_compute_log_prob阶段的模型层数据
+├── critic_compute_values/  # critic_compute_values阶段的模型层数据
 ├── actor_update/  # actor_update阶段的模型层数据
+├── critic_update/  # critic_update阶段的模型层数据
 ├── reference_compute_log_prob/  # reference的模型层数据
 ├── data/  # 训练过程关键数据
 │   └── advantages/  
 │   └── kl_loss/  
-│   └── log_prob/  
+│   └── log_prob/
+│   └── old_log_prob/
 │   └── loss/  
 │   └── prompts/  
 │   └── ref_log_prob/  
-│   └── responses/  
+│   └── responses/
+│   └── values/  
 ├── configurations.json  # 训练配置文件
 ```
 
@@ -126,4 +132,4 @@ compare_distributed(
 
 [关键数据比对指南（key_data_dump）](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/34.RL_collect.md#%E7%BB%93%E6%9E%9C%E6%AF%94%E5%AF%B9)
 
-[模型层数据比对指南（actor_train_dump、reference_dump）](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/10.accuracy_compare_PyTorch.md#222-compare_distributed-%E5%87%BD%E6%95%B0)
+[模型层数据比对指南（actor_train_dump、reference_dump、critic_train_dump）](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/10.accuracy_compare_PyTorch.md#222-compare_distributed-%E5%87%BD%E6%95%B0)

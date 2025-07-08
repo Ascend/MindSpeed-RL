@@ -108,6 +108,32 @@ def check_dapo_msprobe_output(msprobe_dir: str) -> bool:
     return True
 
 
+def check_ppo_msprobe_output(msprobe_dir: str) -> bool:
+    """Check if msprobe deliverables are generated correctly"""
+    logger.info('Starting msprobe deliverables check...')
+
+    # Check if msprobe_data directory exists
+    if not os.path.exists(msprobe_dir):
+        logger.error(f'Msprobe data directory not found: {msprobe_dir}')
+        return False
+
+    if not os.path.isfile(os.path.join(msprobe_dir, "configurations.json")):
+        logger.error(f'Configurations directory not found: {os.path.join(msprobe_dir, "configurations.json")}')
+        return False
+    
+    if not os.path.isfile(os.path.join(msprobe_dir, "data", "values", "step0", "rank0", "values.json")):
+        logger.error(f'Msprobe key data response not found: '
+                     f'{os.path.join(msprobe_dir, "data", "values", "step0", "rank0", "values.json")}')
+        return False
+    
+    if not os.path.isdir(os.path.join(msprobe_dir, "critic_update")):
+        logger.error(f'Msprobe actor update directory not found: {os.path.join(msprobe_dir, "critic_update")}')
+        return False
+    
+    logger.info('All msprobe deliverables check passed!')
+    return True
+
+
 def clean_msprobe_output(msprobe_dir: str):
     """Clean up msprobe deliverables"""
     logger.info('Starting cleanup...')
@@ -142,6 +168,11 @@ def main():
                 sys.exit(1)
         elif args.stage == "dapo":
             if check_profiler_output(args.profiler_dir) and check_dapo_msprobe_output(args.msprobe_dir):
+                sys.exit(0)
+            else:
+                sys.exit(1)
+        elif args.stage == "ppo":
+            if check_profiler_output(args.profiler_dir) and check_ppo_msprobe_output(args.msprobe_dir):
                 sys.exit(0)
             else:
                 sys.exit(1)

@@ -46,9 +46,8 @@ class CriticLossFunc(BaseLossFunc):
     def compute_loss(self, output: torch.Tensor,
                      batch: Dict[str, torch.Tensor],
                      forward_only=False,
-                     use_dynamic_bsz=False,
-                     actual_micro_batch_size=1,
-                     non_loss_data=True) -> Tuple[torch.Tensor, Dict]:
+                     non_loss_data=True,
+                     **kwargs) -> Tuple[torch.Tensor, Dict]:
         vpreds = self._get_compute_vpreds(output, batch)
         if forward_only:
             return vpreds
@@ -59,6 +58,8 @@ class CriticLossFunc(BaseLossFunc):
                                                         values=values,
                                                         response_mask=response_mask,
                                                         cliprange_value=self.cliprange_value)
+        use_dynamic_bsz = kwargs.get('use_dynamic_bsz', False)
+        actual_micro_batch_size = kwargs.get('actual_micro_batch_size', None)
         if use_dynamic_bsz and not forward_only:
             value_loss = vf_loss * (batch['responses'].size(0) / actual_micro_batch_size)
         else:

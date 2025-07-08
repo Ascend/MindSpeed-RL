@@ -386,9 +386,7 @@ class MsProbe:
 
     @classmethod
     def need_debugger(cls):
-        if cls.config.reference_dump or cls.config.actor_train_dump or cls.config.actor_infer_dump:
-            return True
-        return False
+        return cls.config.reference_dump or cls.config.actor_train_dump or cls.config.actor_infer_dump or cls.config.critic_train_dump
 
     @classmethod
     def need_debugger_start(cls, tag):
@@ -399,6 +397,10 @@ class MsProbe:
         if tag == "actor_compute_log_prob" and cls.config.actor_train_dump:
             return True
         if tag == "actor_generate_sequences" and cls.config.actor_infer_dump:
+            return True
+        if tag == "critic_update" and cls.config.critic_train_dump:
+            return True
+        if tag == "critic_compute_values" and cls.config.critic_train_dump:
             return True
         return False
 

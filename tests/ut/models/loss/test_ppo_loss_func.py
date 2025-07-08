@@ -38,18 +38,20 @@ class TestPPOActorLossFunc(DistributedTest):
         batch = {'responses': torch.randn(10, 5), 'attention_mask': torch.randn(10, 5).zero_(),
                  'prompt_length': torch.randn(10, 5), 'response_length': torch.randn(10, 5)}
         log_probs = torch.randn(10, 5)
+        entropy = torch.randn(10, 5)
         response_mask, old_log_prob, advantages, ref_log_prob = torch.randn(10, 5), \
             torch.randn(10, 5), torch.randn(10, 5), torch.randn(10, 5)
         ppo_loss_func = PPOActorLossFunc()
-        with patch.object(BaseLossFunc, "compute_log_probs", return_value=(log_probs)):
+        with patch.object(BaseLossFunc, "compute_log_probs", return_value=(log_probs, entropy)):
             with patch.object(PPOActorLossFunc, "_get_policy_loss_input", return_value=(response_mask, old_log_prob, advantages, ref_log_prob)):
                 kl_ctrl_value = 0.1
                 meta_info = {'clip_ratio': 0.5,
-                             'kl_ctrl': MagicMock(return_value=kl_ctrl_value)}
+                             'kl_ctrl': MagicMock(return_value=kl_ctrl_value),
+                             'entropy_coeff': 0.0}
                 ppo_loss_func.add_loss_meta_info(meta_info)
                 assert ppo_loss_func.clip_ratio == 0.5
                 assert ppo_loss_func.kl_ctrl() == kl_ctrl_value
                 result = ppo_loss_func.compute_loss(output, batch, forward_only=False)
                 assert result[0] is not None
-                ppo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch)
+                ppo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch, update=True)
                 ppo_loss_func._get_policy_loss_input.assert_called_once_with(batch=batch)

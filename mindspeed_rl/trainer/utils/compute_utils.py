@@ -100,6 +100,7 @@ def apply_kl_penalty(td, experience_count, global_batch_size, guarantee_order, t
             output = {
                 "token_level_rewards": token_level_rewards,
             }
+            output = padding_dict_to_tensor_dict(output)
             td.put_experience.remote(data_dict=output, indexes=index)
 
 
@@ -243,7 +244,7 @@ def compute_group_norm_advantage_return(
 
 @ray.remote
 @mstx_timer_decorator
-def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order, n_sample_per_prompt):
+def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order, n_sample_per_prompt, use_kl_in_reward=False):
     """
     Compute the advantage function based on different adv_estimator
 
@@ -263,6 +264,8 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
     experience_consumer_stage = "compute_advantage"
     if adv_estimator == "gae":
         experience_columns = ["values", "responses", "token_level_rewards", "response_length"]
+        if not use_kl_in_reward:
+            experience_columns = ["values", "responses", "rm_scores", "response_length"]
     else:
         experience_columns = ["responses", "rm_scores", "response_length"]
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
@@ -281,7 +284,15 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
             response_mask = generate_mask(batch_data["responses"], batch_data["response_length"])
             response_length = batch_data["response_length"]
             if adv_estimator == "gae":
-                token_level_rewards = batch_data["token_level_rewards"]
+                if use_kl_in_reward:
+                    token_level_rewards = batch_data["token_level_rewards"]
+                else:
+                    rm_scores = batch_data["rm_scores"]
+                    reward_tensor = torch.zeros_like(batch_data['responses'], dtype=torch.float32)
+                    for i in range(batch_data['responses'].shape[0]):
+                        valid_response_length = batch_data['response_length'][i] - 1
+                        reward_tensor[i, int(valid_response_length.item())] = rm_scores[i]
+                    token_level_rewards = reward_tensor
                 values = batch_data["values"]
                 advantages, returns = compute_gae_advantage_return(
                     token_level_rewards=token_level_rewards,
@@ -460,7 +471,6 @@ def compute_ppo_data_metrics(
     experience_consumer_stage = "ppo_metrics"
     experience_columns = [
         "rm_scores",
-        "token_level_rewards",
         "responses",
         "advantages",
         "returns",
@@ -480,7 +490,6 @@ def compute_ppo_data_metrics(
         if batch and index:
             batch = pad_experience(batch, pad_token_id)
             sequence_score = batch["rm_scores"].sum(-1)
-            sequence_reward = batch["token_level_rewards"].sum(-1)
             prompt_length = batch["prompt_length"]
             response_length = batch["response_length"]
             advantages = batch['advantages']
@@ -492,10 +501,6 @@ def compute_ppo_data_metrics(
                 'critic/score/mean': torch.mean(sequence_score).detach().item(),
                 'critic/score/max': torch.max(sequence_score).detach().item(),
                 'critic/score/min': torch.min(sequence_score).detach().item(),
-                # reward
-                'critic/rewards/mean': torch.mean(sequence_reward).detach().item(),
-                'critic/rewards/max': torch.max(sequence_reward).detach().item(),
-                'critic/rewards/min': torch.min(sequence_reward).detach().item(),
                 # adv
                 'critic/advantages/mean': F.masked_mean(advantages, response_mask).detach().item(),
                 'critic/advantages/max': torch.max(advantages[response_mask]).detach().item(),

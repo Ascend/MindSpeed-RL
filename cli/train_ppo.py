@@ -93,6 +93,8 @@ def train(config):
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
+            profiler_config=profiler_config["integrated"],
+            msprobe_config=msprobe_config,
             global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 
@@ -145,6 +147,8 @@ def train(config):
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
+            profiler_config=profiler_config["integrated"],
+            msprobe_config=msprobe_config,
             global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
         ).initialize()
 

@@ -36,7 +36,7 @@ profiler_config:
 |------|------|--------|
 | profile | 性能分析开关 | true/false，默认值false，所有性能数据采集均依赖该开关开启 |
 | mstx | 轻量化打点采集开关 | true/false，默认值false，启用/关闭轻量化打点采集，需要查看轻量化打点性能数据时需开启 |
-| stage | 性能数据采集阶段 | all(采集所有阶段性能数据)、actor_generate(采集actor模型生成阶段性能数据)、actor_compute_log_prob(采集actor模型计算log概率阶段性能数据)、reference_compute_log_prob(采集reference参考模型计算log概率阶段性能数据)、actor_update(采集模型更新阶段性能数据)，默认值all |
+| stage | 性能数据采集阶段 | all(采集所有阶段性能数据)、actor_generate(采集actor模型生成阶段性能数据)、actor_compute_log_prob(采集actor模型计算log概率阶段性能数据)、reference_compute_log_prob(采集reference参考模型计算log概率阶段性能数据)、critic_compute_values(采集critic模型计算values阶段性能数据)、actor_update(采集模型更新阶段性能数据)、critic_update(采集模型更新阶段性能数据)默认值all |
 | profile_save_path | 性能数据输出目录 | 任意有效路径，默认为"./profiler_data" |
 | profile_export_type | 导出格式 | text、db(性能数据交付件为db格式，可减少约70%磁盘空间)，默认值text |
 | profile_step_start | 开启采集数据的步骤 | 任意正整数，默认为1，profile_step_start从1开始 |
@@ -101,8 +101,10 @@ GRPO算法涉及多个worker模块交互，包含训练、推理等流程。在�
     - all(采集所有阶段性能数据) 
     - actor_generate(采集actor模型生成阶段性能数据)
     - actor_compute_log_prob(采集actor模型计算log概率阶段性能数据)
+    - critic_compute_values(采集critic模型计算values阶段性能数据)
     - reference_compute_log_prob(采集reference参考模型计算log概率阶段性能数据)
-    - actor_update(采集模型更新阶段性能数据)
+    - actor_update(采集actor模型更新阶段性能数据)
+    - critic_update(采集critic模型更新阶段性能数据)
 
   - 采集数据时同样建议降低全局批次大小 `megatron_training.global_batch_size <= 4`，避免性能数据过大
 

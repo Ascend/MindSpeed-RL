@@ -55,7 +55,10 @@ class MemoryBuffer:
     def copy_by_name(self, param_name: str, param):
         """Copy buffer_tensor"""
         buffer_tensor = self.get_by_name(param_name)
-        buffer_tensor = buffer_tensor.view(param.shape)
+        try:
+            buffer_tensor = buffer_tensor.view(param.shape)
+        except RuntimeError as err:
+            raise RuntimeError(f"The shape of two tensor not match, The weight_name of the tensor is: {param_name}") from err
         buffer_tensor.copy_(param)
 
     def get_by_name(self, param_name: str):

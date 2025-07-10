@@ -25,7 +25,8 @@ class BaseInferEngine(ABC):
             max_model_len: int = 2048,  # Default value set to 2048
             dtype: str = "bfloat16",  # Default value set to "bfloat16"
             gpu_memory_utilization: float = 0.5,  # Default value set to 0.5
-            trust_remote_code: bool = True
+            trust_remote_code: bool = True,
+            enable_expert_parallel: bool = False,
     ):
         """
         Initialize the base inference engine.
@@ -44,6 +45,7 @@ class BaseInferEngine(ABC):
             dtype (str): Data type for model weights. Default is "bfloat16".
             gpu_memory_utilization (float): GPU memory utilization factor. Default is 0.5.
             trust_remote_code (bool): Whether to trust remote code (e.g., for custom tokenizers).
+            enable_expert_parallel (bool): Whether to enable expert parallel.
         """
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.prompt_type = prompt_type
@@ -60,6 +62,7 @@ class BaseInferEngine(ABC):
         self.dtype = dtype
         self.gpu_memory_utilization = gpu_memory_utilization
         self.trust_remote_code = trust_remote_code
+        self.enable_expert_parallel = enable_expert_parallel
 
 
     @abstractmethod

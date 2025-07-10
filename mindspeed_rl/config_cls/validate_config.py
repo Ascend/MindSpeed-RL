@@ -80,11 +80,6 @@ def validate_rl_args(
                 "'multimodal' models cannot use 'use_remove_padding' feature! "
                 "Please set 'use_remove_padding=False' in the RLConfig.")
 
-    # 校验图模式配置
-    if not generate_config.enforce_eager:
-        raise ValueError(
-            "'enforce eager' feature is not available to be False at present.")
-              
     # 校验资源分配合理性
     def _validate_resource(resource, t_size, p_size, c_size, component):
         product = t_size * p_size * c_size

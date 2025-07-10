@@ -207,6 +207,7 @@ class MegatronConfig(BaseConfig):
     coc_mode: 0=original, 1=rewrite, 2=coc default
     coc_parallel_num: number of parallel in CoC features (default: 1)
     coc_fused_kernel: switch to use fused kernel in CoC (default: False)
+    swap_optimizer: switch to swap-optimizer feature (default: False)
     mm_model: config for multimodal models
     '''
 
@@ -379,6 +380,7 @@ class MegatronConfig(BaseConfig):
         self.coc_mode = -1
         self.coc_parallel_num = 1
         self.coc_fused_kernel = False
+        self.swap_optimizer = False
 
         # used for multimodal models
         self.mm_model = None

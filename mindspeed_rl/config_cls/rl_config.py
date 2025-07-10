@@ -127,6 +127,7 @@ class RLConfig(BaseConfig):
 
         self.use_dynamic_bsz = False
         self.max_packing_token_size = 4096
+        self.log_max_throughput = True
         self.dynamic_max_batch_size = None
 
         # token level loss

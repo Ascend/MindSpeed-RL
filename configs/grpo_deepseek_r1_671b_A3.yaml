@@ -1,0 +1,117 @@
+defaults:
+  - model:
+      - deepseekv3_671b
+
+megatron_training:
+  model: deepseekv3_671b
+  use_flash_attn: true
+  shape_order: BNSD
+  use_fused_rotary_pos_emb: true
+  use_fused_rmsnorm: true
+  use_fused_swiglu: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  bf16: true
+  sequence_parallel: true
+  use_distributed_optimizer: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: ./DeepSeek-V3-hf/
+  global_batch_size: 384
+  seq_length: 1024
+  save_interval: 100
+  train_iters: 1000
+  stage: ray_grpo
+  attention_dropout: 0.0
+  init_method_std: 0.01
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  dataset_additional_keys: ['labels',]
+  no_shuffle: false
+  data_path: ./deepseek/deepscaler
+  split: 100,0,0
+  swap_optimizer: true
+  moe_alltoall_overlap_comm: true
+  reset_position_ids: true
+
+actor_config:
+  model: deepseekv3_671b
+  micro_batch_size: 1
+  moe_tp_extend_ep: true
+  expert_model_parallel_size: 16
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 6
+  num_layer_list: 9,10,10,10,11,11
+  recompute_granularity: full
+  recompute_method: block
+  recompute_num_layers: 9
+  lr: 1e-6
+  lr_decay_style: constant
+  min_lr: 0.0
+  weight_decay: 0.0
+  lr_warmup_fraction: 0.0
+  clip_grad: 10000.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  initial_loss_scale: 4096
+  finetune: true
+  load: ./ckpt/
+  save: ./ckpt/
+  no_load_optim: true
+  no_load_rng: true
+
+rl_config:
+  use_integrated_worker: true
+  use_dynamic_bsz: true
+  max_packing_token_size: 4096
+  blocking: true
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: kl
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.001
+  mini_batch_size: 384
+  use_remove_padding: true
+  max_prompt_length: 1024
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0
+  n_samples_per_prompt: 32
+  rule_reward: true
+  verifier_function: ["base_acc"]
+  verifier_weight: [1.0]
+  actor_resource:
+    num_npus: 384
+
+generate_config:
+  # tokenizer相关配置
+  trust_remote_code: true
+  # 推理时的并行配置
+  infer_tensor_parallel_size: 2
+  infer_pipeline_parallel_size: 1
+  infer_expert_parallel_size: 64
+  # vllm 模型相关设置
+  max_num_seqs: 64
+  max_model_len: 3072
+  max_num_batched_tokens: 1024
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.75
+  enforce_eager: false
+  torchair_graph: true
+  enable_expert_parallel: true
+
+  offload_train_optimizer: false
+  offload_train_grad: true
+  offload_train_param: true
+
+  # 采样配置
+  sampling_config:
+    logprobs: 1
+    max_tokens: 2048
+    top_p: 1
+    top_k: -1
+    min_p: 0
+    temperature: 1.0
+    detokenize: false

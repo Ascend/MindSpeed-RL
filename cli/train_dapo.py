@@ -19,7 +19,7 @@ from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.utils.utils import MsProbe, get_node_nums
 from mindspeed_rl.utils.loggers import Loggers
-from mindspeed_rl.utils.utils import parse_args_from_config
+from mindspeed_rl.utils.utils import parse_args_from_config, init_torch_compile
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
@@ -395,6 +395,10 @@ def initialize_megatron(
     origin_sys_argv = sys.argv
     sys.argv = [sys.argv[0]]
     parse_args_from_config(config)
+
+    # Initialize torch.compile global variables to avoid training-related patches affecting vLLM graph mode enabling.
+    init_torch_compile(torch.compile)
+    # Note: Importing this line activates the megatron_adapter.
     from mindspeed_llm.training.arguments import parse_args_decorator
     import megatron
 

@@ -3,6 +3,7 @@ ray stop --force
 export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1 
 
+SOCKET_IFNAME="Your SOCKET IFNAME"
 DEFAULT_YAML="grpo_qwen25_7b_A3"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
@@ -16,9 +17,11 @@ export HCCL_IF_BASE_PORT=24703
 NNODES=1
 NPUS_PER_NODE=16
 #修改为对应主节点IP
-MASTER_ADDR="localhost"
-#获取当前机器IP
-CURRENT_IP=$(ip -4 addr show $(ip -o -4 route show to default | awk '{print $5}') | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+MASTER_ADDR="IP FOR MASTER NODE"
+#修改为当前节点的通信网卡
+SOCKET_IFNAME="SOCKET IFNAME FOR CURRENT NODE"
+#获取当前节点IP
+CURRENT_IP=$(ifconfig $SOCKET_IFNAME | grep -Eo 'inet (addr:)?([0-9]{1,3}\.){3}[0-9]{1,3}' | awk '{print $NF}')
 
 if [ "$MASTER_ADDR" = "$CURRENT_IP" ]; then
   # 主节点启动

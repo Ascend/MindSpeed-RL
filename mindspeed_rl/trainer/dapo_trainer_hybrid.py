@@ -127,9 +127,13 @@ class RayDAPOTrainer(RayBaseTrainer):
                 reward.init_transfer_dock.remote(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
+        if self.should_filter:
+            global_batch_size = self.max_num_prompt_in_batch
+        else:
+            global_batch_size = self.global_batch_size
         mini_batch_size = self.actor_worker.rl_config.mini_batch_size
         epochs = self.actor_worker.rl_config.epochs
-        self.skip_actor_log_prob = (self.max_num_prompt_in_batch * self.n_samples_per_prompt == mini_batch_size and epochs == 1)
+        self.skip_actor_log_prob = (global_batch_size * self.n_samples_per_prompt == mini_batch_size and epochs == 1)
         self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
     def fit(self, data_iters):

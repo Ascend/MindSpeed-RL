@@ -395,3 +395,6 @@ def validate_data_handler_config(config):
 
     if not config.pack and config.neat_pack:
         raise ValueError("Require set `pack` True when `neat-pack` is True.")
+
+    if config.enable_thinking and config.prompt_type != 'qwen3':
+        raise ValueError("enable_thinking only support when using qwen3 prompt type")

@@ -196,6 +196,7 @@ class TestHandler(DistributedTest):
             "seq_length": 4096,
             "prompt_type": "llama2",
             "prompt_type_path": PROMPT_TEMPLATE_FILE,
+            "enable_thinking": False,
         }
         args = types.SimpleNamespace(**args)
         raw_dataset = build_dataset(args)

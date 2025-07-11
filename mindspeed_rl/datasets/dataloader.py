@@ -4,6 +4,7 @@
 from dataclasses import dataclass
 from typing import Sequence, Dict, Any, List
 from collections import defaultdict
+from transformers import DataCollatorForSeq2Seq
 
 import torch
 from torch.utils.data import RandomSampler, SequentialSampler
@@ -28,7 +29,9 @@ class PromptDataLoader(torch.utils.data.DataLoader):
                  num_workers,
                  seed,
                  dataset_additional_keys,
-                 no_shuffle):
+                 no_shuffle,
+                 is_pairwise_dataset=False,
+                 tokenizer=None):
         def collator(features, return_tensors=None):
             features_dict = {}
 
@@ -38,6 +41,14 @@ class PromptDataLoader(torch.utils.data.DataLoader):
                 features_dict[add_key] = [torch.tensor(value[add_key]) for value in features]
 
             return features_dict
+
+        if tokenizer is not None:
+            collator_fn = PairwiseDataCollatorWithPadding(
+                tokenizer,
+                pad_to_multiple_of=8,
+                return_tensors='pt',
+                padding=True
+            )
 
         if not no_shuffle:
             train_dataloader_generator = torch.Generator()
@@ -49,7 +60,7 @@ class PromptDataLoader(torch.utils.data.DataLoader):
         super().__init__(dataset,
                         num_workers=num_workers,
                         generator=torch.Generator().manual_seed(seed),
-                        collate_fn=collator,
+                        collate_fn=collator_fn if is_pairwise_dataset else collator,
                         pin_memory=True,
                         sampler=sampler,
                         batch_size=global_batch_size,
@@ -90,3 +101,36 @@ class MultiModalDataLoader(torch.utils.data.DataLoader):
                         sampler=sampler,
                         batch_size=global_batch_size,
                         drop_last=True)
+
+
+@dataclass
+class PairwiseDataCollatorWithPadding(DataCollatorForSeq2Seq):
+    r"""
+    Data collator for pairwise data.
+    """
+
+    def __call__(self, features: Sequence[Dict[str, Any]], repeat=2) -> Dict[str, torch.Tensor]:
+        """
+        Pads batched data to the longest sequence in the batch.
+
+        We generate 2 * n * repeat (for hyper model) examples where the first n examples represent chosen examples and
+        the last n examples represent rejected examples.
+        """
+        concatenated_features = []
+
+        for _ in range(repeat):
+            self._concat(concatenated_features, features)
+
+        return super().__call__(concatenated_features)
+
+    @staticmethod
+    def _concat(concatenated_features, features):
+        for key in ("chosen", "rejected"):
+            for feature in features:
+                target_feature = {
+                    "input_ids": feature["{}_input_ids".format(key)],
+                    "attention_mask": feature["{}_attention_mask".format(key)],
+                    "labels": feature["{}_labels".format(key)],
+                }
+
+                concatenated_features.append(target_feature)

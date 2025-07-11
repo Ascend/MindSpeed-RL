@@ -30,6 +30,23 @@ profiler_config:
     profile_ranks: all
 ```
 
+针对MindSpeed-RL仓库支持的直接偏好对齐（DPO）算法，可以通过如下方式进行配置：
+
+```yaml
+megatron_training:
+  profile_ranks: all
+  profile_export_type: text
+  profile_step_start: 1
+  profile_step_end: 2
+  profile_level: level1
+  profile_data_simplification: true
+  profile_with_stack: false
+  profile_with_memory: false
+  profile_record_shapes: false
+  profile_with_cpu: true
+  profile_save_path: ./profiler_data
+```
+
 ### 主要配置参数说明
 
 | 参数 | 说明 | 可选值 |

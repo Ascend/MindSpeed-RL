@@ -1,0 +1,11 @@
+input: ./dataset/orca_rlhf.jsonl
+tokenizer_name_or_path: ./model_from_hf/Qwen3
+output_prefix: ./dataset/dpo
+handler_name: AlpacaStylePairwiseHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 12
+log_interval: 1000
+prompt_type: qwen3
+seq_length: 4096
+map_keys: {"prompt":"question", "query":"", "system":"system"}
+enable_thinking: true

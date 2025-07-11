@@ -280,7 +280,7 @@ class AlpacaStylePairwiseHandler(BaseDatasetHandler):
         self.args.json_keys = ["chosen_input_ids", "chosen_labels", "rejected_input_ids", "rejected_labels"]
         self.args.output_prefix = self.args.output_prefix + "_packed"
         self.ignored_label = -100
-        self.llama_factory_template = get_model_template(args.prompt_type.strip(), args.prompt_type_path.strip())
+        self.llama_factory_template = get_model_template(args.prompt_type.strip(), args.prompt_type_path.strip(), args.enable_thinking)
 
     def _filter(self, sample):
         chosen_messages = sample["prompt"] + [sample["response"][0]]

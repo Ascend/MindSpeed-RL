@@ -20,7 +20,7 @@ import numpy
 _INDEX_HEADER = b"MMIDIDX\x00\x00"
 
 
-def get_packed_indexed_dataset(data_prefix: str, filter_length: Optional[int] = None):
+def get_packed_indexed_dataset(data_prefix: str, filter_length: Optional[int] = None, is_pairwise_dataset: bool = False):
     index_dataset_name = f"{data_prefix}_packed_*_document*"
     names = glob.glob(index_dataset_name)
     template = f"{data_prefix}_packed_(.*)_document(.*)"
@@ -35,7 +35,7 @@ def get_packed_indexed_dataset(data_prefix: str, filter_length: Optional[int] = 
         max_len = filter_length if filter_length and field == 'input_ids' else None
         packed_dataset[field] = IndexedDataset(f"{data_prefix}_packed_{field}_document", max_len=max_len)
 
-    if filter_length:
+    if filter_length and not is_pairwise_dataset:
         filter_mask = packed_dataset['input_ids'].get_filter_mask()
         for field in packed_dataset:
             packed_dataset[field].do_filter(filter_mask)

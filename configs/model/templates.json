@@ -133,6 +133,43 @@
     "replace_eos": true
   },
   {
+    "name": "qwen3",
+    "format_user": {
+      "slots": [
+        "<|im_start|>user\n{{content}}<|im_end|>\n<|im_start|>assistant\n"
+      ]
+    },
+    "format_assistant": {
+      "slots": [
+        "{{content}}<|im_end|>\n"
+      ]
+    },
+    "format_system": {
+      "slots": [
+        "<|im_start|>system\n{{content}}<|im_end|>\n"
+      ]
+    },
+    "format_function": {
+      "slots": [
+        "{{content}}<|im_end|>\n"
+      ],
+      "tool_format": "qwen"
+    },
+    "format_observation": {
+      "slots": [
+        "<|im_start|>user\n<tool_response>\n{{content}}\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+      ]
+    },
+    "format_tools": {
+      "tool_format": "qwen"
+    },
+    "stop_words": [
+      "<|im_end|>"
+    ],
+    "replace_eos": true,
+    "template_class": "ReasoningTemplate"
+  },
+  {
     "name": "llama3",
     "format_user": {
       "slots": [

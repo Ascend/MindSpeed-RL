@@ -31,6 +31,16 @@ megatron_training:
    variable_seq_lengths: true
 ```
 
+对于直接偏好对齐（DPO）算法，通过如下配置可以使能：
+
+```yaml
+# 填写在megatron_training
+megatron_training:
+   variable_seq_lengths: true
+   context_parallel_size: 2
+   context_parallel_algo: ulysses_cp_algo
+```
+
 `context_parallel_size` 表示CP并行数。如果选用ulysses_cp_algo，需满足条件**模型num_attention_heads%(CP*TP)=0**
 
 `context_parallel_algo` 表示选用的长序列并行方法，如果不配置此参数，默认取**ulysses_cp_algo**
@@ -54,6 +64,18 @@ megatron_training:
    variable_seq_lengths: true
    reset_attention_mask: true
 ```
+
+对于直接偏好对齐（DPO）算法，通过如下配置可以使能：
+
+```yaml
+# 填写在megatron_training
+megatron_training:
+   variable_seq_lengths: true
+   context_parallel_size: 2
+   context_parallel_algo: megatron_cp_algo
+   cp_attention_mask_type: causal
+```
+
 
 其中：
 

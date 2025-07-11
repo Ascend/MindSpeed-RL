@@ -4,10 +4,13 @@
 import re
 import json
 from dataclasses import dataclass
+from copy import deepcopy
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
 
-from .formatter import EmptyFormatter, FunctionFormatter, StringFormatter, ToolFormatter
+from typing_extensions import override
+
+from mindspeed_rl.datasets.formatter import EmptyFormatter, FunctionFormatter, StringFormatter, ToolFormatter
 
 if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer
@@ -44,11 +47,14 @@ class Template:
     format_tools: "Formatter"
     format_separator: "Formatter"
     format_prefix: "Formatter"
+    thought_words: tuple[str, str]
     default_system: str
     stop_words: List[str]
     efficient_eos: bool
     replace_eos: bool
     force_system: bool
+    enable_thinking: bool
+    thought_words: tuple[str, str]
 
     def encode_oneturn(
             self,
@@ -172,6 +178,19 @@ class Template:
 
         return encoded_pairs
 
+    def add_thought(self, content: str = "") -> str:
+        r"""Add empty thought to assistant message."""
+        return f"{self.thought_words[0]}\n\n{self.thought_words[1]}\n\n" + content
+
+    def remove_thought(self, content: str) -> str:
+        r"""Remove thought from assistant message."""
+        pattern = re.compile(f"{re.escape(self.thought_words[0])}(.*?){re.escape(self.thought_words[1])}", re.DOTALL)
+        return re.sub(pattern, "", content).lstrip("\n")
+
+    def get_thought_word_ids(self, tokenizer: "PreTrainedTokenizer") -> list[int]:
+        r"""Get the token ids of thought words."""
+        return tokenizer.encode(self.add_thought(), add_special_tokens=False)
+
 
 @dataclass
 class Llama2Template(Template):
@@ -218,15 +237,81 @@ class Llama2Template(Template):
         return self._make_pairs(encoded_messages, cutoff_len, reserved_label_len)
 
 
+@dataclass
+class ReasoningTemplate(Template):
+    r"""A template that add thought to assistant message."""
+
+    @override
+    def encode_oneturn(
+        self,
+        tokenizer: "PreTrainedTokenizer",
+        messages: list[dict[str, str]],
+        system: Optional[str] = None,
+        tools: Optional[str] = None,
+    ) -> tuple[list[int], list[int]]:
+        messages = deepcopy(messages)
+        for i in range(1, len(messages) - 2, 2):
+            messages[i]["content"] = self.remove_thought(messages[i]["content"])
+
+        if self.enable_thinking is False:  # remove all cot
+            messages[-1]["content"] = self.remove_thought(messages[-1]["content"])
+
+        prompt_ids, response_ids = super().encode_oneturn(tokenizer, messages, system, tools)
+        if (
+            self.thought_words[0] not in messages[-1]["content"]
+            and self.thought_words[1] not in messages[-1]["content"]
+        ):  # add empty cot
+            if not self.enable_thinking:  # do not compute loss
+                prompt_ids += self.get_thought_word_ids(tokenizer)
+            else:  # do compute loss
+                response_ids = self.get_thought_word_ids(tokenizer) + response_ids
+
+        return prompt_ids, response_ids
+
+    @override
+    def encode_multiturn(
+        self,
+        tokenizer: "PreTrainedTokenizer",
+        messages: list[dict[str, str]],
+        system: Optional[str] = None,
+        tools: Optional[str] = None,
+        cutoff_len: int = 1_000_000,
+        reserved_label_len: int = 1,
+    ) -> list[tuple[list[int], list[int]]]:
+        messages = deepcopy(messages)
+        if self.enable_thinking is False:  # remove all cot
+            for i in range(1, len(messages), 2):
+                messages[i]["content"] = self.remove_thought(messages[i]["content"])
+
+        encoded_messages = self._encode(tokenizer, messages, system, tools, cutoff_len, reserved_label_len)[0]
+        encoded_messages = [list(mes) for mes in encoded_messages]
+        for i in range(0, len(messages), 2):
+            if (
+                self.thought_words[0] not in messages[i + 1]["content"]
+                and self.thought_words[1] not in messages[i + 1]["content"]
+            ):  # add empty cot
+                if not self.enable_thinking:  # do not compute loss
+                    encoded_messages[i] += self.get_thought_word_ids(tokenizer)
+                else:  # do compute loss
+                    encoded_messages[i + 1] = self.get_thought_word_ids(tokenizer) + encoded_messages[i + 1]
+
+        return [(encoded_messages[i], encoded_messages[i + 1]) for i in range(0, len(encoded_messages), 2)]
+
+
 templates: Dict[str, Template] = {}
+
+
+TEMPLATES_MAPPING = {
+    'ReasoningTemplate': ReasoningTemplate
+}
 
 
 def get_templates() -> Dict[str, Template]:
     return templates
 
 
-def get_model_template(name, prompt_type_path):
-    name = register_custom_template(name, prompt_type_path)
+def get_model_template(name, prompt_type_path, enable_thinking=False):
+    name = register_custom_template(name, prompt_type_path, enable_thinking)
     if name is None:
         template = templates["empty"]  # placeholder
     else:
@@ -251,6 +336,9 @@ def _register_template(
         efficient_eos: bool = False,
         replace_eos: bool = False,
         force_system: bool = False,
+        thought_words: Optional[tuple[str, str]] = None,
+        enable_thinking: bool = False,
+        template_class: str = Template
 ) -> None:
     r"""
     Registers a chat template.
@@ -279,13 +367,15 @@ def _register_template(
     ```
     """
     eos_slots = [] if efficient_eos else [{"eos_token"}]
-    template_class = Llama2Template if name.startswith("llama2") else Template
     default_user_formatter = StringFormatter(slots=["{{content}}"])
     default_assistant_formatter = StringFormatter(slots=["{{content}}"] + eos_slots)
     default_function_formatter = FunctionFormatter(slots=["Action: {{name}}\nAction Input: {{arguments}}"] + eos_slots)
     default_tool_formatter = ToolFormatter(tool_format="default")
     default_separator_formatter = EmptyFormatter()
     default_prefix_formatter = EmptyFormatter()
+    template_class = TEMPLATES_MAPPING.get(template_class, None)
+    if template_class is None:
+        template_class = Llama2Template if name.startswith("llama2") else Template
     templates[name] = template_class(
         format_user=format_user or default_user_formatter,
         format_assistant=format_assistant or default_assistant_formatter,
@@ -297,13 +387,15 @@ def _register_template(
         format_prefix=format_prefix or default_prefix_formatter,
         default_system=default_system,
         stop_words=stop_words,
+        thought_words=thought_words or ("<think>", "</think>"),
         efficient_eos=efficient_eos,
         replace_eos=replace_eos,
         force_system=force_system,
+        enable_thinking=enable_thinking
     )
 
 
-def register_custom_template(name, json_file_path=None) -> str:
+def register_custom_template(name, json_file_path=None, enable_thinking=False) -> str:
     if name in templates:
         return name
 
@@ -333,6 +425,7 @@ def register_custom_template(name, json_file_path=None) -> str:
     efficient_eos = _format_custom_template(config.get("efficient_eos", False))
     replace_eos = _format_custom_template(config.get("replace_eos", False))
     force_system = _format_custom_template(config.get("force_system", False))
+    template_class = _format_custom_template(config.get("template_class", False))
 
     if isinstance(default_system, list):
         default_system = "".join(default_system) if all(
@@ -360,7 +453,9 @@ def register_custom_template(name, json_file_path=None) -> str:
         stop_words=stop_words,
         efficient_eos=efficient_eos,
         replace_eos=replace_eos,
-        force_system=force_system
+        force_system=force_system,
+        enable_thinking=enable_thinking,
+        template_class=template_class
     )
 
     return name
@@ -369,5 +464,6 @@ def register_custom_template(name, json_file_path=None) -> str:
 def _format_custom_template(slots: Dict) -> Dict:
     if slots and isinstance(slots, Dict):
         for key, slot in slots.items():
-            slots[key] = list(map(lambda slot: set(slot) if isinstance(slot, list) else slot, slot)) if slot else None
+            if key != 'tool_format':
+                slots[key] = list(map(lambda slot: set(slot) if isinstance(slot, list) else slot, slot)) if slot else None
     return slots

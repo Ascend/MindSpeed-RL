@@ -1,0 +1,72 @@
+defaults:
+  - model:
+      - qwen3_30b_a3b
+
+megatron_training:
+  # tune_args:
+  finetune: true
+  stage: dpo
+  is_pairwise_dataset: true
+  variable_seq_lengths: true
+  tokenizer_not_use_fast: true
+  dpo_loss_type: sigmoid
+
+  # gpt_args:
+  moe_grouped_gemm: true
+  moe_permutation_async_comm: false
+  norm_epsilon: 1e-6
+  micro_batch_size: 1
+  global_batch_size: 64
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: ./model_from_hf/Qwen3-30B-A3B
+  train_iters: 1000
+  lr: 5e-8
+  min-lr: 0
+  lr_decay_style: constant
+  weight_decay: 0.0
+  clip_grad: 1.0
+  initial_loss_scale: 4096
+  use_distributed_optimizer: true
+  tensor_model_parallel_size: 2
+  pipeline_model_parallel_size: 8
+  sequence_parallel: true
+  use_mcore_models: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  no_gradient_accumulation_fusion: true
+  bf16: true
+  seq_length: 4096
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  attention_dropout: 0.0
+  attention_softmax_in_fp32: true
+  init_method_std: 0.02
+  hidden_dropout: 0.0
+  qk_layernorm: true
+  overlap_grad_reduce: true
+  reuse_fp32_param: true
+  use_fused_rotary_pos_emb: true
+  use_rotary_position_embeddings: true
+  use_fused_swiglu: true
+  use_fused_rmsnorm: true
+  swap_attention: true
+
+  # data_args:
+  data_path: ./dataset/dpo
+  split: 100,0,0
+  seed: 42
+
+  # ckpt_args:
+  no_load_optim: true
+  no_load_rng: true
+  no_save_optim: true
+  no_save_rng: true
+  load: ./model_weights/Qwen3-30B-TP2-PP8-EP1/
+  save: ./ckpt
+  model: qwen3_30b_a3b
+
+  # output_args:
+  log_interval: 1
+  save_interval: 5000
+  eval_interval: 5000
+  eval_iters: 0

@@ -114,7 +114,8 @@ def _build_train_valid_test_datasets(
 
     # Target indexed dataset.
     packed_indexed_dataset = get_packed_indexed_dataset(data_prefix=data_prefix,
-                                                          filter_length=getattr(extra_param, 'max_prompt_length', None))
+                                                          filter_length=getattr(extra_param, 'max_prompt_length', None),
+                                                          is_pairwise_dataset=extra_param.is_pairwise_dataset)
 
     total_num_of_documents = len(list(packed_indexed_dataset.datasets.values())[0])
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)

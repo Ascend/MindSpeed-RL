@@ -48,7 +48,8 @@ def preprocess(config):
 
     tokenizer = get_tokenizer(args.tokenizer_name_or_path,
                               prompt_type=args.prompt_type,
-                              prompt_type_path=args.prompt_type_path)
+                              prompt_type_path=args.prompt_type_path, 
+                              enable_thinking=args.enable_thinking)
     splitter = build_splitter(args)
 
     logger.info(f"building dataset: {args.input}")

@@ -26,7 +26,8 @@ def get_tokenizer(
         pad_token: str = None,
         eos_for_pad: bool = True,
         prompt_type: str = None,
-        prompt_type_path: str = None
+        prompt_type_path: str = None, 
+        enable_thinking: bool = False
         ):
     """Get tokenizer.
 
@@ -84,7 +85,7 @@ def get_tokenizer(
         logger.warning("pad token and id are none.")
 
     if prompt_type and prompt_type_path:
-        replace_token_from_template(tokenizer.tokenizer, prompt_type.strip(), prompt_type_path.strip())
+        replace_token_from_template(tokenizer.tokenizer, prompt_type.strip(), prompt_type_path.strip(), enable_thinking)
 
     return tokenizer
 
@@ -300,8 +301,9 @@ def replace_token_from_template(
     tokenizer: "PreTrainedTokenizer",
     name: Optional[str] = None,
     prompt_type_path: Optional[str] = None,
+    enable_thinking: bool = False
 ):
-    template = get_model_template(name, prompt_type_path)
+    template = get_model_template(name, prompt_type_path, enable_thinking)
 
     stop_words = template.stop_words
     if template.replace_eos:

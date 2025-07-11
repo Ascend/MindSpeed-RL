@@ -1,0 +1,81 @@
+# DPO
+
+## 简介
+MindSpeed RL 仓库现已支持 [ Direct Preference Optimization (DPO) ](https://arxiv.org/abs/2305.18290) 算法。训练开始前需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
+
+## 环境配置
+配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)
+
+## 数据预处理
+配置好环境后，需要对数据集进行预处理。
+
+以 [**orca_dpo_pairs**](https://huggingface.co/datasets/Intel/orca_dpo_pairs/tree/main) 为例。
+
+```bash
+# 读取orca_dpo_pairs数据集
+mkdir dataset
+cd dataset/
+wget https://huggingface.co/datasets/Intel/orca_dpo_pairs/resolve/main/orca_rlhf.jsonl --no-check
+cd ..
+```
+
+数据预处理的yaml配置文件放置于configs/datasets文件夹下，通过以下命令进行数据集预处理：
+[示例yaml配置文件](../../configs/datasets/orca_rlhf.yaml)
+```bash
+# 读取configs/datasets/orca_rlhf.yaml文件 
+bash examples/data/preprocess_data.sh orca_rlhf
+```
+
+数据集处理配置可以根据需求自行配置，以下是数据集处理的yaml文件中基础参数的介绍：
+* `input`：数据集的路径，需指定具体文件，例如 ./datasets/orca_rlhf.json;
+* `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
+* `tokenizer_name_or_path`：指定分词器的名称或路径;
+* `output_prefix`：输出结果的前缀路径，例如 ./datasets/data;
+* `workers`：设置处理数据时使用的 worker 数;
+* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt-type` 的可选项可以在 `configs/model/templates.json` 文件内查看;
+* `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
+* `handler_name`：指定处理数据的处理器名称；
+* `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
+
+## 模型权重转换
+
+根据 DPO 算法原理，Actor 和 Reference 模型可以均为同一模型。DPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
+
+接下来，以 Qwen3-30B-A3B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
+
+### 获取权重文件
+权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
+[Qwen3-30B-A3B](https://huggingface.co/Qwen/Qwen3-30B-A3B)  为参考。
+### hf 转 mcore
+在训练前，需要将 Hugging Face 权重转换成Mcore格式，具体权重转换方式可见安装指南中对应 commit id 的 MindSpeed-LLM 权重转换部分 。
+
+### mcore 转 hf（可选）
+训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，具体权重转换方式可见安装指南中对应 commit id 的 MindSpeed-LLM 权重转换部分 。
+
+## 启动训练
+
+以 Qwen3 30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_qwen3_30b_a3b.sh)的环境变量的配置：
+1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
+2. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP；
+```bash
+#上述注意点修改完毕后，可启动脚本开启训练
+bash examples/dpo/dpo_qwen3_30b_a3b.sh
+```
+
+***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+
+## 断点续训
+进行断点续训时，需要注意配置以下参数：
+  ```yaml
+megatron_training:
+    finetune: false       <------- 断点续训时 finetune 参数设置为 false
+    load: ./ckpt-30b      <------- 断点续训时 load 路径应为之前保存的权重路径
+    save: ./ckpt
+    no_load_optim: false  <------- 断点续训时 no_load_optim 应为 false
+    no_load_rng: false    <------- 断点续训时 no_load_rng 应为 false
+  ```
+
+## 性能数据
+| 模型 | 机器型号 | GBS | 集群 | 方案 | 序列 | 性能 | 
+|---|---|---|---|---|---|---| 
+| Qwen3-30B-A3B | Atlas A2 | 64 | 2x8 | 全参 | dynamic | 2.78 samples/s |

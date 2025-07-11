@@ -119,6 +119,9 @@ class DataHandlerConfig(BaseConfig):
         # The `bin-idx` pair files with the same key in their filename will be merged.
         self.merge_group_keys: list = None
 
+        # Enable thining label for Qwen3 Template
+        self.enable_thinking: bool = False
+
         if config_dict is not None:
             self.update(config_dict)
 

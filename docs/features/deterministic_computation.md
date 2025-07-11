@@ -51,6 +51,8 @@
     use_deter_comp: true
     ```
 
+    注：DPO算法场景下还需要在[DPO启动脚本](../../examples/dpo/dpo_qwen3_30b_a3b.sh)中加入环境变量开关 `export HCCL_DETERMINISTIC=True`
+
 - 2.2 使能vllm确定性计算 （可选）
 
     vLLM 中的种子参数用于控制各种随机数生成器的随机状态，如果是从头开始训练两次，仅开启前文的确定性计算方法即可，如需要验证断点续训的确定性计算，需要设置该参数

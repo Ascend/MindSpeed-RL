@@ -171,6 +171,7 @@ class MegatronConfig(BaseConfig):
     ai_framework: choose mindspore or not (default: None) choices=[None, 'mindspore']
     num_layer_list: a list of number of layers, seperated by comma; e.g., 4,4,4,4 (default: None)
     dataset_additional_keys: Additional keys need to be add from dataset (default: [])
+    dpo_loss_type: DPO loss computation method type (default: sigmoid)
 
     inference_parameters:
     use_kv_cache: Use kv cache to accelerate inference
@@ -375,6 +376,7 @@ class MegatronConfig(BaseConfig):
         self.noop_layers = None
         self.cp_attention_mask_type = 'causal'
         self.reset_attention_mask = False
+        self.dpo_loss_type = 'sigmoid'
 
         self.use_ascend_coc = False
         self.coc_mode = -1

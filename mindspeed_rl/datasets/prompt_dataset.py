@@ -46,7 +46,8 @@ class PromptDataset(BaseDataset):
 
         if self.is_packed_data:
             self.res_dataset = get_packed_indexed_dataset(data_prefix=self.data_prefix,
-                                                          filter_length=getattr(extra_param, 'max_prompt_length', None))
+                                                          filter_length=getattr(extra_param, 'max_prompt_length', None),
+                                                          is_pairwise_dataset=self.args.is_pairwise_dataset)
             self.shuffle_index = _build_index_mappings(name=name,
                                                        data_prefix=self.data_prefix,
                                                        start_index=documents[0],
@@ -54,7 +55,7 @@ class PromptDataset(BaseDataset):
                                                        num_samples=self.num_samples,
                                                        seed=seed,
                                                        full_shuffle_instruction_dataset=full_shuffle_instruction_dataset,
-                                                       parallel_state=None,
+                                                       parallel_state=kwargs.get('parallel_state'),
                                                        no_shuffle=True)
             dataset_type = "Prompt_DS_Packed"
         else:
@@ -69,6 +70,8 @@ class PromptDataset(BaseDataset):
         doc_idx = self.shuffle_index[index]
 
         item = self.res_dataset[doc_idx]
+        if self.args.is_pairwise_dataset:
+            return self._cut_pairwise_token(item, np.int64)
         return self._cut_instruction_token(item, np.int64)
 
     def _cut_instruction_token(self, item, dtype):
@@ -85,7 +88,7 @@ class PromptDataset(BaseDataset):
             template = None
             # get model chat template
             if hasattr(self.args, "prompt_type") and self.args.prompt_type is not None:
-                template = get_model_template(self.args.prompt_type, self.args.prompt_type_path)
+                template = get_model_template(self.args.prompt_type, self.args.prompt_type_path, self.args.enable_thinking)
 
             prompt_begin_list, prompt_end_list = get_prompt_index(item["labels"], IGNORE_INDEX)
 
@@ -151,5 +154,35 @@ class PromptDataset(BaseDataset):
                     "attention_mask": np.ones_like(input_ids).astype(dtype)
                 }, **add_vals
             )
+
+        return res
+
+    def _cut_pairwise_token(self, item, dtype):
+        """Cut prompt and response proportionally for pairwise datasets."""
+        IGNORE_INDEX = -100
+        prompt_length = (item["chosen_labels"] != IGNORE_INDEX).nonzero()[0][0]
+        prompt_ids = item["chosen_input_ids"][:prompt_length]
+        chosen_ids = item["chosen_input_ids"][prompt_length:]
+        rejected_ids = item["rejected_input_ids"][prompt_length:]
+        source_len, target_len = _infer_seqlen(
+            len(prompt_ids), max(len(chosen_ids), len(rejected_ids)), self.seq_length
+        )
+        prompt_ids = prompt_ids[:source_len]
+        chosen_ids = chosen_ids[:target_len]
+        rejected_ids = rejected_ids[:target_len]
+
+        chosen_input_ids = np.append(prompt_ids, chosen_ids)
+        chosen_labels = np.append(IGNORE_INDEX * np.ones(source_len), chosen_ids)
+        rejected_input_ids = np.append(prompt_ids, rejected_ids)
+        rejected_labels = np.append(IGNORE_INDEX * np.ones(source_len), rejected_ids)
+
+        res = {
+            "chosen_input_ids": chosen_input_ids.astype(dtype),
+            "chosen_attention_mask": np.ones_like(chosen_input_ids).astype(dtype),
+            "chosen_labels": chosen_labels.astype(dtype),
+            "rejected_input_ids": rejected_input_ids.astype(dtype),
+            "rejected_attention_mask": np.ones_like(rejected_input_ids).astype(dtype),
+            "rejected_labels": rejected_labels.astype(dtype)
+        }
 
         return res

@@ -173,11 +173,14 @@ $$
 (\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_rollout}
 $$
 ## 性能数据
+
 | 模型                  | 机器型号     | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
 |---------------------|----------|-----|-----------|-------------------|------------|---------| 
 | Qwen25-7B           | Atlas A3 | 32  | 8         | 2048              | 2048       | 220     | 
 | Qwen25-32B          | Atlas A3 | 64  | 16        | 1024              | 2048       | 220     | 
 | Qwen25-32B          | Atlas A2 | 64  | 16        | 1024              | 1024       | 100     |
+| Qwen3-8B            | Atlas A3 | 32  | 8         | 2048              | 8192       | 252     |
 | DeepSeek-R1-671B    | Atlas A3 | 384 | 32        | 1024              | 2048       | 210     |
+
 
 注：模型 token/p/s 性能数据会打印在日志中, 当前计算公式下，A3单卡性能需要将日志打印的token/p/s性能指数*2。

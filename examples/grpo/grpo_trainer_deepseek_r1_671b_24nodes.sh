@@ -3,7 +3,7 @@ ray stop --force
 export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1
 
-DEFAULT_YAML="grpo_deepseek_r1_671b_A3"
+DEFAULT_YAML="grpo_deepseek_r1_671b_A3_24nodes"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
 

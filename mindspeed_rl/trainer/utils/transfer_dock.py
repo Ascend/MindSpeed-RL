@@ -259,6 +259,7 @@ class GRPOTransferDock(TransferDock):
         addition_consumers: Union[List[str], None] = None,
         timeout: Union[int, None] = None,
         timeout_interval: Union[int, None] = None,
+        td_status_log: bool = False
     ) -> None:
         """GRPOTransferDock initialize.
 
@@ -325,6 +326,7 @@ class GRPOTransferDock(TransferDock):
             for key in self.experience_consumers
         }
         self.metrics = metrics
+        self.td_status_log = td_status_log
 
     def get_metrics(self):
         return self.metrics
@@ -339,6 +341,7 @@ class GRPOTransferDock(TransferDock):
         experience_count: int = None,
         indexes: List[int] = None,
         get_n_samples: bool = True,
+        stage_tag: str = None
     ):
         """Get padded experience data from GRPOTransferDock.
 
@@ -401,12 +404,15 @@ class GRPOTransferDock(TransferDock):
         experience_batch = {}
         for i, experience_column in enumerate(experience_columns):
             experience_batch[experience_column] = experience[i]
+        if self.td_status_log and sum(self.experience_consumer_status[consumer]) == self.max_len:
+            logger.info(f" stage {stage_tag}:successfully get experience from {experience_columns}")
         return experience_batch, indexes
 
     def put_experience(
         self,
         data_dict: Dict[str, Union[Tensor, List[Tensor]]],
         indexes: List[int] = None,
+        stage_tag: str = None
     ):
         """Put data into specified columns and rows.
 
@@ -417,13 +423,14 @@ class GRPOTransferDock(TransferDock):
         Returns: None
 
         """
-
         if not indexes:
             raise ValueError(
                 "put experience into TD without indexes, indexes must be provided"
             )
         experience_columns, experience = trans_input_to_experience(data_dict)
         self._put(experience_columns, experience, indexes)
+        if self.td_status_log and sum(sum(self.experience_data_status[single_column]) for single_column in experience_columns) == self.max_len * len(experience_columns):
+            logger.info(f" stage {stage_tag}:successfully put experience into {experience_columns}")
 
     def put_prompts_experience(
         self, batch: Dict[str, Tensor], dataset_additional_keys: List[str] = None
@@ -466,6 +473,8 @@ class GRPOTransferDock(TransferDock):
         experience_columns, experience = trans_input_to_experience(data_dict)
 
         self._put(experience_columns, experience, indexes)
+        if self.td_status_log and sum(sum(self.experience_data_status[single_column]) for single_column in experience_columns) == self.max_len * len(experience_columns):
+            logger.info(f" stage put_prompts_experience:successfully put experience into {experience_columns}")
 
     def _sample_ready_index(
         self,

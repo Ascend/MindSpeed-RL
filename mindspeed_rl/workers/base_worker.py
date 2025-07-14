@@ -213,7 +213,7 @@ class BaseWorker(BaseRayWorker, ABC):
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
                                     experience_columns, experience_count, tp_size=1, cp_size=1, cp_algo=None,
                                     use_vllm=False, indexes=None,
-                                    get_n_samples=True):
+                                    get_n_samples=True, stage_tag=None):
         pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         if is_multimodal():
             mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
@@ -238,11 +238,11 @@ class BaseWorker(BaseRayWorker, ABC):
         if rank_flg:
             batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
                                                                       experience_count, indexes=indexes,
-                                                                      get_n_samples=get_n_samples))  # cpu数据
+                                                                      get_n_samples=get_n_samples, stage_tag=stage_tag))  # cpu数据
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
-                batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples))
+                batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples, stage_tag=stage_tag))
 
             index = torch.tensor(index + ([-1] * (experience_count - len(index)))).cuda()
         else:
@@ -408,18 +408,18 @@ class BaseWorker(BaseRayWorker, ABC):
             return {}, []
 
     @mstx_timer_decorator
-    def collect_transfer_dock_data(self, output, index, use_vllm=False):
+    def collect_transfer_dock_data(self, output, index, use_vllm=False, stage_tag=None):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
-            self.td.put_experience.remote(data_dict=output, indexes=index)
+            self.td.put_experience.remote(data_dict=output, indexes=index, stage_tag=stage_tag)
 
     @mstx_timer_decorator
-    def collect_transfer_dock_mm_data(self, output, index, use_vllm=False):
+    def collect_transfer_dock_mm_data(self, output, index, use_vllm=False, stage_tag=None):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
-            self.mm_td.put_experience.remote(batch=output, indexes=index)
+            self.mm_td.put_experience.remote(batch=output, indexes=index, stage_tag=stage_tag)
 
     def get_dp_range_indexes(self, experience_count, use_vllm=False):
         if use_vllm:

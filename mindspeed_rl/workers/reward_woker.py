@@ -112,6 +112,7 @@ class RewardWorkerBase(BaseWorker):
                                                                  cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
+                                                                stage_tag="compute_rm_score"
                                                                  )
             if not start_time_defined:
                 start_time = time.time()
@@ -134,7 +135,7 @@ class RewardWorkerBase(BaseWorker):
                         n_sample_batch=self.rl_config.n_samples_per_prompt
                     )
                     output = {'rm_scores': rm_score, 'token_level_rewards': last_rewards}
-                self.collect_transfer_dock_data(output, index)
+                self.collect_transfer_dock_data(output, index, stage_tag="compute_rm_score")
                 end_time = time.time()
                 ray.get(
                     self.td.update_metrics.remote(

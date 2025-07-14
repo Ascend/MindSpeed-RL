@@ -94,6 +94,7 @@ class RLConfig(BaseConfig):
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
         self.blocking = True
+        self.td_status_log = False
         self.guarantee_order = False
         self.num_cpus_for_local_task = 1
         self.num_cpus_for_placement_group = 8

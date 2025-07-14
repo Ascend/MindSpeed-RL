@@ -153,7 +153,8 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
         batch_data, index = ray.get(
             td.get_experience.remote(
                 experience_consumer_stage, experience_columns, experience_count,  # pad_id=pad_token_id
-                indexes=sorted_indexes.pop(0) if guarantee_order else None
+                indexes=sorted_indexes.pop(0) if guarantee_order else None,
+                stage_tag="compute_advantage"
             )
         )
         if batch_data and index:
@@ -178,7 +179,7 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
                 "advantages": advantages,
                 "returns": returns,
             }
-            td.put_experience.remote(data_dict=output, indexes=index)
+            td.put_experience.remote(data_dict=output, indexes=index, stage_tag="compute_advantage")
 
 
 def get_last_reward(rm_scores, n_sample_batch: int):
@@ -230,7 +231,7 @@ def compute_grpo_data_metrics(
     while not ray.get(td.all_consumed.remote(experience_consumer_stage)):
         batch, index = ray.get(
             td.get_experience.remote(experience_consumer_stage, experience_columns, experience_count,
-                                     indexes=sorted_indexes.pop(0) if guarantee_order else None)
+                                     indexes=sorted_indexes.pop(0) if guarantee_order else None, stage_tag="compute_grpo_data_metrics")
         )
         if batch and index:
             batch = pad_experience(batch, pad_token_id) # multiple, tp_size

@@ -62,6 +62,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             tokenizer: BaseTokenizer = None,
             dataset_additional_keys: List[str] = None,
             blocking: bool = False,
+            td_status_log: bool = False,
             guarantee_order: bool = False,
             num_cpus_for_local_task: int = 1,
             **kwargs
@@ -83,6 +84,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             tokenizer=tokenizer,
             dataset_additional_keys=dataset_additional_keys,
             blocking=blocking,
+            td_status_log=td_status_log,
             guarantee_order=guarantee_order,
             num_cpus_for_local_task=num_cpus_for_local_task,
             **kwargs
@@ -97,9 +99,9 @@ class RayGRPOTrainer(RayBaseTrainer):
 
     def transfer_dock_init(self):
         self.transfer_dock = GRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt,
-                                                     self.metrics, addition_columns=self.dataset_additional_keys)
+                                                     self.metrics, addition_columns=self.dataset_additional_keys, td_status_log=self.td_status_log)
         if is_multimodal():
-            self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
+            self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt, td_status_log=self.td_status_log)
 
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
@@ -138,7 +140,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             ray.get(self.transfer_dock.put_prompts_experience.remote(batch, self.dataset_additional_keys))
             if is_multimodal():
                 ray.get(self.mm_transfer_dock.clear.remote())
-                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)], stage_tag="put_prompts_experience"))
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences

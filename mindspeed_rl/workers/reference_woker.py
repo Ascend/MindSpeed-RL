@@ -116,7 +116,8 @@ class ReferenceWorkerBase(BaseWorker):
                                                                  cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=False)
+                                                                 get_n_samples=False,
+                                                                 stage_tag="compute_ref_log_prob")
 
             if not start_time_defined:
                 start_time = time.time()
@@ -137,7 +138,7 @@ class ReferenceWorkerBase(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'ref_log_prob': log_probs}
-                    self.collect_transfer_dock_data(output, index)
+                    self.collect_transfer_dock_data(output, index, stage_tag="compute_ref_log_prob")
                     end_time = time.time()
                     ray.get(
                         self.td.update_metrics.remote(

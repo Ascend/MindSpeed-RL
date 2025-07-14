@@ -41,7 +41,8 @@ class RuleReward(object):
                     experience_consumer_stage,
                     experience_columns,
                     experience_count,
-                    indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None
+                    indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                    stage_tag="compute_rm_score"
                 )
             )  # cpu数据
 
@@ -68,7 +69,7 @@ class RuleReward(object):
                     output = {"rm_scores": token_level_rewards, "token_level_rewards": token_level_rewards}
                 else:
                     mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
-                    batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index))
+                    batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, stage_tag="compute_rm_score"))
                     batch_data.update(batch_mm_data)
 
                     reward_tensor = torch.zeros((batch_data['responses'].size(0), 1), dtype=torch.float32)
@@ -90,4 +91,4 @@ class RuleReward(object):
                     reward_tensor_normalized = (reward_tensor_reshaped - reward_mean) / reward_std
                     reward_tensor = reward_tensor_normalized.reshape(original_shape)
                     output = {"rm_scores": rm_scores, "token_level_rewards": reward_tensor}
-                self.td.put_experience.remote(data_dict=output, indexes=index)
+                self.td.put_experience.remote(data_dict=output, indexes=index, stage_tag="compute_rm_score")

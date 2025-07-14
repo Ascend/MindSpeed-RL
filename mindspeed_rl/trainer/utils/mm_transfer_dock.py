@@ -17,7 +17,8 @@ class MMGRPOTransferDock(TransferDock):
                  n_samples_per_prompt: int,
                  reuse_image_embeds: bool = False,
                  timeout: Union[int, None] = None,
-                 timeout_interval: Union[int, None] = None) -> None:
+                 timeout_interval: Union[int, None] = None,
+                 td_status_log: bool = False) -> None:
         self.experience_columns = [
             'image',
             'pixel_values',  # 'pixel_values_videos'
@@ -55,6 +56,7 @@ class MMGRPOTransferDock(TransferDock):
             self.consumer_columns["actor_log_prob"] = ["vit_embeds", "image_grid_thw", "image_num", "video_num"]
             self.consumer_columns["ref_log_prob"] = ["vit_embeds", "image_grid_thw", "image_num", "video_num"]
             self.consumer_columns["actor_train"] = ["vit_embeds", "image_grid_thw", "image_num", "video_num"]
+        self.td_status_log = td_status_log
 
     def get_columns(self, consumer: str):
         if consumer not in self.consumer_columns:
@@ -71,6 +73,7 @@ class MMGRPOTransferDock(TransferDock):
             experience_columns: List[str],
             indexes: List[int] = None,
             get_n_samples: bool = True,
+            stage_tag: str = None
     ):
         """Get multimodal experience data from GRPOTransferDock.
 
@@ -101,6 +104,7 @@ class MMGRPOTransferDock(TransferDock):
             self,
             batch: Dict[str, Tensor],
             indexes: List[int] = None,
+            stage_tag: str = None
     ):
         """Put data into specified columns and rows.
 

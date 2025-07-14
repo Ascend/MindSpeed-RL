@@ -185,7 +185,8 @@ class ActorHybridWorkerBase(BaseWorker):
                                                                  self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=False)
+                                                                 get_n_samples=False,
+                                                                 stage_tag="update")
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -259,7 +260,8 @@ class ActorHybridWorkerBase(BaseWorker):
                 cp_size=self.megatron_config.context_parallel_size,
                 cp_algo=self.megatron_config.context_parallel_algo,
                 indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
-                use_vllm=True
+                use_vllm=True,
+                stage_tag="generate_sequences"
             )
             if not start_time_defined:
                 start_time = time.time()
@@ -302,7 +304,7 @@ class ActorHybridWorkerBase(BaseWorker):
                 }
                 if is_multimodal():
                     outputs['prompt_length'] = batch_data['input_ids_length']
-                self.collect_transfer_dock_data(outputs, index, use_vllm=True)
+                self.collect_transfer_dock_data(outputs, index, use_vllm=True, stage_tag="generate_sequences")
                 end_time = time.time()
 
                 MsProbe.save_data({"responses": responses, "prompts": prompts})
@@ -353,7 +355,8 @@ class ActorHybridWorkerBase(BaseWorker):
                                                                  cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=False)
+                                                                 get_n_samples=False,
+                                                                 stage_tag="compute_log_prob")
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -365,7 +368,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     log_probs = log_probs.to(torch.float32)
                     log_probs = truncate_rows(log_probs, batch['response_length'])
                     output = {'old_log_prob': log_probs}
-                    self.collect_transfer_dock_data(output, index)
+                    self.collect_transfer_dock_data(output, index, stage_tag="compute_log_prob")
                 end_time = time.time()
                 ray.get(
                         self.td.update_metrics.remote(

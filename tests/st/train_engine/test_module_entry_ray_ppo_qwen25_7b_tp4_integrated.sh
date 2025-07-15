@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e   # 开启错误检测，当脚本中的任何命令返回非零退出状态时，立即退出脚本的执行。
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export HCCL_DETERMINISTIC=True
 export HCCL_HOST_SOCKET_PORT_RANGE="60000-60050"

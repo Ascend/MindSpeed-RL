@@ -279,7 +279,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     return sorted_metric
 
 
-def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all, log_max_throughput):
+def compute_tps(compute_kwargs, metrics_result, gbs, n_samples, time_all, log_max_throughput=False):
     actor_resource = compute_kwargs.get('actor_resource', {})
     reference_resource = compute_kwargs.get('reference_resource', {})
     reward_resource = compute_kwargs.get('reward_resource', None)

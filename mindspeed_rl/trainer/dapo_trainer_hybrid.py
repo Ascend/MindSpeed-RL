@@ -274,7 +274,6 @@ class RayDAPOTrainer(RayBaseTrainer):
             metrics.remove_key("timing/non_overlap_rule_reward")
             metrics.remove_key("timing/non_overlap_adv")
             metrics.remove_key("actor/kl_loss")
-            metrics.remove_grpo_keys()
 
             iteration += 1
             all_time = 0

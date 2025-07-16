@@ -134,12 +134,6 @@ class Metric(ABC):
         else:
             print(f"Key '{key}' not found in metrics.")
 
-    def remove_grpo_keys(self):
-        """
-        Remove grpo keys from the metric dictionary if it exists.
-        """
-        self.metric = {k: v for k, v in self.metric.items() if not k.startswith('grpo')}
-
     def reset(self):
         """
         重置指标状态。

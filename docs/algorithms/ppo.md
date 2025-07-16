@@ -134,44 +134,44 @@ rl_config:
 
 **其他指标**
 
-| 指标                                    | 说明                                                         |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `actor/entropy`                         | 策略熵，表示策略的随机性或探索能力                           |
-| `actor/kl_loss`                         | kl散度，衡量当前策略与参考策略（如旧策略或参考模型）之间的偏离程度 |
-| `actor/pg_loss`                         | pg_loss，基于优势函数的策略梯度目标函数值，表示当前策略对提升奖励的学习能力。 |
-| `actor/pg_clipfrac`                     | PPO中actor model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
-| `actor/ppo_kl`                          | PPO算法的实际 KL 散度                                        |
-| `grad_norm`                             | 梯度范数，表示当前反向传播中参数梯度的整体幅度               |
-| `critic/vf_loss`                         | vf_loss，基于优势函数的策略梯度目标函数值，表示当前策略对提升奖励的学习能力。 |
-| `critic/vf_clipfrac`                     | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
-| `critic/vf_clipfrac`                     | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
-| `grpo/{verifier_function}_rewards/mean` | 规则奖励打分的平均总奖励值                                   |
-| `grpo/lr`                               | actor model学习率，优化器当前使用的学习率                               |
-| `ppo/lr`                               | critic model学习率，优化器当前使用的学习率                               |
-| `critic/score/mean`                       | 开启奖励模型时的reward均值                                   |
-| `critic/score/max`                        | 奖励模型及规则奖励对同一个样本的reward最大值                 |
-| `critic/score/min `                       | 奖励模型及规则奖励对同一个样本的reward最小值                 |
-| `critic/rewards/mean`                     | 规则奖励的reward均值；奖励模型对样本的reward经过归一化后的均值 |
-| `critic/rewards/max`                      | 规则奖励的reward最大值；奖励模型对样本的reward经过归一化后的最大值 |
-| `critic/rewards/min`                      | 规则奖励的reward最小值；奖励模型对样本的reward经过归一化后的最小值 |
-| `critic/advantages/mean`                     | 优势值均值；奖励模型对样本的reward经过归一化后的均值 |
-| `critic/advantages/max`                      | 优势值最大值；奖励模型对样本的reward经过归一化后的最大值 |
-| `critic/advantages/min`                      | 优势值最小值；奖励模型对样本的reward经过归一化后的最小值 |
-| `critic/returns/mean`                     | 所有未来奖励的折扣和均值；奖励模型对样本的reward经过归一化后的均值 |
-| `critic/returns/max`                      | 所有未来奖励的折扣和最大值；奖励模型对样本的reward经过归一化后的最大值 |
-| `critic/returns/min`                      | 所有未来奖励的折扣和最小值；奖励模型对样本的reward经过归一化后的最小值 |
-| `critic/values/mean`                     | 当前状态下未来收益均值；奖励模型对样本的reward经过归一化后的均值 |
-| `critic/values/max`                      | 当前状态下未来收益均值最大值；奖励模型对样本的reward经过归一化后的最大值 |
-| `critic/values/min`                      | 当前状态下未来收益均值最小值；奖励模型对样本的reward经过归一化后的最小值 |
-| `response_length/mean`                  | 平均生成长度，模型生成回复（response）的平均 token 数        |
-| `response_length/min`                   | 最短生成长度，当前 batch 中生成最短的 response 长度          |
-| `response_length/max`                   | 最长生成长度，当前 batch 中生成最长的 response 长度          |
-| `prompt_length/mean`                    | 平均输入长度，输入 prompt 的平均长度                         |
-| `prompt_length/max`                     | 最长输入长度，当前 batch 中最长的 prompt长度                 |
-| `prompt_length/min`                     | 最短输入长度，当前 batch 中最长的 prompt长度                 |
-| `e2e_tps`                               | 端到端的tokens/p/s指标                                       |
-| `update_tps`                            | 训练的tokens/p/s指标                                         |
-| `vllm_tps`                              | 推理的tokens/p/s指标                                         |
+| 指标                                 | 说明                                                         |
+|------------------------------------| ------------------------------------------------------------ |
+| `actor/entropy`                    | 策略熵，表示策略的随机性或探索能力                           |
+| `actor/kl_loss`                    | kl散度，衡量当前策略与参考策略（如旧策略或参考模型）之间的偏离程度 |
+| `actor/pg_loss`                    | pg_loss，基于优势函数的策略梯度目标函数值，表示当前策略对提升奖励的学习能力。 |
+| `actor/pg_clipfrac`                | PPO中actor model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
+| `actor/ppo_kl`                     | PPO算法的实际 KL 散度                                        |
+| `grad_norm`                        | 梯度范数，表示当前反向传播中参数梯度的整体幅度               |
+| `critic/vf_loss`                   | vf_loss，基于优势函数的策略梯度目标函数值，表示当前策略对提升奖励的学习能力。 |
+| `critic/vf_clipfrac`               | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
+| `critic/vf_clipfrac`               | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
+| `{verifier_function}_rewards/mean` | 规则奖励打分的平均总奖励值                                   |
+| `param/lr`                         | actor model学习率，优化器当前使用的学习率                               |
+| `ppo/lr`                           | critic model学习率，优化器当前使用的学习率                               |
+| `critic/score/mean`                | 开启奖励模型时的reward均值                                   |
+| `critic/score/max`                 | 奖励模型及规则奖励对同一个样本的reward最大值                 |
+| `critic/score/min `                | 奖励模型及规则奖励对同一个样本的reward最小值                 |
+| `critic/rewards/mean`              | 规则奖励的reward均值；奖励模型对样本的reward经过归一化后的均值 |
+| `critic/rewards/max`               | 规则奖励的reward最大值；奖励模型对样本的reward经过归一化后的最大值 |
+| `critic/rewards/min`               | 规则奖励的reward最小值；奖励模型对样本的reward经过归一化后的最小值 |
+| `critic/advantages/mean`           | 优势值均值；奖励模型对样本的reward经过归一化后的均值 |
+| `critic/advantages/max`            | 优势值最大值；奖励模型对样本的reward经过归一化后的最大值 |
+| `critic/advantages/min`            | 优势值最小值；奖励模型对样本的reward经过归一化后的最小值 |
+| `critic/returns/mean`              | 所有未来奖励的折扣和均值；奖励模型对样本的reward经过归一化后的均值 |
+| `critic/returns/max`               | 所有未来奖励的折扣和最大值；奖励模型对样本的reward经过归一化后的最大值 |
+| `critic/returns/min`               | 所有未来奖励的折扣和最小值；奖励模型对样本的reward经过归一化后的最小值 |
+| `critic/values/mean`               | 当前状态下未来收益均值；奖励模型对样本的reward经过归一化后的均值 |
+| `critic/values/max`                | 当前状态下未来收益均值最大值；奖励模型对样本的reward经过归一化后的最大值 |
+| `critic/values/min`                | 当前状态下未来收益均值最小值；奖励模型对样本的reward经过归一化后的最小值 |
+| `response_length/mean`             | 平均生成长度，模型生成回复（response）的平均 token 数        |
+| `response_length/min`              | 最短生成长度，当前 batch 中生成最短的 response 长度          |
+| `response_length/max`              | 最长生成长度，当前 batch 中生成最长的 response 长度          |
+| `prompt_length/mean`               | 平均输入长度，输入 prompt 的平均长度                         |
+| `prompt_length/max`                | 最长输入长度，当前 batch 中最长的 prompt长度                 |
+| `prompt_length/min`                | 最短输入长度，当前 batch 中最长的 prompt长度                 |
+| `e2e_tps`                          | 端到端的tokens/p/s指标                                       |
+| `update_tps`                       | 训练的tokens/p/s指标                                         |
+| `vllm_tps`                         | 推理的tokens/p/s指标                                         |
 
 * e2e_tps计算方式
 

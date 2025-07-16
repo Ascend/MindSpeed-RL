@@ -235,10 +235,9 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     reference_end_time = metrics.pop('end_time/reference', None)
     is_reference_exist = True if reference_end_time is not None else False
 
-    if is_reference_exist:
-        custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p', 'timing/reference_model', 'timing/non_overlap_reference_model']
-    else:
-        custom_order = ['timing/all', 'timing/update', 'timing/resharding_to_infer', 'timing/rollout', 'timing/resharding_to_train', 'timing/old_log_p']
+    if not is_reference_exist:
+        custom_order.remove('timing/reference_model')
+        custom_order.remove('timing/non_overlap_reference_model')
         reference_end_time = 0
 
     if old_log_p_end_time is None:

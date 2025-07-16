@@ -74,7 +74,7 @@ bash examples/data/preprocess_data.sh math_17k
 
     #动态采样过滤措施
     filter_groups_enable: true                            <------- 默认关闭
-    filter_groups_metric: grpo/acc_for_dapo_rewards/mean  <------- 指定用于过滤的 metric，其中'acc_for_dapo'需要与verifier_function参数中的值保持一致
+    filter_groups_metric: acc_for_dapo                    <------- 指定用于过滤的 metric，其值需要包含在verifier_function参数设置的列表中
     filter_groups_max_batches: -1                         <------- 设置过滤的最大次数，-1 代表不限制最大次数
     filter_groups_train_batch_size: 32                    <------- 制定需要筛选出多少条数据才停止采样，建议与gbs值一致，或者是gbs值的二分之一
 

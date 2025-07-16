@@ -171,7 +171,7 @@ def verifier(responses, data, config, **kwargs):
             continue
         scores = rule_verifier_function[fun_verifier](sequences=responses, answers=labels)
 
-        metrics[f'grpo/{fun_verifier}_rewards/mean'] = scores
+        metrics[f'{fun_verifier}_rewards/mean'] = scores
         rewards = [all_score + tmp_score * verifier_weight[idx]
                   for all_score, tmp_score in zip(rewards, scores)]
     logger.info(f"compute_verifier_score: verifier end")

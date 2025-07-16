@@ -100,7 +100,7 @@ rl_config:
 
   #Prompt过滤措施
   filter_groups_enable: true
-  filter_groups_metric: grpo/acc_for_dapo_rewards/mean
+  filter_groups_metric: acc_for_dapo
   filter_groups_max_batches: -1
   filter_groups_train_batch_size: 32
 

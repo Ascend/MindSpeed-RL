@@ -356,17 +356,16 @@ def validate_rl_args(
             f"{len(rl_config.verifier_function)} vs {len(rl_config.verifier_weight)}")
 
     # DAPO Response Overlong 校验
-    if rl_config.overlong_buffer_enable and rl_config.overlong_buffer >= generate_config.sampling_config["max_tokens"]:
+    if rl_config.overlong_buffer_enable:
         max_tokens = generate_config.sampling_config["max_tokens"]
-        raise ValueError(
-            f"Response max length {max_tokens} "
-            f"must greater than Dapo overlong buffer {rl_config.overlong_buffer}")
-
-    if rl_config.overlong_buffer_enable and rl_config.rollout_max_tokens != generate_config.sampling_config["max_tokens"]:
-        max_tokens = generate_config.sampling_config["max_tokens"]
-        raise ValueError(
-            f"overlong rollout_max_tokens and generate rollout_max_tokens mismatch: "
-            f"{len(rl_config.rollout_max_tokens)} vs {max_tokens}")
+        if rl_config.overlong_buffer >= max_tokens:
+            raise ValueError(
+                f"Response max length {max_tokens} "
+                f"must greater than Dapo overlong buffer {rl_config.overlong_buffer}")
+        if rl_config.rollout_max_tokens != max_tokens:
+            raise ValueError(
+                f"overlong rollout_max_tokens and generate rollout_max_tokens mismatch: "
+                f"{len(rl_config.rollout_max_tokens)} vs {max_tokens}")
 
     # DAPO Clip Higher 校验
     if rl_config.clip_higher_enable:
@@ -374,6 +373,15 @@ def validate_rl_args(
             raise ValueError(
                 f"clip_ratio_low {rl_config.clip_ratio_low} "
                 f"must less than clip_ratio_high {rl_config.clip_ratio_high}")
+
+    # DAPO filter metric key值校验
+    if rl_config.filter_groups_enable:
+        metric = rl_config.filter_groups_metric
+        verifier_function = rl_config.verifier_function
+        if metric not in verifier_function:
+            raise ValueError(
+                f"filter_groups_metric {metric} must in verifier_function {verifier_function}")
+        rl_config.filter_groups_metric += "_rewards/mean"
 
 
 def validate_data_handler_config(config):

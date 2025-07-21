@@ -1,0 +1,133 @@
+defaults:
+  - model:
+      - qwen3_32b
+
+megatron_training:
+  model: qwen3_32b
+  use_fused_rmsnorm: true
+  use_mcore_models: true
+  sequence_parallel: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  no_gradient_accumulation_fusion: true
+  use_fused_swiglu: true
+  use_fused_rotary_pos_emb: true
+  bf16: true
+  use_distributed_optimizer: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: ./Qwen3-32B
+  global_batch_size: 32
+  seq_length: 2048
+  save_interval: 100
+  train_iters: 200
+  stage: ray_dapo
+  attention_dropout: 0.0
+  init_method_std: 0.01
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  dataset_additional_keys: ['labels',]
+  data_path: ./data
+  split: 100,0,0
+  no_shuffle: true
+  full_shuffle_instruction_dataset: false
+
+actor_config:
+  model: qwen3_32b
+  micro_batch_size: 1
+  tensor_model_parallel_size: 8
+  pipeline_model_parallel_size: 2
+  lr: 1e-6
+  lr_decay_style: constant
+  min_lr: 0
+  weight_decay: 0.1
+  lr_warmup_fraction: 0.0
+  clip_grad: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  finetune: true
+  load: ./qwen3_32b_tp8pp2
+  save: ./ckpt
+  no_load_optim: true
+  no_load_rng: true
+  no_save_optim: false
+  no_save_rng: false
+
+rl_config:
+  guarantee_order: true
+  use_integrated_worker: true
+  blocking: true
+  actor_forward_micro_batch_size: 1
+  ref_forward_micro_batch_size: 1
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: low_var_kl
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.0
+  mini_batch_size: 32
+  max_prompt_length: 2048
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0.0
+  n_samples_per_prompt: 8
+  rule_reward: true
+  verifier_function: ["acc_for_dapo"]
+  verifier_weight: [1.0]
+  num_cpus_for_local_task: 1.0
+  use_tensorboard: true
+
+  #token level loss策略
+  token_level_loss: true
+
+  #clip Higher策略
+  clip_higher_enable: true
+  clip_ratio_low: 0.2
+  clip_ratio_high: 0.28
+
+  #过长response惩罚措施
+  overlong_buffer_enable: true
+  rollout_max_tokens : 2048
+  overlong_buffer: 512
+  overlong_buffer_penalty_factor: 0.1
+
+  #Prompt过滤措施
+  filter_groups_enable: true
+  filter_groups_metric: acc_for_dapo
+  filter_groups_max_batches: -1
+  filter_groups_train_batch_size: 32
+
+  actor_resource:
+    num_npus: 16
+
+generate_config:
+  enforce_eager: true
+  enable_expert_parallel: false
+  trust_remote_code: true
+  offload_train_optimizer: true
+  offload_train_grad: true
+  offload_train_param: true
+
+  # 推理时的并行配置
+  infer_tensor_parallel_size: 8
+  infer_pipeline_parallel_size: 1
+  infer_expert_parallel_size: 1
+
+  # vllm 模型相关设置
+  max_num_seqs: 1024
+  max_model_len: 4096
+  max_num_batched_tokens: 8192
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.6
+
+  # 采样配置
+  sampling_config:
+    logprobs: 1
+    max_tokens: 2048
+    top_p: 1.0
+    top_k: -1
+    min_p: 0.0
+    temperature: 1.0
+    detokenize: false

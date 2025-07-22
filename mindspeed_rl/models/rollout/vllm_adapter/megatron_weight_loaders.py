@@ -231,6 +231,7 @@ def parallel_weight_loader(self, param: torch.Tensor, loaded_weight: torch.Tenso
 MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "LlamaForCausalLM": llama_megatron_core_weight_loader,
     "Qwen2ForCausalLM": qwen_megatron_weight_loader,
+    "CustomQwen2ForCausalLM": qwen_megatron_weight_loader,
     "Qwen3ForCausalLM": qwen_megatron_weight_loader,
     "CustomQwen3MoeForCausalLM": qwen_megatron_weight_loader,
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,

@@ -40,7 +40,7 @@ _PP = None
 # Expert model parallel group that the current rank belongs to.
 _EP = None
 # Expert tensor model parallel group that the current rank belongs to.
-_ETP = None
+_MC2 = None
 # Data model parallel group that the current rank belongs to.
 _DP = None
 
@@ -278,27 +278,10 @@ def initialize_model_parallel_for_vllm(
                                        get_world_group().local_rank,
                                        backend,
                                        group_name="ep")
-
-    ascend_ps._EP = init_model_parallel_group(group_ranks,
+    ascend_ps.MC2 = init_model_parallel_group(group_ranks,
                                        get_world_group().local_rank,
                                        backend,
-                                       group_name="ep")
-
-    global _ETP
-    assert _ETP is None, (
-        "expert tensor parallel group is already initialized")
-
-    group_ranks = []
-    for i in range(num_expert_tensor_parallel_groups):
-        ranks = list(range(i * infer_expert_tensor_parallel_size,
-                           (i + 1) * infer_expert_tensor_parallel_size))
-        group_ranks.append(ranks)
-    logger.info(f"ETP rank: {group_ranks}")
-
-    ascend_ps._ETP = init_model_parallel_group(group_ranks,
-                                        get_world_group().local_rank,
-                                        backend,
-                                        group_name="etp")
+                                       group_name="mc2")
     
     global _DP
     assert _DP is None, ("data parallel group is already initialized")

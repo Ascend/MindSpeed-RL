@@ -9,6 +9,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestGRPOActorLossFunc(DistributedTest):
+    is_dist_test = False
 
     def test_compute_loss_forward_only(self):
         batch = {'responses': torch.randn(10, 5), 'attention_mask': torch.randn(10, 5).zero_(),

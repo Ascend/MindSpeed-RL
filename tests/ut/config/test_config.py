@@ -8,6 +8,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestConfig(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     def test_megatron_config(self):
         model_config = {'model': {'llama_7b': {'use_mcore_models': True}}}

@@ -35,6 +35,7 @@ megatron_training:
   dataset_additional_keys: ['labels',]
   data_path: /data/for_dt/datasets/pe-nlp/data
   split: 100,0,0
+  reuse_fp32_param: true
 
 actor_config:
   model: qwen25_7b

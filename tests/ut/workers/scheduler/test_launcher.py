@@ -130,6 +130,8 @@ def setup_teardown_ray_group_reward(request):
 
 @pytest.mark.usefixtures("setup_teardown_ray_group_actor")
 class TestRayActorGroup(DistributedTest):
+    is_dist_test = False
+
     def test_init(self):
         assert len(self.actor_worker.actor_handlers) == 1
 
@@ -201,6 +203,8 @@ class TestRayActorGroup(DistributedTest):
 
 @pytest.mark.usefixtures("setup_teardown_ray_group_reference")
 class TestRayActorGroup(DistributedTest):
+    is_dist_test = False
+
     def test_init(self):
         assert len(self.reference_worker.actor_handlers) == 2
 
@@ -213,6 +217,8 @@ class TestRayActorGroup(DistributedTest):
 
 @pytest.mark.usefixtures("setup_teardown_ray_group_reward")
 class TestRayActorGroup(DistributedTest):
+    is_dist_test = False
+
     def test_init(self):
         assert len(self.reward_worker.actor_handlers) == 4
 

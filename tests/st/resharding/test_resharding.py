@@ -31,11 +31,14 @@ from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
 from megatron.core.transformer.spec_utils import import_module
 from megatron.training import get_args
 from megatron.training.arguments import core_transformer_config_from_args
+from megatron.core.optimizer.distrib_optimizer import DistributedOptimizer
+from megatron.core.optimizer.optimizer import Float16OptimizerWithFloat16Params
 from mindspeed_llm.training.arguments import parse_args_decorator
 from mindspeed_llm.training.initialize import _compile_dependencies
 
 from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
-from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
+from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager
+from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 from mindspeed_rl.config_cls import MegatronConfig
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils import parse_args_from_config
@@ -324,7 +327,12 @@ class TestActor():
             enforce_eager=True,
             megatron_config=megatron_config
         )
-        self.megatron_offloader = MegatronOffLoader(self.model, self.optimizer)
+        self.megatron_offloader = MegatronOffLoader(
+            self.model,
+            self.optimizer,
+            megatron_config=megatron_config,
+            distributed_optimizer=DistributedOptimizer,
+            float16_optimizer_with_float16_params=Float16OptimizerWithFloat16Params)
         self.sharding_manager = MegatronShardingManager(
             megatron_model=self.model,
             model_config=model_config_mock,

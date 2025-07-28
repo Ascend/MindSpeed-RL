@@ -9,6 +9,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestTokenizer(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     def test_tokenizer(self):
         tokenizer_directory = '/data/models/llama2-7b'

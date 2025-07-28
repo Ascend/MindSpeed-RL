@@ -26,6 +26,7 @@ PROMPT_TEMPLATE_FILE = os.path.join(project_path, "../../../configs/model/templa
 
 class TestHandler(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     def test_build_dataset_with_non_handler(self):
         args = {

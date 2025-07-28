@@ -251,6 +251,8 @@ def get_megatron_module():
     from megatron.core.enums import ModelType
     from megatron.core.distributed import finalize_model_grads
     from mindspeed.utils import set_actual_seq_len, set_position_ids, get_actual_seq_len
+    from megatron.core.optimizer.distrib_optimizer import DistributedOptimizer
+    from megatron.core.optimizer.optimizer import Float16OptimizerWithFloat16Params
 
     return {
         'parallel_state': parallel_state,
@@ -272,7 +274,9 @@ def get_megatron_module():
         'finalize_model_grads': finalize_model_grads,
         'set_actual_seq_len': set_actual_seq_len,
         'get_actual_seq_len': get_actual_seq_len,
-        'set_position_ids': set_position_ids
+        'set_position_ids': set_position_ids,
+        'distributed_optimizer': DistributedOptimizer,
+        'float16_optimizer_with_float16_params': Float16OptimizerWithFloat16Params
     }
 
 

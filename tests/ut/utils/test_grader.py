@@ -5,6 +5,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestGrader(DistributedTest):
+    is_dist_test = False
 
     def test_math_equal(self):
         """测试日志格式"""

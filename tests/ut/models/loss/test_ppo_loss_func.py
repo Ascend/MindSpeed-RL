@@ -12,6 +12,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestPPOActorLossFunc(DistributedTest):
+    is_dist_test = False
 
     def test_get_policy_loss_input_value_error(self):
         batch = {'attention_mask': torch.randn(10, 5).zero_(),

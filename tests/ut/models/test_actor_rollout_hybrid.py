@@ -15,6 +15,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestActorRolloutHybrid(DistributedTest):
+    is_dist_test = False
 
     @pytest.fixture
     def setUp(self):

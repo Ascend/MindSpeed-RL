@@ -13,7 +13,7 @@ from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
-from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronOffLoader
+from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, profiler_step
 from mindspeed_rl.utils.utils import MsProbe
 

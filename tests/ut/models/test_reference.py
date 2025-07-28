@@ -14,6 +14,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestReference(DistributedTest):
+    is_dist_test = False
 
     @pytest.fixture
     def setUp(self):

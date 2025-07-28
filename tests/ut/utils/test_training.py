@@ -6,6 +6,8 @@ from tests.test_tools.dist_test import DistributedTest
 
 
 class TestGetTuneAttentionMask(DistributedTest):
+    is_dist_test = False
+
     @pytest.fixture
     def setUp(self):
         self.reset_attention_mask = True
@@ -19,6 +21,8 @@ class TestGetTuneAttentionMask(DistributedTest):
 
 
 class TestCheckDataTypes(DistributedTest):
+    is_dist_test = False
+
     def test_same_dtype(self):
         from mindspeed_rl.trainer.utils.training import _check_data_types
         import numpy as np

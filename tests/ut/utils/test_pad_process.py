@@ -13,6 +13,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestPadProcess(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     def test_remove_padding_and_split_to_list(self):
         responses = torch.tensor([[1, 2, 3, 4, 0, 0], [4, 5, 6, 1, 1, 0]], dtype=torch.int64)

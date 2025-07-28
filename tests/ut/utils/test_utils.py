@@ -17,6 +17,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestUtils(DistributedTest):
     world_size = 1
+    is_dist_test = False
     
     def test_generate_mask(self):
         data_pad = torch.tensor([[1, 2, 3], [4, 5, 0]], dtype=torch.int64)

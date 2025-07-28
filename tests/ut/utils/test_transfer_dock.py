@@ -55,6 +55,8 @@ def setup_teardown_grpo_transfer_dock_class(request):
 
 @pytest.mark.usefixtures("setup_teardown_transfer_dock")
 class TestTransferDock(DistributedTest):
+    is_dist_test = False
+
     def test_init(self):
         assert self.td.prompts_num == self.prompts_num
         assert self.td.n_samples_per_prompt == self.n_samples_per_prompt
@@ -117,6 +119,8 @@ class TestTransferDock(DistributedTest):
 @pytest.mark.usefixtures("setup_teardown_grpo_transfer_dock_class")
 @pytest.mark.usefixtures("setup_teardown_grpo_transfer_dock_function")
 class TestGRPOTransferDock(DistributedTest):
+    is_dist_test = False
+
     def test_init(self):
         experience_consumer_status = ray.get(self.td.get_consumer_status.remote())
 

@@ -14,6 +14,7 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 
 class TestPromptDataset(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     def test_prompt_dataset(self):
         tokenizer_directory = '/data/models/llama2-7b'

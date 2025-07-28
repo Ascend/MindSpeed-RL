@@ -18,15 +18,11 @@
 Megatron Sharding Mananger:
 Manager used to shard weight and offload/onload optimizer from training stage to inference stage
 """
-from itertools import chain
-from collections import defaultdict
-
 import os
-import torch
-import torch.distributed as dist
-import vllm.distributed.parallel_state as ps
-from mindspeed_rl.utils.loggers import Loggers
 
+import vllm.distributed.parallel_state as ps
+
+from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
 from mindspeed_rl.workers.resharding.weight_adaptor import get_weight_adaptor
 from mindspeed_rl.utils.utils import mstx_timer_decorator
@@ -34,103 +30,6 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 logger = Loggers(
     name="vllm_engine_inference",
 )
-
-
-
-class MegatronOffLoader:
-    def __init__(self, megatron_model=None, optimizer=None, wrap_with_ddp=True):
-        self.optimizer = optimizer
-        self.model = megatron_model
-        self.wrap_with_ddp = wrap_with_ddp
-        self.tensor_to_cpu_states_map = dict()
-
-    @mstx_timer_decorator
-    def offload_grad(self):
-        for model in self.model:
-            for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_host(buffer.grad_data, copy_data=False)
-
-    @mstx_timer_decorator
-    def onload_grad(self):
-        for model in self.model:
-            for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                self.swap_tensors_to_device(buffer.grad_data, copy_data=False)
-
-    @mstx_timer_decorator
-    def offload_optimizer(self):
-        if hasattr(self.optimizer, "chained_optimizers"):
-            optimizers = self.optimizer.chained_optimizers
-        else:
-            optimizers = [self.optimizer]
-        for optimizer in optimizers:
-            for param_group in optimizer.optimizer.param_groups:
-                for param in param_group['params']:
-                    param.data = param.data.to("cpu", non_blocking=False)
-            optimizer.optimizer.state = self._move_to_device(optimizer.optimizer.state,
-                                                                  "cpu")
-
-    @mstx_timer_decorator
-    def onload_optimizer(self):
-        if hasattr(self.optimizer, "chained_optimizers"):
-            optimizers = self.optimizer.chained_optimizers
-        else:
-            optimizers = [self.optimizer]
-        for optimizer in optimizers:
-            for param_group in optimizer.optimizer.param_groups:
-                for param in param_group['params']:
-                    param.data = param.data.to(torch.cuda.current_device(), non_blocking=False)
-            optimizer.optimizer.state = self._move_to_device(optimizer.optimizer.state,
-                                                                  torch.cuda.current_device())
-
-    @mstx_timer_decorator
-    def _move_to_device(self, data, device):
-        if isinstance(data, defaultdict):
-            return defaultdict(data.default_factory,
-                               {key: self._move_to_device(value, device) for key, value in data.items()})
-        elif isinstance(data, dict):
-            return {key: self._move_to_device(value, device) for key, value in data.items()}
-        elif isinstance(data, torch.Tensor):
-            return data.to(device, non_blocking=False)
-        else:
-            return data
-
-    @mstx_timer_decorator
-    def offload_param(self):
-        if self.wrap_with_ddp:
-            for model in self.model:
-                for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                    self.swap_tensors_to_host(buffer.param_data)
-        else:
-            for item in self.model:
-                item.to('cpu')
-
-    @mstx_timer_decorator
-    def onload_param(self):
-        if self.wrap_with_ddp:
-            for model in self.model:
-                for buffer in chain(model.buffers, model.expert_parallel_buffers):
-                    self.swap_tensors_to_device(buffer.param_data)
-        else:
-            for item in self.model:
-                item.to(torch.cuda.current_device())
-
-    @mstx_timer_decorator
-    def swap_tensors_to_host(self, tensor, copy_data=True):
-        if tensor not in self.tensor_to_cpu_states_map:
-            self.tensor_to_cpu_states_map[tensor] = torch.empty_like(tensor, device='cpu')
-        if tensor.storage().size() != 0:
-            if copy_data:
-                cpu_state = self.tensor_to_cpu_states_map[tensor]
-                cpu_state.copy_(tensor, non_blocking=False)
-            tensor.storage().resize_(0)
-
-    @mstx_timer_decorator
-    def swap_tensors_to_device(self, tensor, copy_data=True):
-        if tensor.storage().size() == 0:
-            cpu_state = self.tensor_to_cpu_states_map[tensor]
-            tensor.storage().resize_(cpu_state.storage().size())
-            if copy_data:
-                tensor.copy_(cpu_state, non_blocking=False)
 
 
 class MegatronShardingManager:
@@ -293,12 +192,12 @@ class MegatronShardingManager:
             1. onload training optimizer
             2. onload training grad
         """
+        if self.train_param_offload:
+            self.megatron_offloader.onload_param()
         if self.optimizer_offload:
             self.megatron_offloader.onload_optimizer()
         if self.grad_offload:
             self.megatron_offloader.onload_grad()
-        if self.train_param_offload:
-            self.megatron_offloader.onload_param()
 
     @mstx_timer_decorator
     def exit_train_mode(self):

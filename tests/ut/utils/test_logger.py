@@ -11,6 +11,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestLogger(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     @pytest.fixture(autouse=True)
     def setup_logger(self):

@@ -12,6 +12,7 @@ from tests.test_tools.dist_test import DistributedTest
 
 class TestBaseRayWorker(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     @pytest.fixture(autouse=True)
     def setup_environment(self):
@@ -59,6 +60,7 @@ class TestBaseRayWorker(DistributedTest):
 
 class TestBaseWorker(DistributedTest):
     world_size = 1
+    is_dist_test = False
 
     @pytest.fixture
     def setUp(self):

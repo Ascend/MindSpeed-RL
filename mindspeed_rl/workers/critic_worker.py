@@ -15,8 +15,8 @@ from mindspeed_rl.models.critic import Critic
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
+from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 from mindspeed_rl.utils.utils import MsProbe, mstx_timer_decorator
-from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronOffLoader
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, get_tensor_model_parallel_rank
 from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wrapped_model, profiler_start, profiler_step
@@ -74,7 +74,12 @@ class CriticWorkerBase(BaseWorker):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
         self._set_no_sync_func()
-        self.critic_offloader = MegatronOffLoader(self.model, self.optimizer)
+        self.critic_offloader = MegatronOffLoader(
+            self.model,
+            self.optimizer,
+            megatron_config=self.megatron_config,
+            distributed_optimizer=self.distributed_optimizer,
+            float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params)
         self.critic_offloader.offload_optimizer()
         self.critic_offloader.offload_grad()
         self.critic_offloader.offload_param()

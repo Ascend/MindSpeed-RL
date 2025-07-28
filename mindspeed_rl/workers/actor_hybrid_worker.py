@@ -23,7 +23,8 @@ from mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.utils.utils import MsProbe
 from mindspeed_rl.workers.base_worker import BaseWorker
-from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager, MegatronOffLoader
+from mindspeed_rl.workers.resharding.megatron_sharding_manager import MegatronShardingManager
+from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 from mindspeed_rl.utils.utils import (num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator,
                                       profiler_start, profiler_step, is_multimodal, replace_torch_compile)
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
@@ -89,7 +90,13 @@ class ActorHybridWorkerBase(BaseWorker):
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
         self._set_no_sync_func()
-        self.actor_offloader = MegatronOffLoader(self.model, self.optimizer)
+        self.actor_offloader = MegatronOffLoader(
+            self.model,
+            self.optimizer,
+            megatron_config=self.megatron_config,
+            distributed_optimizer=self.distributed_optimizer,
+            float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params)
+
         if self.generate_config.offload_train_optimizer:
             self.actor_offloader.offload_optimizer()
         if self.generate_config.offload_train_grad:

@@ -16,6 +16,8 @@ from abc import ABC, abstractmethod
 import torch
 import torch.multiprocessing as mp
 import torch.distributed as dist
+import torch_npu
+from torch_npu.contrib import transfer_to_npu
 
 import pytest
 from _pytest.outcomes import Skipped

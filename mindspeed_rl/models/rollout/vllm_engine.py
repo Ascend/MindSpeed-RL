@@ -214,6 +214,7 @@ class VLLMInferEngine(BaseInferEngine):
                 # v1 使用显式初始化方法
                 self.llm.llm_engine.engine_core.engine_core.model_executor.initialize_from_config(
                     self.llm.llm_engine.engine_core.engine_core.kv_cache_configs)
+                self.llm.llm_engine.reset_prefix_cache()
         else:
             if self.llm.llm_engine.model_executor.driver_worker.worker.cache_engine is None:
                 self.llm.llm_engine.model_executor.driver_worker.worker._init_cache_engine()

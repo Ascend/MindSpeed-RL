@@ -1,0 +1,34 @@
+ qwen3_235b_a22b:
+  use_mcore_models: true
+  spec:
+    - mindspeed_llm.tasks.models.spec.qwen3_spec
+    - layer_spec
+  num_layers: 94
+  num_experts: 128
+  moe_router_topk: 8
+  moe_intermediate_size: 1536
+  hidden_size: 4096
+  ffn_hidden_size: 12288
+  num_attention_heads: 64
+  group_query_attention: true
+  num_query_groups: 4
+  untie_embeddings_and_output_weights: true
+  disable_bias_linear: true
+  qk_layernorm: true
+  kv_channels: 128
+  norm_topk_prob: true
+  position_embedding_type: rope
+  use_rotary_position_embeddings: true
+  rotary_base: 1000000
+  max_position_embeddings: 40960
+  padded_vocab_size: 151936
+  make_vocab_size_divisible_by: 1
+  normalization: RMSNorm
+  norm_epsilon: 1e-6
+  swiglu: true
+  moe_grouped_gemm: true
+  moe_permutation_async_comm: true
+  moe_token_dispatcher_type: alltoall
+  use_fused_moe_token_permute_and_unpermute: true
+  moe_router_load_balancing_type: aux_loss
+  moe_aux_loss_coeff: 0.001

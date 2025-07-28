@@ -233,6 +233,7 @@ MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "Qwen2ForCausalLM": qwen_megatron_weight_loader,
     "CustomQwen2ForCausalLM": qwen_megatron_weight_loader,
     "Qwen3ForCausalLM": qwen_megatron_weight_loader,
+    "CustomQwen3ForCausalLM": qwen_megatron_weight_loader,
     "CustomQwen3MoeForCausalLM": qwen_megatron_weight_loader,
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
     "DeepseekV2ForCausalLM": deepseek_megatron_weight_loader,

@@ -157,11 +157,15 @@ class VLLMInferEngine(BaseInferEngine):
             update_megatron_weight_loader()
 
         limit_mm_per_prompt_dict = {}
+        ascend_scheduler_config = {"enabled": True}
+        graph_batch_sizes = [max_num_seqs] if torchair_graph else []
         if is_multimodal():
             if limit_mm_image_per_prompt > 0:
                 limit_mm_per_prompt_dict['image'] = limit_mm_image_per_prompt
             if limit_mm_video_per_prompt > 0:
                 limit_mm_per_prompt_dict['video'] = limit_mm_video_per_prompt
+            ascend_scheduler_config = {}
+            graph_batch_sizes = []
 
         # Initialize the LLM engine
         self.llm = LLM(
@@ -187,11 +191,9 @@ class VLLMInferEngine(BaseInferEngine):
                     "enabled": torchair_graph,
                     "use_cached_graph": False,
                     "graph_batch_sizes_init": False,
-                    "graph_batch_sizes": [max_num_seqs] if torchair_graph else [],
+                    "graph_batch_sizes": graph_batch_sizes,
                 },
-                "ascend_scheduler_config": {
-                    "enabled": True,
-                },
+                "ascend_scheduler_config": ascend_scheduler_config,
                 "refresh": True,
             }
         )

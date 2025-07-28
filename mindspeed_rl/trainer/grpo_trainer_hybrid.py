@@ -140,8 +140,8 @@ class RayGRPOTrainer(RayBaseTrainer):
             ray.get(self.transfer_dock.clear.remote())
 
             batch = next(data_iters)
-            batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
+            batch_dict, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes))
 
             if is_multimodal():
                 ray.get(self.mm_transfer_dock.clear.remote())

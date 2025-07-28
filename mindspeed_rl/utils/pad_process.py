@@ -111,7 +111,7 @@ def truncate_rows(tensor, index_tensor, left_pad=False):
     tensor: 二维 Tensor，形状为 (mbs, seq_len)
     index_tensor: 二维 Tensor，形状为 (mbs, 1)，表示每一行截断的位置
     """
-    mbs, seq_len = tensor.shape
+    mbs = tensor.shape[0]
     truncated_tensors = []
 
     for i in range(mbs):

@@ -52,5 +52,7 @@ class Npu_Qwen2_5_VisionMLP(nn.Module):
 
 
 def replace_qwen2_5_visionmlp():
+    from vllm_ascend.patch import platform
+    from vllm_ascend.patch import worker
     import vllm.model_executor.models.qwen2_5_vl
     vllm.model_executor.models.qwen2_5_vl.Qwen2_5_VisionMLP = Npu_Qwen2_5_VisionMLP

@@ -69,16 +69,14 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </thead>
   <tbody>
     <tr>
-      <td  rowspan="2"> GRPO</td>
+      <td  rowspan="3"> GRPO</td>
       <td><a href="docs/algorithms/grpo.md">Doc</a></td>
       <td  rowspan="1">
         <a href="docs/solutions/r1_zero_qwen25_7b.md">Qwen2.5-7B</a> <br>
         <a href="docs/solutions/r1_zero_qwen25_32b.md">Qwen2.5-32B</a> <br>
-        <a href="examples/grpo/grpo_trainer_qwen3_8b.sh">Qwen3-8B</a> <br>
-        <a href="examples/grpo/grpo_trainer_qwen3_235b_a22b.sh">Qwen3-235B-A22B</a> <br>
-        <a href="docs/solutions/r1_zero_deepseek_671b.md"> DeepSeek-R1-671B </a> <br>
       </td>
       <td> Released</td>
+    </tr>
     </tr>
     <tr>
       <td><a href="https://gitee.com/ascend/MindSpeed-MM/tree/master/examples/rl">Doc</a></td>
@@ -89,6 +87,14 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       </td>
       <td> Released</td>
     </tr>
+    <tr>
+      <td><a href="docs/algorithms/grpo.md">Doc</a></td>
+      <td  rowspan="1">
+        <a href="examples/grpo/grpo_trainer_qwen3_8b.sh">Qwen3-8B</a> <br>
+        <a href="examples/grpo/grpo_trainer_qwen3_235b_a22b.sh">Qwen3-235B-A22B</a> <br>
+        <a href="docs/solutions/r1_zero_deepseek_671b.md"> DeepSeek-R1-671B </a> <br>
+      </td>
+      <td> Preview</td>
     <tr>
       <td> DAPO</td>
       <td><a href="docs/algorithms/dapo.md">Doc</a></td>

@@ -81,14 +81,13 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </thead>
   <tbody>
     <tr>
-      <td rowspan="2">GRPO</td>
+      <td rowspan="3">GRPO</td>
       <td><a href="docs/algorithms/grpo.md">Doc</a></td>
       <td  rowspan="1">
         <a href="docs/solutions/r1_zero_qwen25_7b.md">Qwen2.5-7B</a> <br>
         <a href="docs/solutions/r1_zero_qwen25_32b.md">Qwen2.5-32B</a> <br>
-        <a href="examples/grpo/grpo_trainer_deepseek_r1_671b.sh"> DeepSeek-R1-671B </a> <br>
       </td>
-      <td> Released</td>
+      <td rowspan="1">Released<br>
     </tr>
     <tr>
       <td><a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Doc</a></td>
@@ -97,10 +96,18 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-7B</a> <br>
         <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-32B</a> <br>
       </td>
-      <td> Released</td>
+      <td rowspan="1">Released<br>
+    </tr>
+    <tr>
+      <td><a href="docs/algorithms/grpo.md">Doc</a></td>
+      <td  rowspan="1">
+        <a href="examples/grpo/grpo_trainer_deepseek_r1_671b.sh"> DeepSeek-R1-671B </a> <br>
+      </td>
+      <td rowspan="1">Preview<br>
     </tr>
   </tbody>
 </table>
+
 注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
 
 注：使用Ray拉起任务的算法，如GRPO，环境变量需要在[runtime_env.yaml](./configs/envs/runtime_env.yaml)处配置

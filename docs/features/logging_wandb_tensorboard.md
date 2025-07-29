@@ -28,7 +28,7 @@ MindSpeed RL使用开源库WandB能力
 #### 前置准备
 1. 官网注册wandb账号，获取wandb login key
 2. 确保训练环境能联网
-3. 运行环境中设置wandb login key：export WANDB_API_KEY=$your_wandb_api_key
+3. 运行环境中实现获取wandb login key的函数，并设置wandb login key（可以参考mindspeed_rl/utils/loggers.py 中 _init_wandb 中注释的实现方式，并设置export WANDB_API_KEY=$your_wandb_api_key；同时出于安全考虑，建议进一步做加密传输）
 #### 参数配置
 **在训练yaml文件的rl_config字段中添加：**
 ```

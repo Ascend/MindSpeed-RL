@@ -106,6 +106,41 @@ def truncate_middle_and_pad(responses, input_tensor, truncate_lengths, pad_value
     return output_tensor
 
 
+def truncate_prompt_and_pad(responses, input_tensor, truncate_lengths, pad_value=0.0):
+    """
+    input_tensor: Tensor of shape (mbs, seq_len)
+    truncate_lengths: Tensor of shape (mbs, 2), where truncate_lengths[i, 0] is the start index to keep,
+                      and truncate_lengths[i, 1] is the end index to keep (exclusive).
+    pad_value: Value to use for padding (default is 0.0)
+    """
+
+    mbs, seq_len = input_tensor.shape
+
+    # Ensure truncate_lengths is within valid range
+    truncate_lengths = torch.clamp(truncate_lengths, 0, seq_len)
+
+    # Calculate the new lengths after truncation
+    new_lengths = truncate_lengths[:, 1] - truncate_lengths[:, 0]  # (mbs,)
+
+    # Find the maximum length after truncation
+    max_new_len = responses.shape[-1]
+
+    # Initialize the output tensor with padding values
+    output_tensor = torch.full((mbs, max_new_len), pad_value, dtype=input_tensor.dtype,
+                               device=input_tensor.device)
+
+    # Fill the output tensor with truncated values
+    for i in range(mbs):
+        start_idx = truncate_lengths[i, 0].item()  # Start index to keep
+        end_idx = truncate_lengths[i, 1].item()  # End index to keep (exclusive)
+        new_len = new_lengths[i].item()  # New length after truncation
+
+        # Copy the middle part of the row to the output tensor
+        output_tensor[i, :new_len] = input_tensor[i, start_idx:end_idx]
+
+    return output_tensor
+
+
 def truncate_rows(tensor, index_tensor, left_pad=False):
     """
     tensor: 二维 Tensor，形状为 (mbs, seq_len)

@@ -328,6 +328,7 @@ class VLLMInferEngine(BaseInferEngine):
         self.free_cache_engine()
         return outs
 
+
     @torch.no_grad()
     def async_generate_sequences(self, idx_list, indexes, n_samples_per_prompt=None, **kwargs):
         with self.update_sampling_params(**kwargs):

@@ -19,7 +19,7 @@ class ReferenceLossFunc(BaseLossFunc):
                      non_loss_data=True,
                      **kwargs) -> Tuple[torch.Tensor, Dict]:
         # compute log probs
-        log_probs = super().compute_log_probs(output=output, batch=batch, **kwargs)
+        log_probs, _ = super().compute_log_probs(output=output, batch=batch, **kwargs)
         if forward_only:
             return log_probs
         return None

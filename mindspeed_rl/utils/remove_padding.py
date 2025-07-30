@@ -9,6 +9,7 @@ import torch_npu
 
 def preprocess_packed_seqs(
     input_ids: torch.Tensor,
+    labels: torch.Tensor,
     attention_mask_1d: torch.Tensor,
     tp_size: int
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -69,10 +70,18 @@ def preprocess_packed_seqs(
         position_ids_packed[start:end] = torch.arange(
             end - start, dtype=torch.int32, device=input_ids.device
         )
+    
+    labels_packed = torch.zeros(pack_length, dtype=input_ids.dtype, device=input_ids.device)
+    # Copy valid tokens sequentially
+    for i in range(batch_size):
+        start = cu_seqlens_padded[i].item()
+        length = seqlens_in_batch[i].item()
+        labels_packed[start:start + length] = labels[i, :length]
 
     return (
         input_ids_packed.unsqueeze(0),
         position_ids_packed.unsqueeze(0),
+        labels_packed.unsqueeze(0),
         seqlens_in_batch,
         cu_seqlens_padded
     )
@@ -82,17 +91,20 @@ def postprocess_packed_seqs(
     output: torch.Tensor,
     seqlens_in_batch: torch.Tensor,
     cu_seqlens_padded: torch.Tensor,
-    seq_len: int
+    seq_len: int,
+    prompt_length: torch.Tensor = None
 ) -> torch.Tensor:
     """
     Unpacks a packed output tensor back into the original batch shape, restoring padding.
+    Optionally truncates the beginning of each sequence based on prompt_length.
 
     Parameters:
         output (torch.Tensor): Packed tensor of shape (1, pack_length, ...), typically the model output.
         seqlens_in_batch (torch.Tensor): 1D int32 tensor of original sequence lengths, shape (batch_size,).
         cu_seqlens_padded (torch.Tensor): 1D int32 tensor of cumulative padded lengths, shape (batch_size+1,).
-        batch_size (int): Original batch size.
         seq_len (int): Maximum sequence length (including padding) for the output reconstruction.
+        prompt_length (torch.Tensor, optional): 1D tensor specifying the length to truncate from the beginning of each sequence.
+            If None, no truncation is applied. Default is None.
 
     Returns:
         output_new (torch.Tensor): Tensor of shape (batch_size, seq_len, ...), with original outputs
@@ -101,7 +113,6 @@ def postprocess_packed_seqs(
     Raises:
         ValueError: If output tensor does not have expected batch dimension of 1.
     """
-
     if output.shape[0] != 1:
         raise ValueError("Expected output tensor to have shape[0] == 1 (packed batch dimension)")
 
@@ -109,9 +120,17 @@ def postprocess_packed_seqs(
     batch_size = seqlens_in_batch.shape[0]
     full_shape = [batch_size, seq_len] + list(output.shape[2:])
     output_new = torch.zeros(full_shape, dtype=output.dtype, device=output.device)
+
     for i in range(batch_size):
         start = cu_seqlens_padded[i].item()
         length = seqlens_in_batch[i].item()
-        output_new[i, :length] = output[0, start:start + length]
-    return output_new
 
+        if prompt_length is not None:
+            trunc_length = prompt_length[i].item() - 1
+            if trunc_length < length:
+                length -= trunc_length + 1
+                start += trunc_length
+
+        output_new[i, :length] = output[0, start:start + length]
+
+    return output_new

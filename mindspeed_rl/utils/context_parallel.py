@@ -116,36 +116,36 @@ def get_ring_degree(megatron_config):
         return ring_degree
 
 
-def allgather_output_cp_group(output_orig, cp_size):
-    output_list = [torch.empty_like(output_orig) for _ in range(cp_size)]
-    torch.distributed.all_gather(output_list, output_orig.detach(), group=get_parallel_state().get_context_parallel_group())
-    output_list[get_parallel_state().get_context_parallel_rank()] = output_orig
+def allgather_tensor_cp_group(cp_tensor, cp_size):
+    output_list = [torch.empty_like(cp_tensor) for _ in range(cp_size)]
+    torch.distributed.all_gather(output_list, cp_tensor.detach(), group=get_parallel_state().get_context_parallel_group())
+    output_list[get_parallel_state().get_context_parallel_rank()] = cp_tensor
     output_all_cp = torch.cat(output_list, dim=1)
     return output_all_cp
 
 
-def get_output_allgather_cp_with_pack(output_orig, cp_size, index):
-    # output allgather
-    output_all_cp = allgather_output_cp_group(output_orig, cp_size)
+def get_tensor_allgather_cp_with_pack(cp_tensor, cp_size, index):
+    # cp_tensor allgather
+    output_all_cp = allgather_tensor_cp_group(cp_tensor, cp_size)
     # when use ring cp, the index is not none. Need to restore the output order based on the index. 
     if index is not None:
-        # Step1 index allgather
+        # index allgather
         index_list = [torch.empty_like(index) for _ in range(cp_size)]
         torch.distributed.all_gather(index_list, index, group=get_parallel_state().get_context_parallel_group())
-        index_all_cp = torch.cat(index_list, dim=0)
-        index_expand = index_all_cp.view(1, output_all_cp.shape[1], 1)
-        # Step2 use scatter to restore the output order based on the index
-        output_order_restored = torch.zeros_like(output_all_cp)
-        output_order_restored.scatter_(1, index_expand.expand(-1, -1, output_all_cp.shape[2]), output_all_cp)
+        index_all_cp = torch.cat(index_list, dim=0).cpu().numpy()
+        index_all_cp_argsort = np.argsort(index_all_cp)
+        
+        output_order_restored = output_all_cp[:, index_all_cp_argsort]
         output = output_order_restored
     else:
         output = output_all_cp
+
     return output
 
 
-def get_output_allgather_cp_without_pack(output_orig, cp_size, index):
-    # output allgather
-    output_all_cp = allgather_output_cp_group(output_orig, cp_size)
+def get_tensor_allgather_cp_without_pack(cp_tensor, cp_size, index):
+    # cp_tensor allgather
+    output_all_cp = allgather_tensor_cp_group(cp_tensor, cp_size)
     if index is not None:
         # Step1 get index and argsort it for select
         index_list = []

@@ -204,6 +204,8 @@ class MegatronConfig(BaseConfig):
     noop_layers:  noop layers string
     cp_attention_mask_type: attention mask type in cp
     reset_attention_mask: reset attention_mask in cp
+    use_cp_send_recv_overlap: To support send receive overlap in cp, suggest to be true
+    use_fused_ring_attention_update:  use fused_ring_attention_update in cp, suggest to be true
     use_ascend_coc: switch to open CoC feature (default: False)
     coc_mode: 0=original, 1=rewrite, 2=coc default
     coc_parallel_num: number of parallel in CoC features (default: 1)
@@ -376,6 +378,8 @@ class MegatronConfig(BaseConfig):
         self.noop_layers = None
         self.cp_attention_mask_type = 'causal'
         self.reset_attention_mask = False
+        self.use_cp_send_recv_overlap = False
+        self.use_fused_ring_attention_update = False
         self.dpo_loss_type = 'sigmoid'
 
         self.use_ascend_coc = False
@@ -391,3 +395,5 @@ class MegatronConfig(BaseConfig):
         self.gemm_gradient_accumulation_fusion = False
 
         self.update(training_config, model_config)
+
+        self.pad_to_multiple_of = self.tensor_model_parallel_size * self.context_parallel_size

@@ -106,10 +106,18 @@ class WandbLogger(Loggers):
         os.makedirs(wandb_kwargs['dir'], exist_ok=True)
 
         if not self.wandb.api.api_key:
+            '''
+            # 可以参考如下方式从环境变量中获取WANDB_API_KEY， 但注意：明文口令有安全风险，需要进一步做加密传输
             if not os.getenv("WANDB_API_KEY"):
                 raise ValueError(
                     "Please set your wandb api key in the environment variable, you can set WANDB_API_KEY=$your_wandb_api_key ")
             self.wandb.login(key=os.getenv("WANDB_API_KEY"))
+            '''
+            key = self.get_WanDB_API_KEY()
+            if not key:
+                raise ValueError(
+                    "The wandb API key was not retrieved properly. Please implement the get_WanDB_API_KEY method correctly.")
+            self.wandb.login(key=key)
 
         # 初始化 wandb
         try:
@@ -118,6 +126,9 @@ class WandbLogger(Loggers):
             logging.warning(f"Failed to initialize wandb as {e}, switch to offline mode")
             os.environ["WANDB_MODE"] = "offline"
             self.wandb.init(**wandb_kwargs)
+    
+    def get_WanDB_API_KEY(self):
+        raise NotImplementedError("The method to get the wandb API key has not been implemented yet.") 
 
     def log_metrics(self, metrics, step=None):
         """

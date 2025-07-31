@@ -106,8 +106,8 @@ DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）
 与基于ray的其他强化训练一样，我们多机需要先在主节点初始化ray：
 
 ```shell
-# 创建一个集群，端口6344，dashboard端口8260
-ray start --head --port 6344 --dashboard-host=0.0.0.0 --dashboard-port=8260
+# 创建一个集群，端口6344，dashboard端口8260，dashboard-host填写主节点IP
+ray start --head --port 6344 --dashboard-host=$MASTER_ADDR --dashboard-port=8260
 ```
 
 随后，在其他节点加入主节点的集群(多机环境可选)：

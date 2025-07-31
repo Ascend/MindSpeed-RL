@@ -176,7 +176,7 @@ class VLLMInferEngine(BaseInferEngine):
                     "enabled": torchair_graph,
                     "use_cached_graph": False,
                     "graph_batch_sizes_init": False,
-                    "graph_batch_sizes": [max_num_seqs],
+                    "graph_batch_sizes": [max_num_seqs] if torchair_graph else [],
                 },
                 "ascend_scheduler_config": {
                     "enabled": True,

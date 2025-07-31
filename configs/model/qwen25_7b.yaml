@@ -15,5 +15,6 @@ qwen25_7b:
   num_query_groups: 4
   position_embedding_type: rope
   normalization: RMSNorm
+  norm_epsilon: 1e-6
   swiglu: true
   attention_softmax_in_fp32: true

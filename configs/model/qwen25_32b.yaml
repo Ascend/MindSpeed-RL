@@ -14,6 +14,7 @@ qwen25_32b:
   group_query_attention: true
   num_query_groups: 8
   position_embedding_type: rope
+  norm_epsilon: 1e-6
   normalization: RMSNorm
   swiglu: true
   attention_softmax_in_fp32: true

@@ -13,7 +13,7 @@ tensordict==0.1.2
 transformers==4.52.1
 word2number
 wandb
-pillow==11.2.1
+pillow==11.3.0
 av==14.3.0
 qwen_vl_utils==0.0.11
 mathruler==0.1.0

@@ -25,7 +25,7 @@ CURRENT_IP=$(ip -4 addr show $(ip -o -4 route show to default | awk '{print $5}'
 
 if [ "$MASTER_ADDR" = "$CURRENT_IP" ]; then
   # 主节点启动
-  ray start --head --port 6766 --dashboard-host=0.0.0.0 --node-ip-address=$CURRENT_IP --dashboard-port=8260 --resources='{"NPU": '$NPUS_PER_NODE'}'
+  ray start --head --port 6766 --dashboard-host=$MASTER_ADDR--node-ip-address=$CURRENT_IP --dashboard-port=8260 --resources='{"NPU": '$NPUS_PER_NODE'}'
 
   while true; do
       ray_status_output=$(ray status)
@@ -62,4 +62,4 @@ else
   done
 fi
 
-sleep 999999
+sleep 600

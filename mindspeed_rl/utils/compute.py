@@ -98,7 +98,6 @@ def vocab_parallel_entropy(vocab_parallel_logits: torch.Tensor) -> torch.Tensor:
 
 def compute_kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_penalty="low_var_kl") -> torch.FloatTensor:
     """Compute KL divergence given logprob and ref_logprob.
-    Copied from https://github.com/huggingface/trl/blob/main/trl/trainer/ppo_trainer.py#L1104
 
     Args:
         logprob:
@@ -117,7 +116,6 @@ def compute_kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTenso
         return 0.5 * (logprob - ref_logprob).square()
 
     # J. Schulman. Approximating kl divergence, 2020.
-    # # URL http://joschu.net/blog/kl-approx.html.
     if kl_penalty == "low_var_kl":
         kl = ref_logprob - logprob
         # For numerical stability

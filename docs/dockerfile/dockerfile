@@ -1,0 +1,73 @@
+FROM ubuntu:22.04 as rl_base
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+WORKDIR /root
+
+RUN echo 'Acquire::AllowInsecureRepositories “true”; ' >> /etc/apt/apt.conf.d/allow-insecure && \
+    echo 'Acquire::AllowDowngradeToInsecureRepositories “true”; ' >> /etc/apt/apt.conf.d/allow-insecure
+
+RUN apt-get update --allow-unauthenticated --allow-insecure-repositories && \
+    apt-get install -y libsox-dev unzip libaio-dev zip iputils-ping telnet sudo git wget net-tools python3.10 python3-pip libjemalloc2 --allow-unauthenticated  && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# 此处可以选择配置pip镜像源
+RUN pip3 install --upgrade pip
+RUN pip3 install cffi pathlib2 absl-py
+
+# 创建软连接
+RUN ln -s /usr/bin/python3.10 /usr/bin/python && \
+    rm /usr/bin/pip && \
+    ln -s /usr/bin/pip3.10 /usr/bin/pip
+
+RUN echo "\n" >> ~/.bashrc  && \
+    echo "export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:\${LD_PRELOAD}" >> ~/.bashrc && \
+    git config --global http.sslVerify false
+
+# 添加非root用户
+RUN umask 0022 && groupadd HwHiAiUser && useradd -g HwHiAiUser -d /home/HwHiAiUser -m HwHiAiUser -s /bin/bash
+
+RUN wget https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/community-edition/20250630-0630poc/pytorch_v2.5.1.zip -O torch.zip --no-check-certificate && \
+    unzip torch.zip && \
+    tar -xzvf pytorch_v2.5.1_py310.tar.gz && \
+    pip install torch_npu-2.5.1.post1.dev20250612-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+
+RUN pip uninstall setuptools -y \
+    pip install setuptools==69.5.1 && \
+    git clone https://github.com/vllm-project/vllm.git  && \
+    cd vllm && \
+    git checkout 5bc1ad6cee754405464a9957e86cf3a9302e4986 && \
+    VLLM_TARGET_DEVICE=empty pip install -e . && \
+    cd .. && \
+    git clone -b main https://github.com/vllm-project/vllm-ascend.git && \
+    cd vllm-ascend && \
+    git checkout 908a851 && \
+    COMPILE_CUSTOM_KERNELS=0 pip install -e .
+
+RUN git clone https://gitee.com/ascend/MindSpeed-RL.git && \
+    cd  MindSpeed-RL && \
+    git checkout acb2c70182283  && \
+    cd ../  && \
+    git clone https://gitee.com/ascend/MindSpeed.git && \
+    cd  MindSpeed && \
+    git checkout 2c085cc9  && \
+    pip install -r requirements.txt && \
+    cp -r mindspeed ../MindSpeed-RL/&& \
+    cd .. && \
+    git clone https://github.com/NVIDIA/Megatron-LM.git  && \
+    cd Megatron-LM && \
+    git checkout core_r0.8.0 && \
+    cp -r megatron ../MindSpeed-RL/ && \
+    cd .. && \
+    git clone https://gitee.com/ascend/MindSpeed-LLM.git && \
+    cd MindSpeed-LLM && \
+    git checkout 1cd73e869f4c && \
+    cp -r mindspeed_llm ../MindSpeed-RL/ && \
+    cd .. && \
+    cd ./MindSpeed-RL && \
+    pip install -r requirements.txt && \
+    pip install antlr4-python3-runtime==4.7.2 --no-deps && \
+    cd ../ && \
+    pip install torch_npu-2.5.1.post1.dev20250612-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl

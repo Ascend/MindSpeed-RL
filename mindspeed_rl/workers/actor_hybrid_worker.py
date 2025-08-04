@@ -8,13 +8,12 @@ from enum import Enum
 from typing import Callable
 import logging as logger
 
+import numpy as np
 import ray
-from torch import nn
 import torch
 from transformers import AutoConfig
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
-from mindspeed_rl.utils.optimizer_module import OptimizerConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
@@ -85,6 +84,7 @@ class ActorHybridWorkerBase(BaseWorker):
         self.actor_profiler = None
         self.prof_iteration = 1
         self.idx = 0
+        self.enable_partial_rollout = self.rl_config.partial_rollout_max_split > 1
 
     def initialize(self):
         self.setup_distributed_rank()
@@ -234,16 +234,15 @@ class ActorHybridWorkerBase(BaseWorker):
 
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(
-                experience_consumer_stage,
-                experience_columns,
-                experience_count,
-                self.megatron_config.tensor_model_parallel_size,
-                self.megatron_config.context_parallel_size,
-                self.megatron_config.context_parallel_algo,
-                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
-                get_n_samples=False
-            )
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 self.megatron_config.tensor_model_parallel_size,
+                                                                 self.megatron_config.context_parallel_size,
+                                                                 self.megatron_config.context_parallel_algo,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 get_n_samples=self.enable_partial_rollout)
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True
@@ -287,6 +286,11 @@ class ActorHybridWorkerBase(BaseWorker):
                              self.num_floating_point_operations_so_far)
         self.sharding_manager.exit_train_mode()
 
+    def get_partial_rollout_stop_signal(self):
+        if not self.enable_partial_rollout:
+            return False
+        return ray.get(self.td.get_update_ready.remote(require_max_age_all_finished=self.rl_config.require_max_age_all_finished))
+
     @mstx_timer_decorator
     def generate_sequences(self):
         sharding_infer_interval = 0
@@ -299,8 +303,14 @@ class ActorHybridWorkerBase(BaseWorker):
         experience_columns = ['prompts', 'prompt_length']
         if is_multimodal():
             experience_columns.extend(['input_ids', 'input_ids_length'])
+        if self.enable_partial_rollout:
+            experience_columns.extend(['responses', 'response_length', 'age'])
 
-        experience_count = self.rl_config.actor_rollout_dispatch_size
+        if self.enable_partial_rollout and (self.rl_config.async_engine or self.iteration == self.megatron_config.train_iters - 1):
+            incomplete_resp_num = ray.get(self.td.get_incomplete_response_num.remote())
+            experience_count = int(np.ceil(incomplete_resp_num / self.generate_config.data_parallel_size))
+        else:
+            experience_count = self.rl_config.actor_rollout_dispatch_size
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         sorted_indexes = self.get_dp_range_indexes(experience_count,
@@ -310,7 +320,8 @@ class ActorHybridWorkerBase(BaseWorker):
                                                  profiler_iteration=self.prof_iteration)
         MsProbe.debugger_start(self.inference_model.model, tag='actor_generate_sequences')
 
-        start_time_defined = False
+
+        start_time = time.time()
         while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
@@ -320,25 +331,28 @@ class ActorHybridWorkerBase(BaseWorker):
                 cp_size=self.megatron_config.context_parallel_size,
                 cp_algo=self.megatron_config.context_parallel_algo,
                 indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
-                use_vllm=True
+                use_vllm=True,
+                get_n_samples=not self.enable_partial_rollout,
+                enable_partial_rollout=self.enable_partial_rollout
             )
-            if not start_time_defined:
-                start_time = time.time()
-                start_time_defined = True
+
             if batch_data and index:
-
-                gc.collect()
-                torch.cuda.empty_cache()
-
                 if self.rl_config.async_engine:
                     logger.info(f"do async generate process.")
-                    prompts_data = batch_data['prompts']
-                    prompt_length_data = batch_data['prompt_length']
-                    prompts = truncate_rows(prompts_data, prompt_length_data)
-                    prompts_list = [prompt.numpy().tolist() for prompt in prompts]
-                    self.async_generate_process(experience_count, index, pad_token_id, prompts_list, start_time)
+                    self.async_generate_process(batch_data, index, pad_token_id)
                 else:
-                    self.sync_generate_process(batch_data, experience_count, index, pad_token_id, start_time)
+                    self.sync_generate_process(batch_data, experience_count, index, pad_token_id)
+            if self.enable_partial_rollout:
+                torch.distributed.barrier()
+        end_time = time.time()
+        ray.get(
+                self.td.update_metrics.remote(
+                    "timing/rollout",
+                    value=[round(end_time, 4), round(start_time, 4)],
+                    cumulate=True
+                )
+        )
+
         profiler_step(actor_generate_profiler)
         MsProbe.debugger_stop('actor_generate_sequences')
 
@@ -358,29 +372,58 @@ class ActorHybridWorkerBase(BaseWorker):
             )
             logger.info("finish generate_sequences")
 
-    def sync_generate_process(self, batch_data, experience_count, index, pad_token_id, start_time):
-        indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
-        prompts_data = batch_data['prompts'][indexes]
-        prompt_length_data = batch_data['prompt_length'][indexes]
-        # preprocess, remove padding
-        prompts = truncate_rows(prompts_data, prompt_length_data)
-        prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+    def sync_generate_process(self, batch_data, experience_count, index, pad_token_id):
+        if not self.enable_partial_rollout:
+            indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
+            prompts_data = batch_data['prompts'][indexes]
+            prompt_length_data = batch_data['prompt_length'][indexes]
+            # preprocess, remove padding
+            prompts = truncate_rows(prompts_data, prompt_length_data)
+            prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+        else:
+            prompts_data = batch_data['prompts']
+            prompt_length_data = batch_data['prompt_length']
+            responses = batch_data['responses']
+            responses_length_partial = batch_data['response_length']
+            responses_partial = truncate_rows(responses, responses_length_partial)
+            prompts = truncate_rows(prompts_data, prompt_length_data)
+            prompts_for_vllm = [torch.cat(
+                                    (prompt, response), dim=0) for prompt, response in
+                                zip(prompts, responses_partial)]
+            prompts_list = [prompt.numpy().tolist() for prompt in prompts_for_vllm]
+        if self.enable_partial_rollout:
+            max_tokens = self.generate_config.sampling_config["max_tokens"] // self.rl_config.partial_rollout_max_split
+            responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list),
+                                                                       max_tokens=max_tokens, n=1,
+                                                                       extra_info=batch_data)
+        else:
+            responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list),
+                                                                       extra_info=batch_data)
 
-        with replace_torch_compile():
-            responses_pad_right = self.actor_hybrid.generate_sequences(copy.deepcopy(prompts_list), indexes,
-                                                                    n_samples_per_prompt=self.rl_config.n_samples_per_prompt,
-                                                                    async_engine=self.rl_config.async_engine,
-                                                                    extra_info=batch_data)
         responses = remove_padding_and_split_to_list(responses_pad_right, self.tokenizer.eod, pad_token_id)
-        responses_length = [torch.tensor([len(response)]) for response in responses]
+
         if is_multimodal():
             prompts_data = batch_data['input_ids'][indexes].cpu().unbind()
         else:
             prompts_data = prompts
-        prompts = []
-        for prompt in prompts_data:
-            for _ in range(self.rl_config.n_samples_per_prompt):
-                prompts.append(copy.deepcopy(prompt))
+
+        if self.enable_partial_rollout:
+            new_responses = []
+            for response_partial, response in zip(responses_partial, responses):
+                new_resp = torch.cat((response_partial, response), dim=0)
+                test_resp = new_resp >= self.tokenizer.vocab_size
+                if test_resp.sum() > 0:
+                    new_resp[test_resp] = 0
+                new_responses.append(new_resp)
+            responses = new_responses
+        else:
+            prompts = []
+            for prompt in prompts_data:
+                for _ in range(self.rl_config.n_samples_per_prompt):
+                    prompts.append(copy.deepcopy(prompt))
+
+        responses_length = [torch.tensor([len(response)]) for response in responses]
+
         input_ids_list = []
         for prompt, response in zip(prompts, responses):
             input_ids_list.append(torch.cat((prompt, response), dim=0))
@@ -391,32 +434,74 @@ class ActorHybridWorkerBase(BaseWorker):
         }
         if is_multimodal():
             outputs['prompt_length'] = batch_data['input_ids_length']
-        self.collect_transfer_dock_data(outputs, index, use_vllm=True)
-        end_time = time.time()
-        MsProbe.save_data({"responses": responses, "prompts": prompts})
-        ray.get(
-            self.td.update_metrics.remote(
-                "timing/rollout",
-                value=[round(end_time, 4), round(start_time, 4)],
-                cumulate=True
-            )
-        )
 
-    def async_generate_process(self, experience_count, index, pad_token_id, prompts_list, start_time):
-        # inference
+        if self.enable_partial_rollout:
+            finish_status = [torch.tensor([0])] * len(responses_length)
+            for idx, _ in enumerate(responses):
+                if responses[idx][-1] == self.tokenizer.eod or \
+                        (prompt_length_data[idx][0] + responses_length[
+                            idx][0] >= self.generate_config.max_model_len) or responses_length[
+                    idx][0] >= self.generate_config.sampling_config["max_tokens"]:
+                    finish_status[idx] = torch.tensor([1])
+            outputs["rollout_completed"] = finish_status
+
+        self.collect_transfer_dock_data(outputs, index, use_vllm=True)
+        MsProbe.save_data({"responses": responses, "prompts": prompts})
+
+
+    def async_generate_process(self, batch_data, index, pad_token_id):
         self.actor_hybrid.inference_actor.init_cache_engine()
-        with replace_torch_compile():
+        prompts_data = batch_data['prompts']
+        prompt_length_data = batch_data['prompt_length']
+        prompts = truncate_rows(prompts_data, prompt_length_data)
+        if self.enable_partial_rollout:
+            responses = batch_data['responses']
+            responses_length_partial = batch_data['response_length']
+            responses_partial = truncate_rows(responses, responses_length_partial)
+            prompts_for_vllm = [torch.cat((prompt, response), dim=0) for prompt, response in zip(prompts, responses_partial)]
+            prompts_list = [prompt.numpy().tolist() for prompt in prompts_for_vllm]
+        else:
+            prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+        if self.enable_partial_rollout:
             response_generator = self.actor_hybrid.generate_sequences(
                 copy.deepcopy(prompts_list),
                 indexes=index,
-                max_tokens=self.generate_config.sampling_config["max_tokens"],
-                n_samples_per_prompt=1,
+                n=1,
+                async_engine=True,
+                stop_singal_func=self.get_partial_rollout_stop_signal,
+            )
+        else:
+            response_generator = self.actor_hybrid.generate_sequences(
+                copy.deepcopy(prompts_list),
+                indexes=index,
                 n=1,
                 async_engine=True,
             )
-        for samples, idx in response_generator:
+
+        for samples, idx_output in response_generator:
             prompts, responses, log_probs = samples
             responses = remove_padding_and_split_to_list(responses, self.tokenizer.eod, pad_token_id)
+
+            remove_input_ids = False
+            if self.enable_partial_rollout and len(responses[0]) == 1:
+                remove_input_ids = True
+
+            if self.enable_partial_rollout:
+                responses_partial_new = []
+                prompt_length_new = []
+                for idx in range(len(responses)):
+                    iidx = index.index(idx_output[idx])
+                    responses_partial_new.append(responses_partial[iidx])
+                    prompt_length_new.append(prompt_length_data[iidx])
+
+                new_responses = []
+                for response_partial, response in zip(responses_partial_new, responses):
+                    new_resp = torch.cat((response_partial, response), dim=0)
+                    test_resp = new_resp >= self.tokenizer.vocab_size
+                    if test_resp.sum() > 0:
+                        new_resp[test_resp] = 0
+                    new_responses.append(new_resp)
+                responses = new_responses
             responses_length = [torch.tensor([len(response)]) for response in responses]
 
             input_ids_list = []
@@ -428,16 +513,20 @@ class ActorHybridWorkerBase(BaseWorker):
                 'input_ids': input_ids_list,
                 'response_length': responses_length
             }
-            self.collect_transfer_dock_data(outputs, idx, use_vllm=True)
+            if remove_input_ids:
+                outputs.pop("input_ids")
 
-        end_time = time.time()
-        ray.get(
-            self.td.update_metrics.remote(
-                "timing/rollout",
-                value=[round(end_time, 4), round(start_time, 4)],
-                cumulate=True
-            )
-        )
+            if self.enable_partial_rollout:
+                finish_status = [torch.tensor([0])] * len(responses_length)
+                for idx, _ in enumerate(responses):
+                    if responses[idx][-1] == self.tokenizer.eod or \
+                            prompt_length_new[idx][0].to('cpu') + responses_length[
+                        idx][0] >= self.generate_config.max_model_len or responses_length[
+                        idx][0] >= self.generate_config.sampling_config["max_tokens"]:
+                        finish_status[idx] = torch.tensor([1])
+                outputs["rollout_completed"] = finish_status
+            self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True)
+            MsProbe.save_data({"responses": responses, "prompts": prompts})
         self.actor_hybrid.inference_actor.free_cache_engine()
 
     @mstx_timer_decorator
@@ -466,16 +555,15 @@ class ActorHybridWorkerBase(BaseWorker):
 
         start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
-            batch_data, index = self.dispatch_transfer_dock_data(
-                experience_consumer_stage,
-                experience_columns,
-                experience_count,
-                tp_size=self.megatron_config.tensor_model_parallel_size,
-                cp_size=self.megatron_config.context_parallel_size,
-                cp_algo=self.megatron_config.context_parallel_algo,
-                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
-                get_n_samples=False
-            )
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 tp_size=self.megatron_config.tensor_model_parallel_size,
+                                                                 cp_size=self.megatron_config.context_parallel_size,
+                                                                 cp_algo=self.megatron_config.context_parallel_algo,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 get_n_samples=self.enable_partial_rollout)
             if not start_time_defined:
                 start_time = time.time()
                 start_time_defined = True

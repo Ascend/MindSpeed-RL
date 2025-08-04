@@ -84,21 +84,18 @@ class ActorRolloutHybrid(ABC):
             self,
             prompts_list: List[List[int]],
             indexes=None,
-            n_samples_per_prompt=None,
             async_engine=False,
-            max_tokens=128,
+            stop_singal_func=None,
             **kwargs) -> Tensor:
         if async_engine:
             res = self.inference_actor.async_generate_sequences(
-                prompts_list, 
+                prompts_list,
                 indexes,
-                n_samples_per_prompt=n_samples_per_prompt,
-                max_tokens=max_tokens,
-                **kwargs
+                stop_singal_func=stop_singal_func,
+                **kwargs,
             )
         else:
             res = self.inference_actor.generate_sequences(prompts_list, **kwargs)[0]
-
         return res
 
     @mstx_timer_decorator

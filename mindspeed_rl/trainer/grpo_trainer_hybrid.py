@@ -44,7 +44,6 @@ class RayGRPOTrainer(RayBaseTrainer):
         num_cpus_for_local_task: int = 1 Number of CPUs for local ray task.
         **kwargs: Additional parameters for base class argument passing.
     """
-
     def __init__(
             self,
             actor_worker: RayActorGroup,
@@ -65,6 +64,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             blocking: bool = False,
             guarantee_order: bool = False,
             num_cpus_for_local_task: int = 1,
+            partial_rollout_max_split: int = 1,
             **kwargs
     ):
         super().__init__(
@@ -86,21 +86,29 @@ class RayGRPOTrainer(RayBaseTrainer):
             blocking=blocking,
             guarantee_order=guarantee_order,
             num_cpus_for_local_task=num_cpus_for_local_task,
+            partial_rollout_max_split=partial_rollout_max_split,
             **kwargs
         )
 
         self.transfer_dock = None
         self.mm_transfer_dock = None
+        self.enable_partial_rollout = self.partial_rollout_max_split > 1
         self.metrics = Metric()
+        if self.enable_partial_rollout:
+            self.td_max_len = self.global_batch_size * 2
+        else:
+            self.td_max_len = self.global_batch_size
         self.transfer_dock_init()
         self.kwargs = kwargs
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
         self.transfer_dock = GRPOTransferDock.remote(
-            self.global_batch_size,
-            self.n_samples_per_prompt,
-            self.metrics,
+            prompts_num=self.td_max_len,  # max sample num
+            n_samples_per_prompt=self.n_samples_per_prompt,
+            metrics=self.metrics,
+            max_age=self.partial_rollout_max_split,
+            GBS_train=self.global_batch_size,  # GBS_train
             addition_columns=self.dataset_additional_keys
         )
         if is_multimodal():
@@ -135,20 +143,30 @@ class RayGRPOTrainer(RayBaseTrainer):
             logger.info('sync start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
         else:
             logger.info('async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+        if self.enable_partial_rollout:
+            first_batch = next(data_iters)
+            batch, indexes = put_prompts_experience(first_batch, self.n_samples_per_prompt,
+                                                    self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+            logger.info(f'training start, put first batch')
 
         while iteration < self.train_iters:
-            ray.get(self.transfer_dock.clear.remote())
-
-            batch = next(data_iters)
-            batch_dict, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes))
-
-            if is_multimodal():
-                ray.get(self.mm_transfer_dock.clear.remote())
-                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
-
+            last_iter = iteration == self.train_iters - 1
             with Timer(name='iteration', logger=None) as all_timer:
-                # generate sequences
+                batch = next(data_iters)
+                if self.enable_partial_rollout:
+                    if not last_iter:  # and batch is not None: # None?
+                        batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt,
+                                                                self.dataset_additional_keys,
+                                                                add_another_batch=True)
+                        ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+                else:
+                    batch_dict, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
+                    ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
+                if is_multimodal():
+                    ray.get(self.mm_transfer_dock.clear.remote())
+                    ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+
                 self.actor_worker.generate_sequences(blocking=self.blocking)
 
                 # compute rm scores.
@@ -158,9 +176,10 @@ class RayGRPOTrainer(RayBaseTrainer):
                         reward_worker.compute_rm_score(blocking=self.blocking)
                     else:
                         rule_reward.append(reward_worker.compute_rm_score.remote())
+                ray.get(rule_reward)
 
                 # compute advantages, executed on the driver process
-                self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
+                self.compute_advantage(blocking=True, guarantee_order=self.guarantee_order)
 
                 # compute reference log_prob
                 self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
@@ -203,6 +222,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             metrics.update("vllm_tps", vllm_tps)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)
+            ray.get(self.transfer_dock.clear.remote())
             if self.tensorboard is not None:
                 for k, v in metrics.metric.items():
                     self.tensorboard.add_scalar(f"train/{k}", v, iteration)

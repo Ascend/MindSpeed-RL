@@ -1,6 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 import ray
-import torch
 from transformers import AutoTokenizer
 import torch
 
@@ -46,7 +45,8 @@ class RuleReward(object):
                     experience_consumer_stage,
                     experience_columns,
                     experience_count,
-                    indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None
+                    indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                    get_n_samples=True
                 )
             )  # cpu数据
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)

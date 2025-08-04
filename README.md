@@ -4,7 +4,14 @@
 
 MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [昇腾芯片](https://www.hiascend.com/) 生态合作伙伴提供端到端的RL训推解决方案，支持超大昇腾集群训推共卡/分离部署、多模型异步流水调度、训推异构切分通信等核心加速能力
 
+--- 
 
+## NEWS
+
+
+ 🚀🚀🚀 Partial Rollout功能已支持！！🚀🚀🚀
+
+--- 
 
 ## 安装指南
 
@@ -191,6 +198,15 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         DAPO <br>
         PPO <br>
         DPO <br>
+      </td>
+      </td>
+      <td> Preview</td>
+    </tr>
+    <tr>
+      <td>Partial Rollout</td>
+      <td><a href="docs/features/partial_rollout.md">Doc</a></td>
+      <td  rowspan="1">
+        GRPO <br>
       </td>
       </td>
       <td> Preview</td>

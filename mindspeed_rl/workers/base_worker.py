@@ -134,7 +134,6 @@ class BaseWorker(BaseRayWorker, ABC):
             current_device = next(self.model[0].parameters()).device
         status = torch.tensor(0, device=current_device)
 
-        rank_flg = False
         if not use_vllm:
             rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and
                         get_context_parallel_rank(self.parallel_state, use_vllm) == 0 and
@@ -225,7 +224,7 @@ class BaseWorker(BaseRayWorker, ABC):
     def dispatch_transfer_dock_data(self, experience_consumer_stage,
                                     experience_columns, experience_count, tp_size=1, cp_size=1, cp_algo=None,
                                     use_vllm=False, indexes=None,
-                                    get_n_samples=True):
+                                    get_n_samples=True, enable_partial_rollout=False):
         pad_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         if is_multimodal():
             mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
@@ -254,6 +253,12 @@ class BaseWorker(BaseRayWorker, ABC):
                                                        experience_count, indexes=indexes,
                                                        get_n_samples=get_n_samples,
                                                        use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+            elif enable_partial_rollout:
+                # 获取单条数据，不满足的位置补重复样本
+                dp_world_size = self.parallel_state.get_data_parallel_world_size()
+                batch_data, index = ray.get(self.td.get_experience.remote(experience_consumer_stage, experience_columns,
+                                                                          experience_count, dp_world_size, indexes=indexes,
+                                                                          get_n_samples=get_n_samples))  # cpu数据
             else:
                 batch_data, index = ray.get(
                     self.td.get_experience.remote(experience_consumer_stage, experience_columns,
@@ -290,7 +295,10 @@ class BaseWorker(BaseRayWorker, ABC):
             return None, None
 
         if rank_flg:
-            batch_data, batch_data_length = pack_experience_columns(batch_data, experience_count)
+            batch_data, batch_data_length = pack_experience_columns(experience_consumer_stage, batch_data,
+                experience_count,
+                enable_partial_rollout=enable_partial_rollout,
+            )
 
         for key in experience_columns:
             if rank_flg:

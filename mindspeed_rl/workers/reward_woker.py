@@ -108,6 +108,7 @@ class RewardWorkerBase(BaseWorker):
                                                                  cp_algo=self.megatron_config.context_parallel_algo,
                                                                  indexes=sorted_indexes.pop(
                                                                      0) if self.rl_config.guarantee_order else None,
+                                                                 get_n_samples=self.rl_config.partial_rollout_max_split > 1
                                                                  )
             if not start_time_defined:
                 start_time = time.time()

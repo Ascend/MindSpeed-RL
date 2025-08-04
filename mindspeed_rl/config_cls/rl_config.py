@@ -57,6 +57,8 @@ class RLConfig(BaseConfig):
     use_dp_batch_balance: Whether to use dynamic batch size balancing across data parallel ranks (default: False)
     # Default values can still be defined if no config is provided
     use_remove_padding: Whether to use packed sequences for forward (default: False)
+    partial_rollout_max_split: The multiple of token splitting for max tokens when partial rollout is enabled. (default: 1)
+    require_max_age_all_finished: wherther to require the reponses that have reached max_age must be completed in this iteration or can be incomplete (default: True)
     '''
 
     def __init__(self, config_dict):
@@ -149,6 +151,10 @@ class RLConfig(BaseConfig):
         self.filter_groups_metric = "acc"
         self.filter_groups_max_batches = 1
         self.filter_groups_train_batch_size = 1
+
+        self.partial_rollout_max_split = 1
+        self.require_max_age_all_finished = True
+
 
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():

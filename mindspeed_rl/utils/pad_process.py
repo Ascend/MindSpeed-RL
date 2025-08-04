@@ -150,13 +150,16 @@ def truncate_rows(tensor, index_tensor, left_pad=False):
     truncated_tensors = []
 
     for i in range(mbs):
-        # 获取当前行的截断索引
-        trunc_idx = index_tensor[i].item()
-        # 截断当前行
-        if left_pad:
-            truncated_row = tensor[i, -trunc_idx:].cpu()
+        if index_tensor[i].item() == 0 and tensor[i, 0].item() == -1:
+            truncated_row = torch.tensor([], dtype=torch.int32).cpu()
         else:
-            truncated_row = tensor[i, :trunc_idx].cpu()
+            # 获取当前行的截断索引
+            trunc_idx = index_tensor[i].item()
+            # 截断当前行
+            if left_pad:
+                truncated_row = tensor[i, -trunc_idx:].cpu()
+            else:
+                truncated_row = tensor[i, :trunc_idx].cpu()
         # 将截断后的行添加到列表中
         truncated_tensors.append(truncated_row)
 

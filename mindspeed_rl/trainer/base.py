@@ -42,6 +42,7 @@ class RayBaseTrainer(object):
                  guarantee_order: bool = False,
                  use_dp_batch_balance: bool = False,
                  num_cpus_for_local_task: float = 0.1,
+                 partial_rollout_max_split: int = 1,
                  use_kl_in_reward: bool = False,
                  **kwargs):
 
@@ -70,6 +71,7 @@ class RayBaseTrainer(object):
         self.guarantee_order = guarantee_order
         self.use_dp_batch_balance = use_dp_batch_balance
         self.num_cpus_for_local_task = num_cpus_for_local_task
+        self.partial_rollout_max_split = partial_rollout_max_split
         self.use_kl_in_reward = use_kl_in_reward
         self.kwargs = kwargs
 

@@ -2,16 +2,12 @@ from typing import Dict, Callable, Optional, Any
 
 import numpy as np
 
-import torch
-from torch.utils.data import DataLoader
-
 from mindspeed_rl.datasets.utils import _infer_seqlen, get_prompt_index
 
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
 from mindspeed_rl.datasets.base_dataset import BaseDataset
 from mindspeed_rl.datasets.templates import get_model_template
 from mindspeed_rl.datasets.utils import _build_index_mappings
-from mindspeed_rl.datasets.data_samplers import PromptSampler
 
 
 class PromptDataset(BaseDataset):

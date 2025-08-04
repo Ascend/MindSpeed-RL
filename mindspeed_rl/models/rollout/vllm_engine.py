@@ -330,7 +330,8 @@ class VLLMInferEngine(BaseInferEngine):
 
 
     @torch.no_grad()
-    def async_generate_sequences(self, idx_list, indexes, n_samples_per_prompt=None, **kwargs):
+    def async_generate_sequences(self, idx_list, indexes, stop_singal_func=None, **kwargs):
+        STOP_SIGNAL = None
         with self.update_sampling_params(**kwargs):
             for i, prompt_token_ids in enumerate(idx_list):
                 request_id = f"req_{indexes[i]}_{uuid.uuid4().hex[:6]}"
@@ -340,17 +341,23 @@ class VLLMInferEngine(BaseInferEngine):
                     prompt={"prompt_token_ids": prompt_token_ids},
                     params=self.sampling_params
                 )
-
+            count = 0
             while self.engine.has_unfinished_requests():
+                count += 1
+                if stop_singal_func is not None and count % 20 == 0:
+                    STOP_SIGNAL = stop_singal_func()
+
                 step_outputs = self.engine.step()
                 for output in step_outputs:
-                    if output.finished:
+                    if output.finished or STOP_SIGNAL:
                         request_id = output.request_id
                         index = int(request_id.split("_")[1])
                         prompt_ids = [torch.tensor(idx_list[indexes.index(index)])]
                         index = [index]
                         response_ids = self._post_process_outputs([output])
                         yield (prompt_ids, *response_ids), index
+                    if STOP_SIGNAL:
+                        self.engine.abort_request([request_id])
 
 
     def _post_process_outputs(self, request_outputs):

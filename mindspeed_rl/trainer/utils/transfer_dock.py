@@ -118,9 +118,10 @@ class TransferDock(ABC):
             )
 
         for column_idx, single_column in enumerate(experience_columns):
-            for i, index in enumerate(indexes):
-                self.experience_data[single_column][index] = experience[column_idx][i]
-                self.experience_data_status[single_column][index] = 1
+            for i, idx in enumerate(indexes):
+                if idx >= 0:
+                    self.experience_data[single_column][idx] = experience[column_idx][i]
+                    self.experience_data_status[single_column][idx] = 1
 
     def _get(self, experience_columns: List[str], indexes: List[int]):
         """Get data based on row and column numbers.
@@ -188,7 +189,7 @@ class TransferDock(ABC):
                 elapsed_time > self.timeout
                 and elapsed_time % self.timeout_interval < 0.1
             ):
-                logger.warning(f"TIMEOUT: data_ready has slept {elapsed_time} second")
+                logger.info(f"TIMEOUT: data_ready has slept {elapsed_time} second, because {single_column} not ready")
             time.sleep(0.1)
             if len(indexes) == 1:
                 data_ready = self.experience_data_status[single_column][indexes] == 1
@@ -256,6 +257,8 @@ class GRPOTransferDock(TransferDock):
         prompts_num: int,
         n_samples_per_prompt: int,
         metrics=None,
+        max_age: int = 1,
+        GBS_train: int = 0,
         addition_columns: Union[List[str], None] = None,
         addition_consumers: Union[List[str], None] = None,
         timeout: Union[int, None] = None,
@@ -331,6 +334,16 @@ class GRPOTransferDock(TransferDock):
             key: threading.Lock()
             for key in self.experience_consumers
         }
+
+        self.max_age = max_age
+        self.GBS_train = GBS_train
+        self.rollout_completed = torch.zeros(self.max_len, dtype=torch.int32)  # 标志当前样本是否完成rollout：eod || max_tokens
+        self.age = torch.zeros(self.max_len, dtype=torch.int32)  # 落后当前actor参数的训练步数，是否需要按age排序？age的更新需要在TD逐出和重排序的时候做
+        self.enable_partial_rollout = max_age > 1  # max_age = 1 是续推0次，因为rollout_completed的判断是在TD外面做的
+        if self.enable_partial_rollout:
+            self.stop_partial_rollout_signal = False
+            self.global_ready_mask = torch.zeros(self.max_len, dtype=torch.int32)
+
         self.metrics = metrics
         self.prefetch_request_index_lock = threading.Lock()
         self.cur_index = 0
@@ -365,6 +378,7 @@ class GRPOTransferDock(TransferDock):
         consumer: str,
         experience_columns: List[str],
         experience_count: int = None,
+        dp_size: int = 1,
         indexes: List[int] = None,
         get_n_samples: bool = True,
         use_batch_seqlen_balance: bool = False
@@ -392,8 +406,17 @@ class GRPOTransferDock(TransferDock):
 
         for experience_column in experience_columns:
             if experience_column not in self.experience_columns:
+                if experience_column != 'age':
+                    raise ValueError(
+                        f"get experience ERROR: {experience_column} not in TD experience_column {self.experience_columns}"
+                    )
+                elif consumer == 'actor_rollout' and self.enable_partial_rollout:
+                    experience_columns.remove('age')
+
+        if consumer == "actor_rollout" and self.enable_partial_rollout:
+            if get_n_samples:
                 raise ValueError(
-                    f"get experience ERROR: {experience_column} not in TD experience_column {self.experience_columns}"
+                    "get_n_samples not supported for rollout when actor_rollout enables partial_rollout"
                 )
 
         if indexes is None:
@@ -402,7 +425,7 @@ class GRPOTransferDock(TransferDock):
                     f"TD max_len: {self.max_len} need >= experience_count: {experience_count}"
                 )
 
-            if self.max_len % experience_count != 0:
+            if self.max_len % experience_count != 0 and not self.enable_partial_rollout:
                 raise ValueError(
                     f"TD max_len:{self.max_len} need be divisible by experience_count: {experience_count}"
                 )
@@ -430,6 +453,22 @@ class GRPOTransferDock(TransferDock):
             self.experience_consumer_status[consumer][indexes] = 1
             experience = self._get(experience_columns, indexes)
 
+        if consumer == "actor_rollout" and self.enable_partial_rollout:
+            experience_columns.append('age')
+            age_list = [torch.tensor([i]) for i in self.age[indexes]]
+            experience.append(age_list)
+            ## 状态量都在取sample时刷新
+            self.experience_data_status["responses"][indexes] = 0
+            self.experience_data_status["response_length"][indexes] = 0
+            sample_num = len(indexes)
+            if sample_num < experience_count and sample_num > 0:
+                min_dp_size_multiple = ((sample_num + dp_size - 1) // dp_size) * dp_size
+                indexes_extend = indexes + [-2] * (min_dp_size_multiple - sample_num)
+                for col, _ in enumerate(experience):
+                    for _, _ in enumerate(indexes_extend[sample_num:]):
+                        experience[col].append(experience[col][sample_num - 1])  # 重复最后一条样本
+                indexes = indexes_extend
+
         experience_batch = {}
         for i, experience_column in enumerate(experience_columns):
             experience_batch[experience_column] = experience[i]
@@ -440,6 +479,7 @@ class GRPOTransferDock(TransferDock):
         self,
         data_dict: Dict[str, Union[Tensor, List[Tensor]]],
         indexes: List[int] = None,
+        is_prompt: bool = False
     ):
         """Put data into specified columns and rows.
 
@@ -456,9 +496,38 @@ class GRPOTransferDock(TransferDock):
                 "put experience into TD without indexes, indexes must be provided"
             )
         data_dict = remove_padding_tensor_dict_to_dict(data_dict)
+
+        if self.enable_partial_rollout and self.GBS_train == 0:
+            raise ValueError("GBS for update must be provided when enabling partial rollout")
+
+        if self.enable_partial_rollout and 'responses' in data_dict.keys():
+            if 'rollout_completed' not in data_dict.keys():
+                raise ValueError(
+                    "partial rollout enabled, when putting responses, rollout_completed status must be provided in data dict"
+                )
+
         experience_columns, experience = trans_input_to_experience(data_dict)
 
+        if "responses" in experience_columns: # 确定是rollout阶段
+            if self.enable_partial_rollout:  # 确定partial rollout功能开启
+                rollout_completed_col_id = experience_columns.index('rollout_completed')
+                rollout_completed_column = experience.pop(rollout_completed_col_id)
+                experience_columns.pop(rollout_completed_col_id)
+                for i, idx in enumerate(indexes):
+                    if idx >= 0:
+                        if rollout_completed_column[i][0] == 1:
+                            self.rollout_completed[idx] = 1
+
         self._put(experience_columns, experience, indexes)
+        # _get之后会刷新角色消费状态，所以需要再更新一下
+        if ("responses" in experience_columns) and self.enable_partial_rollout:
+            self.experience_consumer_status['actor_rollout'][indexes] = copy.deepcopy(self.rollout_completed[indexes])
+        if self.enable_partial_rollout and is_prompt:
+            self.experience_data_status['responses'][indexes] = 1
+            self.experience_data_status['response_length'][indexes] = 1
+            for i in indexes:
+                self.experience_data['responses'][i] = torch.tensor([-1], dtype=torch.int32)
+                self.experience_data['response_length'][i] = torch.tensor([0], dtype=torch.int32)
 
     def _sample_ready_index(
         self,
@@ -486,15 +555,26 @@ class GRPOTransferDock(TransferDock):
                     [self.experience_data_status[single_column] == 1 for single_column in experience_columns]
                 ), dim=0,
             )
-            usable_indexes = (not_consumed_indexes & data_ready_indexes).nonzero(as_tuple=True)[0]
+
+            if self.enable_partial_rollout and consumer != 'actor_rollout':
+                update_ready_indexes = self.global_ready_mask == 1
+                usable_indexes = (not_consumed_indexes & data_ready_indexes & update_ready_indexes).nonzero(as_tuple=True)[0]
+            else:
+                usable_indexes = (not_consumed_indexes & data_ready_indexes).nonzero(as_tuple=True)[0]
 
             if len(usable_indexes) < experience_count:
-                return None
+                if self.enable_partial_rollout and consumer == 'actor_rollout' and len(usable_indexes) > 0:
+                    experience_count = len(usable_indexes)
+                else:
+                    return None
 
             if experience_count <= 0:
                 return None
 
-            if consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
+            if self.enable_partial_rollout and consumer == 'actor_rollout':
+                sampled_indexes = [int(i) for i in usable_indexes[:experience_count]]
+
+            elif consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
                     usable_indexes) % experience_count == 0:
                 sampled_indexes = self.batch_seqlen_balance_sampler(
                     consumer, usable_indexes, experience_count, get_n_samples=False
@@ -558,12 +638,19 @@ class GRPOTransferDock(TransferDock):
                 dim=0,
             )
 
-            usable_indexes = (not_consumed_indexes & data_ready_indexes).nonzero(as_tuple=True)[0]
+            if not self.enable_partial_rollout:
+                usable_indexes = (not_consumed_indexes & data_ready_indexes).nonzero(as_tuple=True)[0]
+            elif self.enable_partial_rollout:
+                group_states = self.global_ready_mask.view(self.prompts_num, self.n_samples_per_prompt)
+                update_ready_group_indexes = group_states.sum(dim=1) == self.n_samples_per_prompt
+                usable_indexes = (not_consumed_indexes & data_ready_indexes & update_ready_group_indexes).nonzero(as_tuple=True)[0]
 
             if len(usable_indexes) < experience_count_n_samples:
                 return None
 
-            if consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
+            if self.enable_partial_rollout:
+                sampled_indexes_n_sample = [int(i) for i in usable_indexes[:experience_count_n_samples]]
+            elif consumer in self.batch_seqlen_balance_mapper and use_batch_seqlen_balance and len(
                     usable_indexes) % experience_count_n_samples == 0:
                 sampled_indexes_n_sample = self.batch_seqlen_balance_sampler(
                     consumer, usable_indexes, experience_count_n_samples, get_n_samples=True
@@ -593,12 +680,6 @@ class GRPOTransferDock(TransferDock):
 
         return sampled_indexes
 
-    def print_consumer_status(self, consumer: str, td_type: str):
-        if consumer == 'actor_train':
-            logger.info(f"td_type={td_type},consumer status ={self.experience_consumer_status[consumer]}")
-
-
-
     def all_consumed(self, consumer: str):
         """If consumer has consumed all data in GRPOTransferDock.
 
@@ -608,7 +689,100 @@ class GRPOTransferDock(TransferDock):
         Returns: True or False.
 
         """
-        return self.experience_consumer_status[consumer].sum() == self.max_len
+        if self.enable_partial_rollout:
+            if self.GBS_train == 0:
+                raise ValueError("GBS for update must be provided when enabling partial rollout")
+            if consumer == 'actor_rollout':
+                all_consumed_group_num, global_ready_mask, _ = self.find_all_consumed_n_samples_groups(consumer='actor_rollout')
+                self.stop_partial_rollout_signal = all_consumed_group_num >= self.GBS_train
+                self.global_ready_mask = global_ready_mask
+                return all_consumed_group_num >= self.GBS_train
+            else:
+                return self.experience_consumer_status[consumer].sum() == self.GBS_train * self.n_samples_per_prompt
+        else:
+            return self.experience_consumer_status[consumer].sum() == self.max_len
+
+    def find_all_consumed_n_samples_groups(self, consumer: str):
+        if consumer != 'actor_rollout':
+            raise ValueError(f"Consumer {consumer} is not supported for partial rollout stop signal.")
+
+        num_groups = self.max_len // self.n_samples_per_prompt # 即self.prompts_num
+        all_consumed_status = self.rollout_completed
+        group_states = all_consumed_status[:num_groups * self.n_samples_per_prompt].view(num_groups,
+                                                                                         self.n_samples_per_prompt)
+        all_consumed_groups_mask = (group_states == 1).all(dim=1)
+        global_mask = torch.zeros(self.max_len, dtype=torch.int32)
+
+        all_consumed_group_start_indices = []
+
+        for group_idx in range(num_groups):
+            start_idx = group_idx * self.n_samples_per_prompt
+            end_idx = (group_idx + 1) * self.n_samples_per_prompt
+
+            if all_consumed_groups_mask[group_idx]:
+                all_consumed_group_start_indices.append(start_idx)
+                global_mask[start_idx:end_idx] = 1
+
+        all_consumed_group_count = len(all_consumed_group_start_indices)
+        return all_consumed_group_count, global_mask, all_consumed_group_start_indices # all_consumed_indices
+
+
+    def get_update_ready(self, require_max_age_all_finished=True):
+        all_consumed_group_num, global_ready_mask, _ = self.find_all_consumed_n_samples_groups(consumer='actor_rollout')
+        self.stop_partial_rollout_signal = all_consumed_group_num >= self.GBS_train
+        self.global_ready_mask = global_ready_mask
+
+        if require_max_age_all_finished:
+            max_age_index = (self.age == self.max_age - 1).nonzero(as_tuple=True)[0]
+            self.max_age_all_finished = self.rollout_completed[max_age_index].sum().item() == len(max_age_index)
+            return (self.stop_partial_rollout_signal and self.max_age_all_finished)
+        else:
+            return self.stop_partial_rollout_signal
+
+    def sort_every_n_samples_by_age(self):
+        group_indices = torch.arange(0, self.max_len,
+                                     self.n_samples_per_prompt)  # n=8, this should be [0, 8, 16]
+        group_ages = []
+        for i in group_indices:
+            group_ages.append(self.age[i:i + self.n_samples_per_prompt].max())
+            self.age[i:i + self.n_samples_per_prompt] = group_ages[-1]
+
+        # 按照age对group排序
+        sorted_group_idx = sorted(range(len(group_ages)), key=group_ages.__getitem__, reverse=True)
+
+        # 构建全局index的映射
+        global_indices = []
+        for group_idx in sorted_group_idx:
+            start_idx = group_idx * self.n_samples_per_prompt
+            end_idx = start_idx + self.n_samples_per_prompt
+            group_range = torch.arange(start_idx, end_idx)
+            global_indices.append(group_range)
+
+        # 拼接所有index
+        global_indices = torch.cat(global_indices)
+
+        # 对experience进行重排序 dict of list of tensors
+        new_experience_data = {}
+        for key, col_list in self.experience_data.items():
+            new_col_list = [col_list[i] for i in global_indices]
+            new_experience_data[key] = new_col_list
+        self.experience_data = new_experience_data
+
+        # 对status dicts进行重排序
+        new_experience_data_status = {}
+        new_experience_consumer_status = {}
+
+        for key, value in self.experience_data_status.items():
+            new_experience_data_status[key] = value[global_indices]
+        for key, value in self.experience_consumer_status.items():
+            new_experience_consumer_status[key] = value[global_indices]
+        self.experience_data_status = new_experience_data_status
+        self.experience_consumer_status = new_experience_consumer_status
+
+        # 对age, rollout_completed进行重排序
+        self.age = self.age[global_indices]
+        self.age[self.age == -1] = 0
+        self.rollout_completed = self.rollout_completed[global_indices]
 
     def clear(self):
         """Reset consumer status.Clear data and data status in GRPOTransferDock.
@@ -616,13 +790,30 @@ class GRPOTransferDock(TransferDock):
         Returns: None
 
         """
-        self.experience_consumer_status = {
-            key: torch.zeros(self.max_len, dtype=torch.int32)
-            for key in self.experience_consumers
-        }
-        self.metrics.reset()
-        self._clear_experience_data_and_status()
+
+        if self.enable_partial_rollout:
+            all_consumed_indexes = (self.experience_consumer_status["actor_train"] == 1).nonzero(as_tuple=True)[0]
+            # 第一轮不需要sort和clear
+            if all_consumed_indexes.numel() > 0:
+                for key in self.experience_consumer_status:
+                    self.experience_consumer_status[key][all_consumed_indexes] = 0
+                self._clear_experience_data_and_status(indexes=all_consumed_indexes)
+
+                self.age = self.age + (self.experience_data_status['input_ids'] == 1).to(torch.int32)
+                self.age[all_consumed_indexes] = -1
+                self.global_ready_mask[all_consumed_indexes] = 0
+                self.rollout_completed[all_consumed_indexes] = 0
+
+                self.sort_every_n_samples_by_age()
+            self.stop_partial_rollout_signal = False
+        else:
+            self.experience_consumer_status = {
+                key: torch.zeros(self.max_len, dtype=torch.int32)
+                for key in self.experience_consumers
+            }
+            self._clear_experience_data_and_status()
         self.cur_index = 0
+        self.metrics.reset()
 
     def get_consumer_status(self):
         """Get consumer status.
@@ -678,6 +869,11 @@ class GRPOTransferDock(TransferDock):
         sampled_indexes = [int(usable_indexes[i]) for i in sampled_indexes_idx]
 
         return sampled_indexes
+
+
+    def get_incomplete_response_num(self):
+        incomplete_response_num = self.experience_data_status['prompts'].sum() - self.rollout_completed.sum()
+        return incomplete_response_num
 
 
 def pad_experience(
@@ -741,7 +937,7 @@ def pad_experience(
         raise ValueError("ERROR: when pad, get an empty experience_batch")
     else:
         for experience_column, experience in experience_batch.items():
-            if experience_column in ["prompt_length", "response_length"]:
+            if experience_column in ["prompt_length", "response_length", "age"]:
                 padded = torch.cat(experience).reshape(-1, 1)
             elif experience_column in ["position_ids"]:
                 padded = pad_sequence(experience, batch_first=True, padding_value=pad_id)
@@ -811,7 +1007,7 @@ def trans_input_to_experience(experience_dict: Dict[str, Union[Tensor, List[Tens
     return experience_columns, experience_list
 
 
-def pack_experience_columns(experience_dict, experience_count):
+def pack_experience_columns(experience_consumer_stage, experience_dict, experience_count, enable_partial_rollout=False):
     """
     Compress experiences by packing tensors into ONE.
     from experience_dict
@@ -843,10 +1039,15 @@ def pack_experience_columns(experience_dict, experience_count):
     batch_data = {}
     batch_data_length = {}
 
-    for key, value in experience_dict.items():
-        if len(value) != experience_count:
-            raise ValueError(f"ERROR: when pack, experience '{key}' number does not match experience_count")
+    if enable_partial_rollout and experience_consumer_stage == 'actor_rollout':
+        value = experience_dict['prompts']
+        experience_count = len(value)
+    else:
+        for key, value in experience_dict.items():
+            if len(value) != experience_count:
+                raise ValueError(f"ERROR: when pack, experience '{key}' number={len(value)} does not match {experience_count=}")
 
+    for key, value in experience_dict.items():
         # 判断是一维张量还是二维张量
         is_2d = len(value[0].shape) > 1
         if is_2d:
@@ -922,7 +1123,7 @@ def unpack_pad_experience(batch_data, batch_data_length, pad_id, multiple):
 
     padded_batch_data = {}
     for key, length_list in batch_data_length.items():
-        if key in ['prompt_length', 'response_length']:
+        if key in ['prompt_length', 'response_length', 'age']:
             padded_batch_data[key] = batch_data[key].view(-1, 1)
             continue
         data = batch_data[key]
@@ -994,7 +1195,7 @@ def unpack_pad_experience(batch_data, batch_data_length, pad_id, multiple):
 
 
 def put_prompts_experience(
-        batch: Dict[str, torch.Tensor], n_samples_per_prompt, dataset_additional_keys: List[str] = None, indexes=None,
+        batch: Dict[str, torch.Tensor], n_samples_per_prompt, dataset_additional_keys: List[str] = None, indexes=None, add_another_batch=False,
 ):
     """Put data into specified columns and rows.
 
@@ -1027,7 +1228,10 @@ def put_prompts_experience(
                 for _ in range(n_samples_per_prompt):
                     values.append(value)
             add_vals[add_keys] = values
-    if indexes is None:
+    prompt_nums = len(prompt_length)
+    if add_another_batch:
+        indexes = [prompt_nums + i for i in range(prompt_nums)]
+    elif indexes is None:
         indexes = [i for i in range(len(prompt_length))]
 
     data_dict = dict(

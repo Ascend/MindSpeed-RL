@@ -48,7 +48,7 @@ class BaseConfig:
         from pathlib import Path
         config_path = Path(model_config_dict)
         if not config_path.is_file():
-            raise FileNotFoundError(f'model json file: {str(model_config_dict)} is not found!')
+            raise FileNotFoundError(f'model json file: {config_path.absolute()} is not found!')
         else:
             config = json.loads(config_path.read_text())
             # used for actor_hybrid_worker initialize megatron resharding manager

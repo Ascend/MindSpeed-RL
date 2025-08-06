@@ -165,8 +165,10 @@ class BaseTrainingEngine(ABC):
         def forward_step(batch_iter, model):
             cp_size = get_parallel_state().get_context_parallel_world_size()
             if is_multimodal():
-                process_batch, seqlens_in_batch, cu_seqlens_padded = self._get_mulitmodal_forward_batch_info(batch_iter)
+                index = None
+                process_batch, seqlens_in_batch, cu_seqlens_padded, labels = self._get_mulitmodal_forward_batch_info(batch_iter)
                 output = model(**process_batch)
+                process_batch['labels'] = labels
                 if post_process:
                     output = postprocess_packed_seqs(output=output['logits'],
                                                      seqlens_in_batch=seqlens_in_batch,
@@ -293,6 +295,13 @@ class BaseTrainingEngine(ABC):
         input_ids = batch['input_ids']
         batch_size = input_ids.size(0)
 
+        # generate a labels tensor based on input_id. Remove the first token along the sequence dimension, and append a token with value 0 at the end. 
+        # This is done to align the data and enable subsequent log probability (logP) calculation
+        labels = batch['input_ids']
+        labels = labels[:, 1:]
+        tmp_add = torch.zeros(labels.size(0), 1, dtype=labels.dtype, device=labels.device)
+        labels = torch.cat((labels, tmp_add), dim=1)
+
         response_attention_mask = generate_mask(batch['responses'], batch['response_length']).to(input_ids.device)
         attention_mask = torch.cat((batch['attention_mask'], response_attention_mask), dim=-1).bool()
 
@@ -321,7 +330,7 @@ class BaseTrainingEngine(ABC):
         batch['input_ids'] = input_ids_rmpad
         batch['position_ids'] = position_ids_rmpad
         batch['attention_mask'] = None
-        return batch, seqlens_in_batch, cu_seqlens_padded
+        return batch, seqlens_in_batch, cu_seqlens_padded, labels
 
     def post_process_forward_backward_output(self, output: [torch.Tensor],
                                              batch: Dict[str, torch.Tensor]) -> torch.Tensor:

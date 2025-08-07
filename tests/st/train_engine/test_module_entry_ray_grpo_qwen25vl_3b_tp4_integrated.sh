@@ -19,9 +19,8 @@ mv "$PROJECT_PATH"/mindspeed "$PROJECT_PATH"/mindspeed_bk
 # 构建MM及MM依赖的mindspeed/megatron
 mkdir tmp
 cd tmp
-git clone https://github.com/NVIDIA/Megatron-LM.git
+cp -r /data/for_dt/code/multimodal/Megatron-LM ./
 cd Megatron-LM
-git checkout core_v0.12.1
 cp -r megatron "$PROJECT_PATH"/
 cd ..
 git clone https://gitee.com/ascend/MindSpeed.git

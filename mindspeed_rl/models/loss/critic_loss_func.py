@@ -8,6 +8,7 @@ from mindspeed_rl.models.loss.base_loss_func import BaseLossFunc
 from mindspeed_rl.utils.utils import generate_mask
 import mindspeed_rl.utils.torch_functional as F
 from mindspeed_rl.utils.pad_process import truncate_middle_and_pad
+from mindspeed_rl.utils.remove_padding import postprocess_packed_seqs
 
 
 @LossFuncFactory.register_loss('ray_ppo', 'critic')
@@ -48,6 +49,14 @@ class CriticLossFunc(BaseLossFunc):
                      forward_only=False,
                      non_loss_data=True,
                      **kwargs) -> Tuple[torch.Tensor, Dict]:
+        use_remove_padding = kwargs.get('use_remove_padding', False)
+        if use_remove_padding:
+            output = postprocess_packed_seqs(
+                output=output,
+                seqlens_in_batch=kwargs.get('seqlens_in_batch', None),
+                cu_seqlens_padded=kwargs.get('cu_seqlens_padded', None),
+                seq_len=kwargs.get('seq_len', None)
+            )
         vpreds = self._get_compute_vpreds(output, batch)
         if forward_only:
             return vpreds

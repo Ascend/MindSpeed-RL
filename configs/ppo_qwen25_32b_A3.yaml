@@ -17,7 +17,7 @@ megatron_training:
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path: ./Qwen2.5-32B-Instruct
-  global_batch_size: 64
+  global_batch_size: 128
   seq_length: 2048
   save_interval: 200
   train_iters: 20000
@@ -28,11 +28,12 @@ megatron_training:
   distributed_backend: nccl
   no_shared_storage: true
   variable_seq_lengths: true
-  dataset_additional_keys: ['labels',]
+  dataset_additional_keys: ['labels']
   data_path: ./data
   split: 100,0,0
-  no_shuffle: true
+  no_shuffle: false
   full_shuffle_instruction_dataset: false
+  seed: 1
 
 actor_config:
   model: qwen25_32b
@@ -85,23 +86,23 @@ rl_config:
   kl_ctrl_type: fixed
   init_kl_coef: 0.0
   use_kl_in_reward: False
-  mini_batch_size: 64
+  mini_batch_size: 128
   max_prompt_length: 2048
   epochs: 1
   clip_ratio: 0.2
   cliprange_value: 0.5
   entropy_coeff: 0
   shuffle_mini_batch: false
-  n_samples_per_prompt: 16
+  n_samples_per_prompt: 8
   rule_reward: true
   verifier_function: ["acc_for_ppo"]
   verifier_weight: [1.0]
   num_cpus_for_local_task: 1.0
   use_tensorboard: false
   actor_resource:
-    num_npus: 16
+    num_npus: 32
   critic_resource:
-    num_npus: 16
+    num_npus: 32
 
 generate_config:
   enforce_eager: True
@@ -124,6 +125,7 @@ generate_config:
 
   # 采样配置
   sampling_config:
+    seed: 1
     logprobs: 1
     max_tokens: 2048
     top_p: 1

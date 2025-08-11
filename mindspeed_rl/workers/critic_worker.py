@@ -133,7 +133,6 @@ class CriticWorkerBase(BaseWorker):
         sorted_indexes = self.get_dp_range_indexes(
             experience_count,
             use_vllm=False,
-            assign_batch_size=experience_count
         ) if self.rl_config.guarantee_order else None
 
         critic_compute_values_profiler = profiler_start(
@@ -168,7 +167,7 @@ class CriticWorkerBase(BaseWorker):
                     output = {'values': values}
                     self.collect_transfer_dock_data(output, index)
 
-                MsProbe.save_data({"values": values})
+                    MsProbe.save_data({"values": values})
 
                 end_time = time.time()
                 ray.get(
@@ -207,11 +206,11 @@ class CriticWorkerBase(BaseWorker):
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
-        ray.get(self.td.update_metrics.remote(key='ppo/lr', value=learning_rate))
+        ray.get(self.td.update_metrics.remote(key='critic/lr', value=learning_rate))
         sorted_indexes = self.get_dp_range_indexes(
             experience_count,
-            use_vllm=False,
-            assign_batch_size=experience_count) if self.rl_config.guarantee_order else None
+            use_vllm=False
+            ) if self.rl_config.guarantee_order else None
         critic_update_profiler = profiler_start(
             self.profiler_config, 
             role="critic_update",

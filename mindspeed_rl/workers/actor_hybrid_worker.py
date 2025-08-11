@@ -217,11 +217,10 @@ class ActorHybridWorkerBase(BaseWorker):
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
-        ray.get(self.td.update_metrics.remote(key='param/lr', value=learning_rate))
+        ray.get(self.td.update_metrics.remote(key='actor/lr', value=learning_rate))
         sorted_indexes = self.get_dp_range_indexes(
             experience_count,
-            use_vllm=False,
-            assign_batch_size=experience_count
+            use_vllm=False
         ) if self.rl_config.guarantee_order else None
 
         actor_update_profiler = profiler_start(
@@ -285,6 +284,7 @@ class ActorHybridWorkerBase(BaseWorker):
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
         self.sharding_manager.exit_train_mode()
+        self.empty_cache()
 
     def get_partial_rollout_stop_signal(self):
         if not self.enable_partial_rollout:
@@ -542,7 +542,6 @@ class ActorHybridWorkerBase(BaseWorker):
         sorted_indexes = self.get_dp_range_indexes(
             experience_count,
             use_vllm=False,
-            assign_batch_size=experience_count
         ) if self.rl_config.guarantee_order else None
 
         actor_compute_log_prob_profiler = profiler_start(

@@ -49,9 +49,12 @@ bash examples/data/preprocess_data.sh deepscaler
 接下来，以 Qwen25-32B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
 ### 获取权重文件
-
+#### actor model权重文件
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen2.5-32B](https://huggingface.co/Qwen/Qwen2.5-32B/tree/main)  为参考。
+#### critic model权重文件
+为了保证训练稳定性，使用预训练好的奖励模型权重进行训练，权重文件可以从 Huggingface 网站上获取，在这里以
+[nvidia/Qwen-2.5-Nemotron-32B-Reward](https://huggingface.co/nvidia/Qwen-2.5-Nemotron-32B-Reward)  为参考。
 
 ### hf 转 mcore
 
@@ -62,6 +65,16 @@ bash examples/data/preprocess_data.sh deepscaler
 ### mcore 转 hf（可选）
 
 训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitee.com/ascend/MindSpeed-LLM) 权重转换部分 。
+
+## 单卡多进程
+### 技术概述
+actor worker与critic worker共用一组placement group，并在该placement group上分别完成分布式进程初始化。在此情况下actor worker与critic worker上实现共卡训练的功能。
+### 配置方法
+在 **configs/envs/runtime_env.yaml** 下配置以下环境变量：
+```yaml
+HCCL_HOST_SOCKET_PORT_RANGE: "60000-60050"
+HCCL_NPU_SOCKET_PORT_RANGE: "61000-61050"
+```
 
 ## 启动训练
 
@@ -146,8 +159,8 @@ rl_config:
 | `critic/vf_clipfrac`               | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
 | `critic/vf_clipfrac`               | PPO中critic model裁剪机制生效的比例，反映了策略更新幅度的稳定性         |
 | `{verifier_function}_rewards/mean` | 规则奖励打分的平均总奖励值                                   |
-| `param/lr`                         | actor model学习率，优化器当前使用的学习率                               |
-| `ppo/lr`                           | critic model学习率，优化器当前使用的学习率                               |
+| `actor/lr`                         | actor model学习率，优化器当前使用的学习率                               |
+| `critic/lr`                        | critic model学习率，优化器当前使用的学习率                               |
 | `critic/score/mean`                | 开启奖励模型时的reward均值                                   |
 | `critic/score/max`                 | 奖励模型及规则奖励对同一个样本的reward最大值                 |
 | `critic/score/min `                | 奖励模型及规则奖励对同一个样本的reward最小值                 |
@@ -194,6 +207,6 @@ $$
 ## 性能数据
 | 模型         | 机器型号 | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
 |------------|------|-----|-----------|-------------------|------------|---------| 
-| Qwen25-32B | Atlas A3   | 64  | 16 | 2048              | 2048       | 102     | 
+| Qwen25-32B | Atlas A3   | 128 | 8         | 2048              | 2048       | 74      | 
 
 注：模型 token/p/s 性能数据会打印在日志中, 当前计算公式下，A3单卡性能需要将日志打印的token/p/s性能指数*2。

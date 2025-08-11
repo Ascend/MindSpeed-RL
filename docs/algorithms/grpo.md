@@ -138,7 +138,7 @@ rl_config:
 | `actor/ppo_kl`                     | PPO算法的实际 KL 散度                                        |
 | `grad_norm`                        | 梯度范数，表示当前反向传播中参数梯度的整体幅度               |
 | `{verifier_function}_rewards/mean` | 规则奖励打分的平均总奖励值                                   |
-| `param/lr`                         | 学习率，优化器当前使用的学习率                               |
+| `actor/lr`                         | 学习率，优化器当前使用的学习率                               |
 | `grpo/score/mean`                  | 开启奖励模型时的reward均值                                   |
 | `grpo/score/max`                   | 奖励模型及规则奖励对同一个样本的reward最大值                 |
 | `grpo/score/min `                  | 奖励模型及规则奖励对同一个样本的reward最小值                 |

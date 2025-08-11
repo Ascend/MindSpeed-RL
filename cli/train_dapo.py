@@ -47,10 +47,10 @@ def train(config):
  
     MsProbe.config_init(msprobe_config)
     MsProbe.save_configs({
-        'actor': eval(str(actor_config.dict())),
-        'reward': eval(str(reward_config.dict())),
-        'rl': eval(str(rl_config.dict())),
-        'generate': eval(str(generate_config.dict()))
+        'actor': actor_config.dict(),
+        'reward': reward_config.dict(),
+        'rl': rl_config.dict(),
+        'generate': generate_config.dict()
         })
 
     tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,

@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from mindspeed_rl.workers.base_worker import BaseRayWorker, BaseWorker
+from mindspeed_rl.utils.zmq_communication import (ZMQ_ROLE_CLIENT, ZMQ_ROLE_SERVER)
 
 from tests.test_tools.dist_test import DistributedTest
 
@@ -97,7 +98,8 @@ class TestBaseWorker(DistributedTest):
     @patch('mindspeed_rl.workers.base_worker.logger.info')
     @patch('mindspeed_rl.workers.base_worker.ray.get_runtime_context')
     @patch('os.getenv')
-    def test_setup_distributed_rank(self, mock_os_getenv, mock_get_runtime_context,
+    @patch('mindspeed_rl.workers.base_worker.ZmqClient')
+    def test_setup_distributed_rank(self, mock_ZmqClient, mock_os_getenv, mock_get_runtime_context,
                                     mock_logger, mock_BaseRayWorker, setUp):
         mock_os_getenv.return_value = 1
         mock_get_runtime_context.return_value = MagicMock(return_value=MagicMock(return_value={'NPU': [1]}))
@@ -111,6 +113,7 @@ class TestBaseWorker(DistributedTest):
             tokenizer=self.tokenizer,
             get_megatron_module=self.get_megatron_module,
         )
+        worker._rank = 0
         worker.parallel_state = MagicMock()
         worker.vocab_parallel_cross_entropy = MagicMock()
         worker.get_args = MagicMock()
@@ -118,6 +121,43 @@ class TestBaseWorker(DistributedTest):
         worker.setup_distributed_rank()
 
         assert mock_logger.call_count == 6
+        assert worker.zmq_role == ZMQ_ROLE_CLIENT
+
+    @patch('mindspeed_rl.workers.base_worker.BaseRayWorker.__init__')
+    @patch('mindspeed_rl.workers.base_worker.logger.info')
+    @patch('mindspeed_rl.workers.base_worker.ray.get_runtime_context')
+    @patch('os.getenv')
+    @patch('mindspeed_rl.workers.base_worker.get_tensor_model_parallel_rank')
+    @patch('mindspeed_rl.workers.base_worker.get_context_parallel_rank')
+    @patch('mindspeed_rl.workers.base_worker.get_pipeline_model_parallel_rank')
+    @patch('mindspeed_rl.workers.base_worker.ZmqServer')
+    def test_setup_distributed_rank_zmq_server(self, mock_ZmqServer, mock_pprank, mock_cprank, mock_tprank,
+                                               mock_os_getenv, mock_get_runtime_context,
+                                               mock_logger, mock_BaseRayWorker, setUp):
+        mock_os_getenv.return_value = 1
+        mock_pprank.return_value = 0
+        mock_cprank.return_value = 0
+        mock_tprank.return_value = 0
+        mock_get_runtime_context.return_value = MagicMock(return_value=MagicMock(return_value={'NPU': [1]}))
+
+        worker = BaseWorker(
+            megatron_config=self.megatron_config,
+            rl_config=self.rl_config,
+            generate_config=self.generate_config,
+            model_provider=self.model_provider,
+            initialize_func=self.initialize_func,
+            tokenizer=self.tokenizer,
+            get_megatron_module=self.get_megatron_module,
+        )
+        worker._rank = 0
+        worker.parallel_state = MagicMock()
+        worker.vocab_parallel_cross_entropy = MagicMock()
+        worker.get_args = MagicMock()
+        worker.get_forward_backward_func = MagicMock()
+        worker.setup_distributed_rank()
+
+        assert mock_logger.call_count == 6
+        assert worker.zmq_role == ZMQ_ROLE_SERVER
 
     @patch('torch.cuda.current_device')
     @patch('torch.distributed.broadcast')

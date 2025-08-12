@@ -57,6 +57,7 @@ class RLConfig(BaseConfig):
     use_dp_batch_balance: Whether to use dynamic batch size balancing across data parallel ranks (default: False)
     # Default values can still be defined if no config is provided
     use_remove_padding: Whether to use packed sequences for forward (default: False)
+    zmq_communication: use zmq for dispatch data(default: True)
     partial_rollout_max_split: The multiple of token splitting for max tokens when partial rollout is enabled. (default: 1)
     require_max_age_all_finished: wherther to require the reponses that have reached max_age must be completed in this iteration or can be incomplete (default: True)
     '''
@@ -152,6 +153,7 @@ class RLConfig(BaseConfig):
         self.filter_groups_max_batches = 1
         self.filter_groups_train_batch_size = 1
 
+        self.zmq_communication = True
         self.partial_rollout_max_split = 1
         self.require_max_age_all_finished = True
 

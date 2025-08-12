@@ -27,6 +27,9 @@ from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoade
 from mindspeed_rl.utils.utils import (num_floating_point_operations, get_attr_wrapped_model, mstx_timer_decorator,
                                       profiler_start, profiler_step, is_multimodal, replace_torch_compile)
 from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, truncate_rows
+from mindspeed_rl.utils.zmq_communication import (ZmqServer, ZmqClient, ZmqServerInfo, ZmqClientInfo,
+                                                  ZMQ_ROLE_SERVER, ZMQ_ROLE_CLIENT)
+from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 
 
 class ActorState(Enum):
@@ -634,8 +637,37 @@ class ActorHybridWorkerBase(BaseWorker):
             enable_expert_parallel=self.generate_config.enable_expert_parallel,
             max_num_batched_tokens=self.generate_config.max_num_batched_tokens,
             limit_mm_image_per_prompt=self.generate_config.limit_mm_image_per_prompt,
-            limit_mm_video_per_prompt=self.generate_config.limit_mm_video_per_prompt,
-            )
+            limit_mm_video_per_prompt=self.generate_config.limit_mm_video_per_prompt
+        )
+
+        if self.rl_config.zmq_communication:
+            # if not include these lines, tp and pp rank is 0
+            torch.distributed.get_rank()
+            vllm_dp_groups = get_vllm_tp_group_ranks()
+            if vllm_dp_groups is None:
+                raise ValueError("vllm dp groups is None")
+
+            from vllm.distributed import parallel_state as vpu
+            if vpu.get_tensor_model_parallel_rank() == 0 and \
+                vpu.get_pipeline_model_parallel_group().rank_in_group == 0:
+                server_info = ZmqServerInfo()
+                server_info.global_rank = self._rank
+                server_info.dp_world_size = (vpu.get_tensor_model_parallel_world_size() *
+                                             vpu.get_pp_group().world_size)
+                server_info.ip_addr = ray._private.services.get_node_ip_address().strip("[]")
+                server_info.register_port = self._get_free_port()
+                server_info.publisher_port = self._get_free_port()
+                server_info.reliability_port = self._get_free_port()
+                server_info.use_vllm = True
+                self.zmq_role = ZMQ_ROLE_SERVER
+                self.zmq_server_vllm = ZmqServer(server_info, vpu)
+            else:
+                client_info = ZmqClientInfo()
+                client_info.global_rank = self._rank
+                client_info.use_vllm = True
+                self.zmq_role = ZMQ_ROLE_CLIENT
+                self.zmq_client_vllm = ZmqClient(client_info, vpu)
+
         return rollout
 
     def _build_sharding_manager(self):

@@ -786,4 +786,9 @@ class BaseWorker(BaseRayWorker, ABC):
                 batch_mm_data[key].cuda(), get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm)
             )
+            if not use_vllm:
+                torch.distributed.broadcast(
+                    batch_mm_data[key].cuda(), get_context_parallel_src_rank(self.parallel_state, use_vllm),
+                    group=get_context_parallel_group(self.parallel_state, use_vllm)
+                )
         return batch_mm_data

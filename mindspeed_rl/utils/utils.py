@@ -339,7 +339,8 @@ def parse_args_from_config(config):
         elif value is None:
             continue
         else:
-            sys.argv.append(f"--{key.replace('_', '-')}={value}")
+            sys.argv.append(f"--{key.replace('_', '-')}")
+            sys.argv.append(f"{value}")
 
 
 def save_json(data, file_path, indent=4):

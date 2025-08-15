@@ -365,7 +365,7 @@ def validate_rl_args(
         if rl_config.rollout_max_tokens != max_tokens:
             raise ValueError(
                 f"overlong rollout_max_tokens and generate rollout_max_tokens mismatch: "
-                f"{len(rl_config.rollout_max_tokens)} vs {max_tokens}")
+                f"{rl_config.rollout_max_tokens} vs {max_tokens}")
 
     # DAPO Clip Higher 校验
     if rl_config.clip_higher_enable:
@@ -382,6 +382,11 @@ def validate_rl_args(
             raise ValueError(
                 f"filter_groups_metric {metric} must in verifier_function {verifier_function}")
         rl_config.filter_groups_metric += "_rewards/mean"
+
+    # partial_rollout开启时，再开保序会报错
+    if rl_config.partial_rollout_max_split > 1 and rl_config.guarantee_order:
+        raise ValueError(
+            f"guarantee_order must be false when partial_rollout_max_split > 1")
 
 
 def validate_data_handler_config(config):

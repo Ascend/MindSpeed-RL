@@ -32,9 +32,14 @@ class DynamicSampling(object):
                                                       assign_batch_size=assign_batch_size) if self.guarantee_order else None
         while not ray.get(self.sampling_transfer_dock.all_consumed.remote(experience_consumer_stage)):
             batch_data, index = ray.get(
-                self.sampling_transfer_dock.get_experience.remote(experience_consumer_stage, experience_columns,
-                                                                  experience_count, indexes=sorted_indexes.pop(
-                        0) if self.guarantee_order else None))
+                self.sampling_transfer_dock.get_experience.remote(
+                    experience_consumer_stage,
+                    experience_columns,
+                    experience_count,
+                    indexes=sorted_indexes.pop(0) if self.guarantee_order else None,
+                    get_n_samples=True
+                )
+            )
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if batch_data and index:
                 # filter by metric values
@@ -46,11 +51,12 @@ class DynamicSampling(object):
                         kept_idx_list.extend(list(range(idx, idx + self.n_samples_per_prompt)))
                 if not kept_idx_list:
                     logger.info(f"dynamic_sampling: kept_idx_list is empty")
-                    break
+                    continue
 
-                experience_data = extract_from_dict(batch_data, kept_idx_list)
                 index_list = ray.get(self.td.prefetch_request_index.remote(len(kept_idx_list)))
                 if index_list:
+                    kept_idx_list = kept_idx_list[:len(index_list)]
+                    experience_data = extract_from_dict(batch_data, kept_idx_list)
                     experience_data = padding_dict_to_tensor_dict(experience_data)
                     ray.get(self.td.put_experience.remote(experience_data, index_list))
 

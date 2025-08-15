@@ -111,12 +111,12 @@ def train(config):
             reward_list.append(reward_worker)
 
     num_process = get_node_nums()
-    pg = placement_group(
-        [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(num_process)],
-        strategy='SPREAD'
-    )
-    ray.get(pg.ready())
     if rl_config.rule_reward:
+        pg = placement_group(
+            [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(num_process)],
+            strategy='SPREAD'
+        )
+        ray.get(pg.ready())
         for i in range(num_process):
             rule_reward = RuleReward.options(placement_group=pg, placement_group_bundle_index=i).remote()
             rule_reward.initialize.remote(reward_config, rl_config, tokenizer)
@@ -124,6 +124,11 @@ def train(config):
 
     dynamic_sampling_list = []
     if rl_config.filter_groups_enable:
+        pg = placement_group(
+            [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(num_process)],
+            strategy='SPREAD'
+        )
+        ray.get(pg.ready())
         for i in range(num_process):
             dynamic_sampling = DynamicSampling.options(placement_group=pg, placement_group_bundle_index=i).remote()
             dynamic_sampling.initialize.remote(reward_config, rl_config)
@@ -144,18 +149,12 @@ def train(config):
 
     actor_worker.wait_all_ref_objs_run_over()
 
-    consumed_train_samples = actor_worker.get_consumed_train_samples()
-
     data_loader = PromptDataLoader(
         train_ds, actor_config.global_batch_size,
         actor_config.num_workers, actor_config.seed, actor_config.dataset_additional_keys,
         actor_config.no_shuffle
     )
-    data_iters = iter(data_loader)
-    [next(data_iters) for _ in range(consumed_train_samples // actor_config.global_batch_size)]
-
     logger.info('after dataloader is built')
-
 
     for reward in reward_list:
         if hasattr(reward, 'wait_all_ref_objs_run_over'):
@@ -174,7 +173,7 @@ def train(config):
         **rl_config.dict()
     )
 
-    trainer.fit(data_iters)
+    trainer.fit(data_loader)
     logger.info("training process successfully!")
 
 

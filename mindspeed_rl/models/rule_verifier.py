@@ -110,7 +110,7 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
     if rl_config.overlong_buffer_enable:
         overlong_buffer_len = rl_config.overlong_buffer
         expected_len = rl_config.rollout_max_tokens - overlong_buffer_len
-        exceed_len = [length.item() - expected_len for length in batch["response_length"]]
+        exceed_len = [min(length.item() - expected_len, overlong_buffer_len) for length in batch["response_length"]]
         overlong_penalty_factor = rl_config.overlong_buffer_penalty_factor
         overlong_reward = [min(-length / overlong_buffer_len * overlong_penalty_factor, 0) for length in exceed_len]
         scores = [score + reward for score, reward in zip(scores, overlong_reward)]

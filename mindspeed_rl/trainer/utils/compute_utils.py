@@ -149,57 +149,6 @@ def compute_gae_advantage_return(
     return advantages, returns
 
 
-@ray.remote
-def dynamic_sampling(num_prompt_in_batch, data_num, n_samples_per_prompt, sampling_transfer_dock, transfer_dock, guarantee_order):
-    """
-    dynamic sampling, filter out all groups with the same metric value in group
-
-    Args:
-        num_prompt_in_batch: current train prompt num
-        data_num: sampling_transfer_dock data num
-        n_samples_per_prompt: n respose per prompt
-        sampling_transfer_dock: A data queue object for infer
-        transfer_dock: A data queue object for train
-        guarantee_order: guarantee order
-
-    Returns:
-        num_prompt_in_batch: current train prompt num after filter
-    """
-    logger = Loggers('dynamic_sampling')
-    experience_consumer_stage = 'dynamic_sampling'
-    experience_columns = ['prompts', 'prompt_length', 'responses', 'labels', 'response_length',
-                          'input_ids', 'rm_scores', 'metric_for_dapo']
-    sorted_indexes = get_current_dp_range_indexes(experience_count=data_num,
-                                                  assign_batch_size=data_num) if guarantee_order else None
-    while not ray.get(sampling_transfer_dock.all_consumed.remote(experience_consumer_stage)):
-        batch_data, index = ray.get(
-            sampling_transfer_dock.get_experience.remote(experience_consumer_stage, experience_columns, experience_count=data_num,
-                                                     indexes=sorted_indexes.pop(0) if guarantee_order else None))
-        batch_data = remove_padding_tensor_dict_to_dict(batch_data)
-        if batch_data and index:
-            # filter by metric values
-            metric_values = batch_data['metric_for_dapo']
-            kept_idx_list = []
-            for idx in range(0, data_num, n_samples_per_prompt):
-                metric_group = metric_values[idx: idx + n_samples_per_prompt]
-                vals = [val.item() for val in metric_group]
-                if np.std(metric_group) > 0 or len(metric_group) == 1:
-                    num_prompt_in_batch += 1
-                    kept_idx_list.extend(list(range(idx, idx + n_samples_per_prompt)))
-            logger.info(f"dynamic_sampling: num_prompt_in_batch {num_prompt_in_batch}")
-            if not kept_idx_list:
-                logger.info(f"dynamic_sampling: kept_idx_list is empty")
-                break
-
-            experience_data = extract_from_dict(batch_data, kept_idx_list)
-            index_list = ray.get(transfer_dock.prefetch_request_index.remote(len(kept_idx_list)))
-            if index_list:
-                experience_data = padding_dict_to_tensor_dict(experience_data)
-                ray.get(transfer_dock.put_experience.remote(experience_data, index_list))
-
-    return num_prompt_in_batch
-
-
 def compute_group_norm_advantage_return(
         token_level_rewards: torch.Tensor,
         eos_mask: torch.Tensor,

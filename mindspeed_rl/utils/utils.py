@@ -234,6 +234,7 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     reference_start_time = metrics.pop('start_time/reference_model', None)
     reference_end_time = metrics.pop('end_time/reference', None)
     is_reference_exist = True if reference_end_time is not None else False
+    is_old_log_p_exist = True if old_log_p_end_time is not None else False
 
     if not is_reference_exist:
         custom_order.remove('timing/reference_model')
@@ -249,7 +250,10 @@ def metrics_sort(metrics, time_all) -> Dict[str, Tensor]:
     else:
         non_overlap_reference_model_time = 0 
 
-    non_overlap_adv_time = max(max(old_log_p_end_time, end_adv_time) - old_log_p_end_time, 0)
+    if not is_old_log_p_exist and not is_reference_exist:
+        non_overlap_adv_time = metrics.get("timing/adv", 0)
+    else:
+        non_overlap_adv_time = max(end_adv_time - old_log_p_end_time, 0)
 
     if "timing/rule_reward" in metrics.keys():
         reward_start_time = metrics.pop('start_time/rule_reward', None)

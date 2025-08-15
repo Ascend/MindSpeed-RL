@@ -645,7 +645,8 @@ class GRPOTransferDock(TransferDock):
                 update_ready_group_indexes = group_states.sum(dim=1) == self.n_samples_per_prompt
                 usable_indexes = (not_consumed_indexes & data_ready_indexes & update_ready_group_indexes).nonzero(as_tuple=True)[0]
 
-            if len(usable_indexes) < experience_count_n_samples:
+            if len(usable_indexes) < experience_count_n_samples or \
+                    self.experience_consumer_status[consumer].sum() >= self.GBS_train * self.n_samples_per_prompt:
                 return None
 
             if self.enable_partial_rollout:
@@ -783,8 +784,9 @@ class GRPOTransferDock(TransferDock):
         self.age = self.age[global_indices]
         self.age[self.age == -1] = 0
         self.rollout_completed = self.rollout_completed[global_indices]
+        self.global_ready_mask = self.global_ready_mask[global_indices]
 
-    def clear(self):
+    def clear(self, consumer="actor_train"):
         """Reset consumer status.Clear data and data status in GRPOTransferDock.
 
         Returns: None
@@ -792,7 +794,7 @@ class GRPOTransferDock(TransferDock):
         """
 
         if self.enable_partial_rollout:
-            all_consumed_indexes = (self.experience_consumer_status["actor_train"] == 1).nonzero(as_tuple=True)[0]
+            all_consumed_indexes = (self.experience_consumer_status[consumer] == 1).nonzero(as_tuple=True)[0]
             # 第一轮不需要sort和clear
             if all_consumed_indexes.numel() > 0:
                 for key in self.experience_consumer_status:

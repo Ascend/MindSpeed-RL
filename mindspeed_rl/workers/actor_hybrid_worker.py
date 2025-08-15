@@ -292,7 +292,9 @@ class ActorHybridWorkerBase(BaseWorker):
     def get_partial_rollout_stop_signal(self):
         if not self.enable_partial_rollout:
             return False
-        return ray.get(self.td.get_update_ready.remote(require_max_age_all_finished=self.rl_config.require_max_age_all_finished))
+        td = self.sampling_transfer_dock if self.sampling_transfer_dock else self.td
+        return ray.get(
+            td.get_update_ready.remote(require_max_age_all_finished=self.rl_config.require_max_age_all_finished))
 
     @mstx_timer_decorator
     def generate_sequences(self):
@@ -310,7 +312,8 @@ class ActorHybridWorkerBase(BaseWorker):
             experience_columns.extend(['responses', 'response_length', 'age'])
 
         if self.enable_partial_rollout and (self.rl_config.async_engine or self.iteration == self.megatron_config.train_iters - 1):
-            incomplete_resp_num = ray.get(self.td.get_incomplete_response_num.remote())
+            td = self.sampling_transfer_dock if self.sampling_transfer_dock else self.td
+            incomplete_resp_num = ray.get(td.get_incomplete_response_num.remote())
             experience_count = int(np.ceil(incomplete_resp_num / self.generate_config.data_parallel_size))
         else:
             experience_count = self.rl_config.actor_rollout_dispatch_size
@@ -325,7 +328,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
 
         start_time = time.time()
-        while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True) > 0:
+        while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True, is_generate=True) > 0:
             batch_data, index = self.dispatch_transfer_dock_data(
                 experience_consumer_stage,
                 experience_columns,
@@ -336,7 +339,8 @@ class ActorHybridWorkerBase(BaseWorker):
                 indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
                 use_vllm=True,
                 get_n_samples=not self.enable_partial_rollout,
-                enable_partial_rollout=self.enable_partial_rollout
+                enable_partial_rollout=self.enable_partial_rollout,
+                is_generate=True
             )
 
             if batch_data and index:
@@ -373,7 +377,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     cumulate=True
                 )
             )
-            logger.info("finish generate_sequences")
+        logger.info("finish generate_sequences")
 
     def sync_generate_process(self, batch_data, experience_count, index, pad_token_id):
         if not self.enable_partial_rollout:
@@ -448,7 +452,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     finish_status[idx] = torch.tensor([1])
             outputs["rollout_completed"] = finish_status
 
-        self.collect_transfer_dock_data(outputs, index, use_vllm=True)
+        self.collect_transfer_dock_data(outputs, index, use_vllm=True, is_generate=True)
         MsProbe.save_data({"responses": responses, "prompts": prompts})
 
 
@@ -528,7 +532,7 @@ class ActorHybridWorkerBase(BaseWorker):
                         idx][0] >= self.generate_config.sampling_config["max_tokens"]:
                         finish_status[idx] = torch.tensor([1])
                 outputs["rollout_completed"] = finish_status
-            self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True)
+            self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True, is_generate=True)
             MsProbe.save_data({"responses": responses, "prompts": prompts})
         self.actor_hybrid.inference_actor.free_cache_engine()
 

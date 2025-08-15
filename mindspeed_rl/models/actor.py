@@ -81,7 +81,7 @@ class Actor(BaseTrainingEngine):
             meta_info["clip_higher_enable"] = self.clip_higher_enable
         if self.clip_ratio_low is not None:
             meta_info["clip_ratio_low"] = self.clip_ratio_low
-        if self.kl_ctrl is not None:
+        if self.clip_ratio_high is not None:
             meta_info["clip_ratio_high"] = self.clip_ratio_high
         return meta_info
 

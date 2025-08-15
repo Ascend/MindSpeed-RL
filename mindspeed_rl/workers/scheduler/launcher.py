@@ -260,15 +260,17 @@ class RayActorGroup:
         for actor in self.actor_handlers:
             ray.get(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock, sampling_transfer_dock))
 
-    def enter_infer_mode(self):
+    def enter_infer_mode(self, blocking=False):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.enter_infer_mode.remote())
-        ray.get(self.temp_actor_ref_objs)
+        if blocking:
+            ray.get(self.temp_actor_ref_objs)
 
-    def exit_infer_mode(self):
+    def exit_infer_mode(self, blocking=False):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.exit_infer_mode.remote())
-        ray.get(self.temp_actor_ref_objs)
+        if blocking:
+            ray.get(self.temp_actor_ref_objs)
 
     def wait_all_ref_objs_run_over(self):
         ray.get(self.temp_actor_ref_objs)

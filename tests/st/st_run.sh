@@ -15,7 +15,7 @@ for script in $test_scripts; do
     fi
 
     echo "任务执行完成": $script
-    ray stop
+    ray stop --force
     ps -ef | grep torchrun | grep -v grep | awk '{print $2}' | xargs -r kill -9
     echo "计算资源清理完成"
 

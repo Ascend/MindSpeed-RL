@@ -82,15 +82,16 @@ class ReferenceWorkerBase(BaseWorker):
             stage=self.megatron_config.stage,
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
-            use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
-            max_packing_token_size=self.rl_config.max_packing_token_size,
-            dynamic_max_batch_size=self.rl_config.dynamic_max_batch_size,
+            temperature=self.generate_config.sampling_config["temperature"],
+            
             use_remove_padding=self.rl_config.use_remove_padding,
+            use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
+            ref_max_packing_token_size=self.rl_config.ref_max_packing_token_size,
+            ref_dynamic_max_batch_size=self.rl_config.ref_dynamic_max_batch_size,
             set_actual_seq_len=self.set_actual_seq_len,
             get_actual_seq_len=self.get_actual_seq_len,
             set_position_ids=self.set_position_ids,
-            context_parallel_size=self.megatron_config.context_parallel_size,
-            temperature=self.generate_config.sampling_config["temperature"]
+            context_parallel_size=self.megatron_config.context_parallel_size
         )
 
     def init_transfer_dock(self, td, mm_td, sampling_transfer_dock=None):

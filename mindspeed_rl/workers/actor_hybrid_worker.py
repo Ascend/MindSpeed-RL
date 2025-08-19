@@ -130,21 +130,24 @@ class ActorHybridWorkerBase(BaseWorker):
             forward_backward_func=self.forward_backward_func,
             clip_ratio=self.rl_config.clip_ratio,
             micro_batch_size=self.megatron_config.micro_batch_size,
-            use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
-            max_packing_token_size=self.rl_config.max_packing_token_size,
-            dynamic_max_batch_size=self.rl_config.dynamic_max_batch_size,
-            use_remove_padding=self.rl_config.use_remove_padding,
-            set_actual_seq_len=self.set_actual_seq_len,
-            get_actual_seq_len=self.get_actual_seq_len,
-            set_position_ids=self.set_position_ids,
-            context_parallel_size=self.megatron_config.context_parallel_size,
             entropy_coeff=self.rl_config.entropy_coeff,
             kl_penalty=self.rl_config.kl_penalty,
             temperature=self.generate_config.sampling_config["temperature"],
             token_level_loss=self.rl_config.token_level_loss,
             clip_higher_enable=self.rl_config.clip_higher_enable,
             clip_ratio_low=self.rl_config.clip_ratio_low,
-            clip_ratio_high=self.rl_config.clip_ratio_high
+            clip_ratio_high=self.rl_config.clip_ratio_high,
+            
+            use_remove_padding=self.rl_config.use_remove_padding,
+            use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
+            actor_max_packing_token_size=self.rl_config.actor_max_packing_token_size,
+            update_max_packing_token_size=self.rl_config.update_max_packing_token_size,
+            actor_dynamic_max_batch_size=self.rl_config.actor_dynamic_max_batch_size,
+            update_dynamic_max_batch_size=self.rl_config.update_dynamic_max_batch_size,
+            set_actual_seq_len=self.set_actual_seq_len,
+            get_actual_seq_len=self.get_actual_seq_len,
+            set_position_ids=self.set_position_ids,
+            context_parallel_size=self.megatron_config.context_parallel_size
         )
         self.empty_cache()
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)

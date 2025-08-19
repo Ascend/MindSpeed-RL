@@ -84,7 +84,6 @@ class CriticWorkerBase(BaseWorker):
         self.critic_offloader.offload_grad()
         self.critic_offloader.offload_param()
 
-        megatron_module = self.get_megatron_module()
         self.critic = Critic(
             self.model,
             megatron_config=self.megatron_config,
@@ -99,6 +98,9 @@ class CriticWorkerBase(BaseWorker):
             forward_backward_func=self.forward_backward_func,
             clip_ratio=self.rl_config.clip_ratio,
             micro_batch_size=self.megatron_config.micro_batch_size,
+            entropy_coeff=self.rl_config.entropy_coeff,
+            cliprange_value=self.rl_config.cliprange_value,
+
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             max_packing_token_size=self.rl_config.max_packing_token_size,
             dynamic_max_batch_size=self.rl_config.dynamic_max_batch_size,
@@ -106,9 +108,7 @@ class CriticWorkerBase(BaseWorker):
             set_actual_seq_len=self.set_actual_seq_len,
             get_actual_seq_len=self.get_actual_seq_len,
             set_position_ids=self.set_position_ids,
-            context_parallel_size=self.megatron_config.context_parallel_size,
-            entropy_coeff=self.rl_config.entropy_coeff,
-            cliprange_value=self.rl_config.cliprange_value
+            context_parallel_size=self.megatron_config.context_parallel_size
         )
         self.empty_cache()
         self.critic_profiler = profiler_start(self.profiler_config, self.profiler_config.role)

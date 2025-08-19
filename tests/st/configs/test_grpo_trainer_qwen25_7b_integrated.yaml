@@ -62,7 +62,9 @@ rl_config:
   blocking: true
   use_dp_batch_balance: true
   use_dynamic_bsz: true
-  max_packing_token_size: 8192
+  ref_max_packing_token_size: 8192
+  actor_max_packing_token_size: 8192
+  update_max_packing_token_size: 8192
   actor_forward_micro_batch_size: 8
   ref_forward_micro_batch_size: 8
   use_remove_padding: true

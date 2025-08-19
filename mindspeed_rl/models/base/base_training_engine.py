@@ -62,16 +62,8 @@ class BaseTrainingEngine(ABC):
             temperature: float = 1.0,
             role: str = None,
             micro_batch_size: int = 1,
-            use_dynamic_bsz: bool = False,
-            max_packing_token_size: bool = 4096,
-            dynamic_max_batch_size: int = None,
-            use_remove_padding: bool = False,
-            set_actual_seq_len: Callable = None,
-            get_actual_seq_len: Callable = None,
-            set_position_ids: Callable = None,
             forward_backward_func: Callable = None,
             entropy_coeff: float = 0.0,
-            context_parallel_size: int = 1,
             kl_penalty: str = "low_var_kl",
             token_level_loss: bool = False,
             clip_higher_enable: bool = False,
@@ -81,13 +73,6 @@ class BaseTrainingEngine(ABC):
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
-        self.use_dynamic_bsz = use_dynamic_bsz
-        self.max_packing_token_size = max_packing_token_size
-        self.dynamic_max_batch_size = dynamic_max_batch_size
-        self.use_remove_padding = use_remove_padding
-        self.set_actual_seq_len = set_actual_seq_len
-        self.get_actual_seq_len = get_actual_seq_len
-        self.set_position_ids = set_position_ids
         self.model = model
         self.megatron_config = megatron_config
         self.optimizer = optimizer
@@ -102,7 +87,6 @@ class BaseTrainingEngine(ABC):
         self.kl_penalty = kl_penalty
         self.clip_ratio = clip_ratio
         self.entropy_coeff = entropy_coeff
-        self.context_parallel_size = context_parallel_size
         self.temperature = temperature
         self.token_level_loss = token_level_loss
         self.clip_higher_enable = clip_higher_enable
@@ -111,7 +95,21 @@ class BaseTrainingEngine(ABC):
         self.cliprange_value = cliprange_value
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)
         self.kwargs = kwargs
-
+        
+        self.use_remove_padding = kwargs.get('use_remove_padding', False)
+        self.use_dynamic_bsz = kwargs.get('use_dynamic_bsz', False)
+        self.max_packing_token_size = kwargs.get('ref_max_packing_token_size', None)
+        self.dynamic_max_batch_size = kwargs.get('ref_dynamic_max_batch_size', None)
+        if self.max_packing_token_size is None:
+            self.max_packing_token_size = {'actor': kwargs.get('actor_max_packing_token_size', None),
+                                           'update': kwargs.get('update_max_packing_token_size', None)}
+            self.dynamic_max_batch_size = {'actor': kwargs.get('actor_dynamic_max_batch_size', None),
+                                           'update': kwargs.get('update_dynamic_max_batch_size', None)}
+        self.context_parallel_size = kwargs.get('context_parallel_size', 1)
+        self.set_actual_seq_len = kwargs.get('set_actual_seq_len', None)
+        self.get_actual_seq_len = kwargs.get('get_actual_seq_len', None)
+        self.set_position_ids = kwargs.get('set_position_ids', None)
+        
     @staticmethod
     def _split_batches(batch: Dict, batch_size: int, shuffle_mini_batch: bool, dim: int = 0, keep_list: bool = False) -> List[Dict]:
         batches = []
@@ -149,7 +147,13 @@ class BaseTrainingEngine(ABC):
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):
         if self.use_dynamic_bsz:
-            batches, indices = self._split_batches_with_dynamic_bsz(batch, self.max_packing_token_size, self.dynamic_max_batch_size)
+            if isinstance(self.max_packing_token_size, dict):
+                max_packing_token_size = self.max_packing_token_size['actor'] if forward_only else self.max_packing_token_size['update'] # actor forward or update
+                dynamic_max_batch_size = self.dynamic_max_batch_size['actor'] if forward_only else self.dynamic_max_batch_size['update']
+            else:
+                max_packing_token_size = self.max_packing_token_size # reference forward
+                dynamic_max_batch_size = self.dynamic_max_batch_size
+            batches, indices = self._split_batches_with_dynamic_bsz(batch, max_packing_token_size, dynamic_max_batch_size)
         else:
             batches = self._split_batches(batch, batch_size=self.micro_batch_size,
                                           shuffle_mini_batch=self.shuffle_mini_batch)

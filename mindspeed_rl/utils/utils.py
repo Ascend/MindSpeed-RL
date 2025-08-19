@@ -300,6 +300,35 @@ def parse_args_from_config(config):
             sys.argv.append(f"--{key.replace('_', '-')}={value}")
 
 
+def save_json(data, file_path, indent=4):
+    """
+    简单处理不可序列化类型的保存方法
+    遇到不能序列化的对象直接转为字符串
+    """
+    # 递归处理字典中的所有值
+    def convert(obj):
+        if isinstance(obj, dict):
+            # 处理字典
+            return {k: convert(v) for k, v in obj.items()}
+        elif isinstance(obj, list) or isinstance(obj, tuple):
+            # 处理列表和元组
+            return [convert(item) for item in obj]
+        else:
+            # 尝试直接序列化，失败则转为字符串
+            try:
+                json.dumps(obj)
+                return obj
+            except Exception:
+                return str(obj)
+    
+    # 转换数据
+    converted_data = convert(data)
+    
+    # 保存为带缩进的JSON
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(converted_data, f, indent=indent, ensure_ascii=False)
+
+
 class MsProbe:
     config = None
     enabled = False
@@ -334,7 +363,10 @@ class MsProbe:
             return
         if not cls.config.configurations_dump:
             return
-        cls.saver.save_config(data)
+        try:
+            save_json(data, os.path.join(cls.config.dump_path, 'configurations.json'))
+        except Exception:
+            print("Save configuratons failed.")
 
     @classmethod
     def save_data(cls, data):

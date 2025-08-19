@@ -23,18 +23,29 @@ cur_file_dir = Path(__file__).absolute().parent
 TEMPLATES_DIR = os.path.join(cur_file_dir, "./configs/model/templates.json")
 
 config_name = sys.argv.pop(1)
+base_dir = os.path.realpath(os.path.join(cur_file_dir, ".."))
 
 
 def resolve_relative_path(args):
-    if not args.input.startswith('/'):
-        temp = "../" + args.input
-        args.input = os.path.normpath(os.path.join(cur_file_dir, temp))
-    if not args.tokenizer_name_or_path.startswith('/'):
-        temp = "../" + args.tokenizer_name_or_path
-        args.tokenizer_name_or_path = os.path.normpath(os.path.join(cur_file_dir, temp))
-    if not args.output_prefix.startswith('/'):
-        temp = "../" + args.output_prefix
-        args.output_prefix = os.path.normpath(os.path.join(cur_file_dir, temp))
+    if not os.path.isabs(args.input):
+        raw_path = os.path.join(base_dir, args.input)
+        args.input = os.realpath(raw_path)
+        if not args.input.startwith(base_dir):
+            raise ValueError(f"Invalid path: {args.input} is not within the allowed dicetory {base_dir}")
+    
+
+    if not os.path.isabs(args.tokenizer_name_or_path):
+        raw_path = os.path.join(base_dir, args.tokenizer_name_or_path)
+        args.tokenizer_name_or_path = os.realpath(raw_path)
+        if not args.tokenizer_name_or_path.startwith(base_dir):
+            raise ValueError(f"Invalid path: {args.tokenizer_name_or_path} is not within the allowed dicetory {base_dir}")
+
+
+    if not os.path.isabs(args.output_prefix):
+        raw_path = os.path.join(base_dir, args.output_prefix)
+        args.output_prefix = os.realpath(raw_path)
+        if not args.output_prefix.startwith(base_dir):
+            raise ValueError(f"Invalid path: {args.output_prefix} is not within the allowed dicetory {base_dir}")
 
 
 def preprocess(config):

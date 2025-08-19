@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Dict, List
 
+import ast
 import ray
 import omegaconf
 import numpy as np
@@ -693,4 +694,4 @@ def _get_ip_by_ifname():
 
 
 def is_multimodal():
-    return eval(os.getenv("IS_MULTIMODAL", "False"))
+    return ast.literal_eval(os.getenv("IS_MULTIMODAL", "False"))

@@ -186,33 +186,63 @@ def get_seqlen_balanced_partitions(seqlen_list: List[int], k_partitions: int, eq
     return _check_and_sort_partitions(partitions)
 
 
-def rearrange_micro_batches(seqlen_list: List[int], max_token_len: int, dynamic_max_batch_size=None, dp_group=None):
-    """get order of seq lengths to make partitions balanced, this is
-        used in balancing sum of seq length across dp ranks and micro batches
+def rearrange_micro_batches(
+    seqlen_list: List[int],
+    max_token_len: int,
+    dynamic_max_batch_size: int = None,
+    dp_group=None
+):
+    """
+    Rearranges micro batches to balance sequence lengths across partitions,
+    ensuring no partition exceeds max_token_len.
+
     Parameters:
-        seqlen_list (List[int]):
-            seq lengths of each items
-        max_token_len (int):
-     Returns:
-        partitions (List[List[int]]):
-            return k_partitions list containing the index of items.
+        seqlen_list (List[int]): Sequence lengths of each item.
+        max_token_len (int): Maximum allowed sum of sequence lengths per partition.
+        dynamic_max_batch_size (int, optional): Minimum number of partitions based on batch size.
+        dp_group: Distributed process group for synchronization (optional).
+
+    Returns:
+        List[List[int]]: List of partitions, each containing indices of items.
     """
     if max(seqlen_list) > max_token_len:
-        raise ValueError(f"seqlen of items:[{max(seqlen_list)}] must <= max_token_len:[{max_token_len}]")
-    
-    # Calculate the minimum number of bins
-    total_sum_of_seqlen = sum(seqlen_list)
-    k_partitions = (total_sum_of_seqlen + max_token_len - 1) // max_token_len
+        raise ValueError(
+            f"seqlen of items:[{max(seqlen_list)}] must <= max_token_len:[{max_token_len}]"
+        )
+
+    total_seqlen = sum(seqlen_list)
+    k_partitions = (total_seqlen + max_token_len - 1) // max_token_len
 
     if dynamic_max_batch_size is not None:
-        k_partitions = max(k_partitions, (len(seqlen_list) + dynamic_max_batch_size - 1) // dynamic_max_batch_size)
-        
-    if dist.is_initialized():
-        k_partitions = torch.tensor([k_partitions], device='npu')
-        dist.all_reduce(k_partitions, op=dist.ReduceOp.MAX, group=dp_group)
-        k_partitions = k_partitions.cpu().item()
+        k_partitions = max(
+            k_partitions,
+            (len(seqlen_list) + dynamic_max_batch_size - 1) // dynamic_max_batch_size
+        )
 
-    partitions = karmarkar_karp(seqlen_list=seqlen_list, k_partitions=k_partitions, equal_size=False)
+    def _check_partitions(partitions):
+        for partition in partitions:
+            partition_seqlen = [seqlen_list[idx] for idx in partition]
+            if sum(partition_seqlen) > max_token_len:
+                return False
+        return True
+
+    max_partitions = len(seqlen_list)
+    while k_partitions <= max_partitions:
+        partitions = heapq_partition(
+            seqlen_list=seqlen_list,
+            k_partitions=k_partitions,
+            equal_size=False
+        )
+        if _check_partitions(partitions):
+            break
+        k_partitions += 1
+    else:
+        raise RuntimeError("Could not find a valid partitioning within the allowed number of partitions.")
+
+    if dist.is_initialized():
+        k_partitions_tensor = torch.tensor([k_partitions], device='npu')
+        dist.all_reduce(k_partitions_tensor, op=dist.ReduceOp.MAX, group=dp_group)
+        k_partitions = k_partitions_tensor.cpu().item()
 
     return partitions
 

@@ -13,12 +13,14 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Dict, List
 
+import ast
 import omegaconf
 import numpy as np
 import torch
 import torch_npu
 import torch.distributed as dist
 from torch import Tensor
+
 
 
 def get_current_dp_range_indexes(experience_count, assign_batch_size, current_dp_rank=0):
@@ -658,4 +660,4 @@ def _get_ip_by_ifname():
 
 
 def is_multimodal():
-    return eval(os.getenv("IS_MULTIMODAL", "False"))
+    return ast.literal_eval(os.getenv("IS_MULTIMODAL", "False"))

@@ -95,7 +95,7 @@ cd ..
 ```shell
 git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout 4014ad2a
+git checkout 8c7bc45
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -151,7 +151,7 @@ export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 
 ## 准备源码
 ```shell
-git clone https://gitee.com/ascend/MindSpeed-RL.git -b 2.1.0
+git clone https://gitee.com/ascend/MindSpeed-RL.git 
 
 git clone https://gitee.com/ascend/MindSpeed.git 
 cd MindSpeed

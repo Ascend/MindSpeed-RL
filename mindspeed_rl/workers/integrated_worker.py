@@ -73,6 +73,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
         self.actor_forward_micro_batch_size = rl_config.actor_forward_micro_batch_size
         self.ref_forward_micro_batch_size = rl_config.ref_forward_micro_batch_size
+        self.vit_forward_micro_batch_size = rl_config.vit_forward_micro_batch_size
 
         self.reference = None
         self.ref_model = None
@@ -164,6 +165,17 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
                 ActorHybridWorkerBase.compute_log_prob(self)
         else:
             ActorHybridWorkerBase.compute_log_prob(self)
+
+    def compute_image_embeds(self):
+        if self.vit_forward_micro_batch_size is not None:
+            with temporary_micro_batch_size(
+                worker=self.actor_hybrid.train_actor,
+                args=self.get_args(),
+                new_mbs=self.vit_forward_micro_batch_size
+            ):
+                ActorHybridWorkerBase.compute_image_embeds(self)
+        else:
+            ActorHybridWorkerBase.compute_image_embeds(self)
 
     def load_checkpoint_with_path(self, model, path, ckpt_only=False):
         """Load model checkpoint from a specified path with flexible control.

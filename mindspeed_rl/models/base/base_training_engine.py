@@ -62,6 +62,7 @@ class BaseTrainingEngine(ABC):
             temperature: float = 1.0,
             role: str = None,
             micro_batch_size: int = 1,
+            reuse_image_embeds: bool = False,
             forward_backward_func: Callable = None,
             entropy_coeff: float = 0.0,
             kl_penalty: str = "low_var_kl",
@@ -73,6 +74,7 @@ class BaseTrainingEngine(ABC):
             **kwargs):
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
+        self.reuse_image_embeds = reuse_image_embeds
         self.model = model
         self.megatron_config = megatron_config
         self.optimizer = optimizer
@@ -170,9 +172,8 @@ class BaseTrainingEngine(ABC):
             cp_size = get_parallel_state().get_context_parallel_world_size()
             if is_multimodal():
                 index = None
-                process_batch, seqlens_in_batch, cu_seqlens_padded, labels = self._get_mulitmodal_forward_batch_info(batch_iter)
+                process_batch, seqlens_in_batch, cu_seqlens_padded = self._get_mulitmodal_forward_batch_info(batch_iter)
                 output = model(**process_batch)
-                process_batch['labels'] = labels
                 if post_process:
                     output = postprocess_packed_seqs(output=output['logits'],
                                                      seqlens_in_batch=seqlens_in_batch,
@@ -226,6 +227,36 @@ class BaseTrainingEngine(ABC):
             losses_reduced = [losses_reduced_list[[idx, ]] for idx in revert_indices]
 
         return losses_reduced
+    
+    def _compute_image_embeds(self, data: Dict) -> torch.Tensor:
+        batches = self._split_batches(data, batch_size=self.micro_batch_size,
+                                        shuffle_mini_batch=self.shuffle_mini_batch)
+        n_micro_batch = len(batches)
+        seq_len = batches[0]['input_ids'].shape[1]
+        data_iter = iter(batches)
+        if len(self.model) > 1:
+            data_iter = [iter(batches) for _ in self.model]
+        
+        def _extract_vit_embeds(output, **kwargs):
+            return output['vit_embeds']
+
+        def forward_step_vit_only(batch_iter, model):
+            process_batch, _, _ = self._get_mulitmodal_forward_batch_info(batch_iter, compute_vit_only=True)
+            output = model(**process_batch)
+            return output, _extract_vit_embeds
+
+        vit_embeds = self.forward_backward_func(
+            forward_step_func=forward_step_vit_only,
+            data_iterator=data_iter,
+            model=self.model,
+            num_microbatches=n_micro_batch,
+            seq_length=seq_len,
+            micro_batch_size=self.micro_batch_size,
+            forward_only=True,
+            collect_non_loss_data=True,
+        )
+
+        return vit_embeds
 
     def get_loss_meta_func(self) -> Dict:
         """
@@ -294,17 +325,15 @@ class BaseTrainingEngine(ABC):
 
         return input_ids, position_ids, batch, index
     
-    def _get_mulitmodal_forward_batch_info(self, batch_iter):
+    def _get_mulitmodal_forward_batch_info(self, batch_iter, compute_vit_only: bool = False):
         batch = next(batch_iter)
+
+        if compute_vit_only:
+            batch['vit_only'] = True
+            return batch, None, None
+
         input_ids = batch['input_ids']
         batch_size = input_ids.size(0)
-
-        # generate a labels tensor based on input_id. Remove the first token along the sequence dimension, and append a token with value 0 at the end. 
-        # This is done to align the data and enable subsequent log probability (logP) calculation
-        labels = batch['input_ids']
-        labels = labels[:, 1:]
-        tmp_add = torch.zeros(labels.size(0), 1, dtype=labels.dtype, device=labels.device)
-        labels = torch.cat((labels, tmp_add), dim=1)
 
         response_attention_mask = generate_mask(batch['responses'], batch['response_length']).to(input_ids.device)
         attention_mask = torch.cat((batch['attention_mask'], response_attention_mask), dim=-1).bool()
@@ -333,8 +362,9 @@ class BaseTrainingEngine(ABC):
 
         batch['input_ids'] = input_ids_rmpad
         batch['position_ids'] = position_ids_rmpad
+        batch['llm_only'] = self.reuse_image_embeds
         batch['attention_mask'] = None
-        return batch, seqlens_in_batch, cu_seqlens_padded, labels
+        return batch, seqlens_in_batch, cu_seqlens_padded
 
     def post_process_forward_backward_output(self, output: [torch.Tensor],
                                              batch: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -346,7 +376,7 @@ class BaseTrainingEngine(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def forward(self, data: Dict) -> torch.Tensor:
+    def forward(self, data: Dict, compute_vit_only: bool = False) -> torch.Tensor:
         """
         模型前向计算
         :param data: 前向计算数据
@@ -360,7 +390,10 @@ class BaseTrainingEngine(ABC):
         for model_module in self.model:
             model_module.eval()
         with torch.no_grad():
-            output = self._forward_backward_batch(data, forward_only=True)
+            if compute_vit_only:
+                output = self._compute_image_embeds(data)
+            else:
+                output = self._forward_backward_batch(data, forward_only=True)
             return self.post_process_forward_backward_output(output=output, batch=data)
 
     def update(self, data: Dict, kl_ctrl=None) -> Dict:

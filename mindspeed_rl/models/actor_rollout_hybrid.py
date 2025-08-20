@@ -80,6 +80,10 @@ class ActorRolloutHybrid(ABC):
         self.sharding_manager = sharding_manager
 
     @mstx_timer_decorator
+    def compute_image_embeds(self, data: Dict) -> Tensor:
+        return self.train_actor.compute_image_embeds(data)
+
+    @mstx_timer_decorator
     def generate_sequences(
             self,
             prompts_list: List[List[int]],

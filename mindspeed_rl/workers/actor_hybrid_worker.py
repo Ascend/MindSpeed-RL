@@ -30,6 +30,7 @@ from mindspeed_rl.utils.pad_process import remove_padding_and_split_to_list, tru
 from mindspeed_rl.utils.zmq_communication import (ZmqServer, ZmqClient, ZmqServerInfo, ZmqClientInfo,
                                                   ZMQ_ROLE_SERVER, ZMQ_ROLE_CLIENT)
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
+from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
 
 
 class ActorState(Enum):
@@ -137,7 +138,7 @@ class ActorHybridWorkerBase(BaseWorker):
             clip_higher_enable=self.rl_config.clip_higher_enable,
             clip_ratio_low=self.rl_config.clip_ratio_low,
             clip_ratio_high=self.rl_config.clip_ratio_high,
-            
+            reuse_image_embeds=self.rl_config.reuse_image_embeds,
             use_remove_padding=self.rl_config.use_remove_padding,
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             actor_max_packing_token_size=self.rl_config.actor_max_packing_token_size,
@@ -385,10 +386,16 @@ class ActorHybridWorkerBase(BaseWorker):
     def sync_generate_process(self, batch_data, experience_count, index, pad_token_id):
         if not self.enable_partial_rollout:
             indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
-            prompts_data = batch_data['prompts'][indexes]
-            prompt_length_data = batch_data['prompt_length'][indexes]
-            # preprocess, remove padding
-            prompts = truncate_rows(prompts_data, prompt_length_data)
+            if self.rl_config.reuse_image_embeds:
+                prompts_data = batch_data['input_ids'][indexes]
+                prompt_length_data = batch_data['input_ids_length'][indexes]
+                # preprocess, remove padding
+                prompts = truncate_rows(prompts_data, prompt_length_data, left_pad=True)
+            else:
+                prompts_data = batch_data['prompts'][indexes]
+                prompt_length_data = batch_data['prompt_length'][indexes]
+                # preprocess, remove padding
+                prompts = truncate_rows(prompts_data, prompt_length_data)
             prompts_list = [prompt.numpy().tolist() for prompt in prompts]
         else:
             prompts_data = batch_data['prompts']
@@ -605,6 +612,69 @@ class ActorHybridWorkerBase(BaseWorker):
         profiler_step(actor_compute_log_prob_profiler)
         MsProbe.debugger_stop('actor_compute_log_prob')
         logger.info("finish compute_log_prob")
+
+    @mstx_timer_decorator
+    def compute_image_embeds(self):
+        experience_consumer_stage = 'actor_image_embeds'
+        experience_columns = ['input_ids']
+        experience_count = self.rl_config.actor_image_embeds_dispatch_size
+        sorted_indexes = self.get_dp_range_indexes(experience_count,
+                                                   use_vllm=False) if self.rl_config.guarantee_order else None
+
+        actor_image_embeds_profiler = profiler_start(self.profiler_config, role="actor_image_embeds",
+                                                     profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(self.model[0], tag='actor_image_embeds')
+        start_time_defined = False
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
+            batch_data, index = self.dispatch_transfer_dock_data(
+                experience_consumer_stage,
+                experience_columns,
+                experience_count,
+                tp_size=self.megatron_config.tensor_model_parallel_size,
+                cp_size=self.megatron_config.context_parallel_size,
+                cp_algo=self.megatron_config.context_parallel_algo,
+                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                get_n_samples=True
+            )
+            if not start_time_defined:
+                start_time = time.time()
+                start_time_defined = True
+            if batch_data and index:
+                indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
+                batch_data['input_ids'] = batch_data['input_ids'][indexes]
+                output, batch = self.actor_hybrid.compute_image_embeds(batch_data)
+                if self.parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                    output = torch.cat(output, dim=0)
+                    data = {
+                                "vit_embeds": output.squeeze(1).cpu(),
+                                "image_grid_thw": batch_data['image_grid_thw'],
+                                "image_num": batch_data['image_num'],
+                                "video_num": batch_data['video_num']
+                            }
+
+                    data = unpack_mm_experience(data)
+
+                    output = {'vit_embeds': data['vit_embeds']}
+                    index = [i // self.rl_config.n_samples_per_prompt for i in index[::self.rl_config.n_samples_per_prompt]]
+                    self.collect_transfer_dock_mm_data(output, index)
+                end_time = time.time()
+                ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/image_embeds",
+                            value=[round(end_time, 4), round(start_time, 4)],
+                            cumulate=True
+                        )
+                )
+                ray.get(
+                        self.td.update_metrics.remote(
+                            "end_time/image_embeds",
+                            value=[round(end_time, 4)],
+                            cumulate=True
+                        )
+                )
+        profiler_step(actor_image_embeds_profiler)
+        MsProbe.debugger_stop('actor_image_embeds')
+        logger.info("finish compute_image_embeds")
 
     def _build_model_optimizer(self):
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(

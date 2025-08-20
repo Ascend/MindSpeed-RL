@@ -88,6 +88,10 @@ class Actor(BaseTrainingEngine):
     def post_process_forward_backward_output(self, output: torch.Tensor,
                                              batch: Dict[str, torch.Tensor]) -> (Tensor, Dict):
         return output, batch
+    
+    @mstx_timer_decorator
+    def compute_image_embeds(self, data: Dict) -> tuple[Tensor, Dict]:
+        return super().forward(data, compute_vit_only=True)
 
     @mstx_timer_decorator
     def compute_log_prob(self, data: Dict) -> (Tensor, Dict):

@@ -304,16 +304,37 @@ class VLLMInferEngine(BaseInferEngine):
         self.init_cache_engine()
         if is_multimodal():
             images = kwargs.pop("extra_info")
-            if torch.sum(images['image_num']).item() > 0:
-                prompts = [
-                    {"prompt_token_ids": prompt, "multi_modal_data": {"image": image}}
-                    for prompt, image in zip(idx_list, images['image'])
-                ]
+            prompts = []
+            if "vit_embeds" in images:
+                for prompt, image_embeds, grid_thw in zip(idx_list, images['vit_embeds'], images['image_grid_thw']):
+                    prompt_data = {
+                        "prompt_token_ids": prompt,
+                        "multi_modal_data": {
+                            "image_embeds": image_embeds,
+                            "image_grid_thw": grid_thw
+                        }
+                    }
+                    prompts.append(prompt_data)
+                if torch.sum(images['video_num']).item() > 0:
+                    from megatron.training import get_args
+                    # replace video_token_id with image_token_id when using vit_embeds
+                    for p in prompts:
+                        p['prompt_token_ids'] = list(map(lambda
+                                                             x: get_args().mm.model.image_token_id if x == get_args().mm.model.video_token_id else x,
+                                                         p['prompt_token_ids']))
             else:
-                prompts = [
-                    {"prompt_token_ids": prompt, "multi_modal_data": {"video": video}, 'mm_processor_kwargs': {'fps': fps.squeeze().tolist()}}
-                    for prompt, video, fps in zip(idx_list, images['video'], images['video_fps'])
-                ]
+                if torch.sum(images['image_num']).item() > 0:
+                    for prompt, image in zip(idx_list, images['image']):
+                        prompt_data = {
+                            "prompt_token_ids": prompt,
+                            "multi_modal_data": {"image": image}
+                        }
+                        prompts.append(prompt_data)
+                else:
+                    for prompt, video, fps in zip(prompts, images['video'], images['video_fps']):
+                        prompt = {"prompt_token_ids": prompt, "multi_modal_data": {"video": video},
+                                  'mm_processor_kwargs': {'fps': fps.squeeze().tolist()}}
+                        prompts.append(prompt)
             idx_list = None
         else:
             prompts = None

@@ -13,6 +13,7 @@ class RLConfig(BaseConfig):
     actor_resource: Resource configuration for the actor model (e.g., GPU/CPU allocation) (default: None)
     reference_resource: Resource configuration for the reference model (e.g., GPU/CPU allocation) (default: None)
     reward_resource: Resource configuration for the reward model (e.g., GPU/CPU allocation) (default: None)
+    vit_resource: Resource configuration for the visual model (e.g., GPU/CPU allocation) (default: None)
     mini_batch_size: Mini batch size (default: 1)
     num_samples_per_step: Number of samples per step (default: 1)
     max_prompt_length: Maximum prompt length (default: 512)
@@ -32,12 +33,14 @@ class RLConfig(BaseConfig):
 
     actor_forward_micro_batch_size: micro batch size for actor log_p calculation
     ref_forward_micro_batch_size: micro batch size for ref log_p calculation
+    vit_forward_micro_batch_size: micro batch size for vit calculation
     actor_rollout_dispatch_size: experience count every forward step for generate (default: same as experience_count_all)
     actor_logprob_dispatch_size: experience count every forward step for actor_logprob (default: same as experience_count_all)
     ref_dispatch_size: experience count every forward step for reference (default: same as experience_count_all)
     reward_dispatch_size: experience count every forward step for reward (default: same as experience_count_all)
     adv_dispatch_size: experience count every forward step for advantages (default: same as experience_count_all)
     actor_update_dispatch_size: experience count every forward step for actor update (default: same as experience_count_all)
+    actor_image_embeds_dispatch_size: experience count every forward step for actor image embeds (default: same as experience_count_all)
 
     shuffle_mini_batch: Whether to shuffle minibatch (default: False)
     n_samples_per_prompt: Number of samples per prompt (default: 1)
@@ -58,6 +61,7 @@ class RLConfig(BaseConfig):
     # Default values can still be defined if no config is provided
     use_remove_padding: Whether to use packed sequences for forward (default: False)
     zmq_communication: use zmq for dispatch data(default: True)
+    reuse_image_embeds: Whether to reuse image embeds for vit calculation (default: False)
     partial_rollout_max_split: The multiple of token splitting for max tokens when partial rollout is enabled. (default: 1)
     require_max_age_all_finished: wherther to require the reponses that have reached max_age must be completed in this iteration or can be incomplete (default: True)
     '''
@@ -70,6 +74,7 @@ class RLConfig(BaseConfig):
         self.reference_resource = None
         self.reward_resource = None
         self.critic_resource = None
+        self.vit_resource = None
         self.num_samples_per_step = 1
         self.max_prompt_length = 512
         self.epochs = 1
@@ -110,6 +115,7 @@ class RLConfig(BaseConfig):
         self.use_dp_batch_balance = False
         self.ref_forward_micro_batch_size = None
         self.actor_forward_micro_batch_size = None
+        self.vit_forward_micro_batch_size = None
 
         self.actor_rollout_dispatch_size = None
         self.actor_logprob_dispatch_size = None
@@ -121,9 +127,12 @@ class RLConfig(BaseConfig):
         self.critic_update_dispatch_size = None
         self.critic_value_dispatch_size = None
         self.kl_dispatch_size = None
+        self.actor_image_embeds_dispatch_size = None
 
         self.is_multimodal = False
         self.use_remove_padding = False
+        self.reuse_image_embeds = False
+        self.colocate_actor_and_vit = False
 
         self.n_samples_per_prompt = config_dict.get('n_samples_per_prompt', 1)
         self.mini_batch_size = 1

@@ -38,6 +38,7 @@ from mindspeed_rl.workers.reference_woker import ReferenceWorker
 from mindspeed_rl.workers.reward_woker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.workers.critic_worker import CriticWorker
+from mindspeed_rl.workers.vit_worker import VitWorker
 
 
 resource_mapping: Dict[str, Callable[[RLConfig], int]] = {
@@ -45,7 +46,8 @@ resource_mapping: Dict[str, Callable[[RLConfig], int]] = {
     IntegratedWorker.__ray_actor_class__.__name__: lambda config: config.actor_resource,
     RewardWorker.__ray_actor_class__.__name__: lambda config: config.reward_resource,
     ReferenceWorker.__ray_actor_class__.__name__: lambda config: config.reference_resource,
-    CriticWorker.__ray_actor_class__.__name__: lambda config: config.critic_resource
+    CriticWorker.__ray_actor_class__.__name__: lambda config: config.critic_resource,
+    VitWorker.__ray_actor_class__.__name__: lambda config: config.vit_resource
 }
 
 
@@ -282,6 +284,12 @@ class RayActorGroup:
     def generate_sequences(self, blocking=False):
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.generate_sequences.remote())
+        if blocking:
+            ray.get(self.temp_actor_ref_objs)
+
+    def compute_image_embeds(self, blocking=False):
+        for actor in self.actor_handlers:
+            self.temp_actor_ref_objs.append(actor.compute_image_embeds.remote())
         if blocking:
             ray.get(self.temp_actor_ref_objs)
 

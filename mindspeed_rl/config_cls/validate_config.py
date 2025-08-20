@@ -12,7 +12,8 @@ def validate_rl_args(
         reward_config: MegatronConfig,
         rl_config: RLConfig,
         generate_config: GenerateConfig,
-        critic_config: MegatronConfig = None
+        critic_config: MegatronConfig = None,
+        vit_config: MegatronConfig = None
     ):
 
     #检查后端参数设置
@@ -153,6 +154,12 @@ def validate_rl_args(
         actor_config.context_parallel_size
     )
 
+    if rl_config.colocate_actor_and_vit:
+        vit_data_parallel_size = rl_config.vit_resource.num_npus // (
+            vit_config.tensor_model_parallel_size *
+            vit_config.pipeline_model_parallel_size *
+            vit_config.context_parallel_size)
+
     generate_config.data_parallel_size = rl_config.actor_resource.num_npus // (
         generate_config.infer_tensor_parallel_size *
         generate_config.infer_pipeline_parallel_size
@@ -243,6 +250,18 @@ def validate_rl_args(
             rl_config.ref_dispatch_size or
             (ref_config.global_batch_size * rl_config.n_samples_per_prompt // ref_data_parallel_size)
         )
+    
+    if rl_config.reuse_image_embeds:
+        if rl_config.colocate_actor_and_vit:
+            rl_config.actor_image_embeds_dispatch_size = (
+                rl_config.actor_image_embeds_dispatch_size or
+                (vit_config.global_batch_size * rl_config.n_samples_per_prompt // vit_data_parallel_size)
+            )
+        else:
+            rl_config.actor_image_embeds_dispatch_size = (
+                rl_config.actor_image_embeds_dispatch_size or
+                (actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)
+            )
 
     if rl_config.reward_resource:
         reward_data_parallel_size = rl_config.reward_resource.num_npus // (

@@ -49,6 +49,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             actor_worker: RayActorGroup,
             ref_worker: RayActorGroup,
             reward_list: List[Union[RayActorGroup, RuleReward]],
+            vit_worker: RayActorGroup = None,
             train_iters: int = 1,
             save_interval: int = 1,
             kl_ctrl_type: str = 'fixed',
@@ -71,6 +72,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             actor_worker,
             ref_worker,
             reward_list,
+            vit_worker=vit_worker,
             train_iters=train_iters,
             save_interval=save_interval,
             kl_ctrl_type=kl_ctrl_type,
@@ -94,6 +96,8 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.mm_transfer_dock = None
         self.enable_partial_rollout = self.partial_rollout_max_split > 1
         self.metrics = Metric()
+        self.reuse_image_embeds = self.actor_worker.rl_config.reuse_image_embeds
+        self.colocate_actor_and_vit = self.actor_worker.rl_config.colocate_actor_and_vit
         if self.enable_partial_rollout:
             self.td_max_len = self.global_batch_size * 2
         else:
@@ -112,10 +116,16 @@ class RayGRPOTrainer(RayBaseTrainer):
             addition_columns=self.dataset_additional_keys
         )
         if is_multimodal():
-            self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
+            self.mm_transfer_dock = MMGRPOTransferDock.remote(
+                self.global_batch_size, 
+                self.n_samples_per_prompt,
+                self.reuse_image_embeds
+            )
 
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
+        if self.colocate_actor_and_vit:
+            self.vit_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
         for reward in self.reward_list:
             if hasattr(reward, 'sync_init_transfer_dock'):
                 reward.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
@@ -166,6 +176,12 @@ class RayGRPOTrainer(RayBaseTrainer):
                 if is_multimodal():
                     ray.get(self.mm_transfer_dock.clear.remote())
                     ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+
+                if self.reuse_image_embeds:
+                    if self.colocate_actor_and_vit:
+                        self.vit_worker.compute_image_embeds(blocking=self.blocking)
+                    else:
+                        self.actor_worker.compute_image_embeds(blocking=self.blocking)
 
                 self.actor_worker.generate_sequences(blocking=self.blocking)
 

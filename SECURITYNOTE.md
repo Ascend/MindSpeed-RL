@@ -46,6 +46,10 @@
 - MindSpeed-RL 在运行异常时会退出进程并打印报错信息，建议根据报错提示定位具体错误原因，包括设定算子同步执行、查看 CANN 日志、解析生成的 Core Dump 文件等方式。
 
 
+## 数据安全声明
+程序运行过程中，会通过nltk.load从用户指定的路径中加载语料库，需要保证网络安全，确保下载的语料包来源可信。
+
+
 ## 公开接口声明
 MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功能均通过shell脚本调用。入口脚本皆放置于cli目录下，分别为  train_grpo.py, train_orm.py, preprocess_data.py, convert_ckpt.py 和 infer_vllm.py。
 
@@ -75,5 +79,6 @@ MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功�
 | 使用 MindSpeed-RL 进行训练任务时，新增32个端口 | MindSpeed-RL使用 ray 来拉起强化学习任务，并使用 pytorch 分布式训练相关的 API 拉起任一任务 | [1024,65520]内 | 网络配置错误可能引发端口冲突或连接问题，影响训练效率。   |
 | 用户将训练日志上传到wandb实现可视化|用户需要注册wandb账号，并开启`use_wandb`服务，系统将根据wandb login key将生成的日志同步到云端，利用WandB的强大功能实现可视化 | 随机端口 | 可能导致wandb login key以及训练日志泄露，以及日志传输过程中被篡改。 |
 | 调用`socket.socket`函数获取ip和端口|代码内部调用`socket.socket`函数，获取整网ip和端口 | 随机端口 | 可能导致整网ip和端口信息泄露。 |
+| 用户通过nltk.download下载语料库 | 用户在代码内部使用nltk.download来实现语料库的下载 | 随机端口 | 文件来源若不可信，在文件加载时可能存在反序列化漏洞，导致文件被篡改。 |
 
 

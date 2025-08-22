@@ -668,22 +668,28 @@ class BaseWorker(BaseRayWorker, ABC):
             return {}, []
 
     @mstx_timer_decorator
-    def collect_transfer_dock_data(self, output, index, use_vllm=False, is_generate=False):
+    def collect_transfer_dock_data(self, output, index, use_vllm=False, is_generate=False, sync=False):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
             output = padding_dict_to_tensor_dict(output)
             if self.sampling_transfer_dock and is_generate:
-                self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index)
+                if sync:
+                    ray.get(self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index))
+                else:
+                    self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index)
             else:
-                self.td.put_experience.remote(data_dict=output, indexes=index)
+                if sync:
+                    ray.get(self.td.put_experience.remote(data_dict=output, indexes=index))
+                else:
+                    self.td.put_experience.remote(data_dict=output, indexes=index)
 
     @mstx_timer_decorator
     def collect_transfer_dock_mm_data(self, output, index, use_vllm=False):
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
-            self.mm_td.put_experience.remote(batch=output, indexes=index)
+            ray.get(self.mm_td.put_experience.remote(batch=output, indexes=index))
 
 
     def get_dp_range_indexes(self, experience_count, use_vllm=False, assign_batch_size=None):

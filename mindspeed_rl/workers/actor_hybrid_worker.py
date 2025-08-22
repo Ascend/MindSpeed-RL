@@ -462,7 +462,7 @@ class ActorHybridWorkerBase(BaseWorker):
                     finish_status[idx] = torch.tensor([1])
             outputs["rollout_completed"] = finish_status
 
-        self.collect_transfer_dock_data(outputs, index, use_vllm=True, is_generate=True)
+        self.collect_transfer_dock_data(outputs, index, use_vllm=True, is_generate=True, sync=is_multimodal())
         MsProbe.save_data({"responses": responses, "prompts": prompts})
 
 
@@ -542,7 +542,7 @@ class ActorHybridWorkerBase(BaseWorker):
                         idx][0] >= self.generate_config.sampling_config["max_tokens"]:
                         finish_status[idx] = torch.tensor([1])
                 outputs["rollout_completed"] = finish_status
-            self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True, is_generate=True)
+            self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True, is_generate=True, sync=is_multimodal())
             MsProbe.save_data({"responses": responses, "prompts": prompts})
         self.actor_hybrid.inference_actor.free_cache_engine()
 

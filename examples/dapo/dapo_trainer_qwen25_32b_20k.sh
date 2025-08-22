@@ -4,7 +4,7 @@ export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1 
 
 SOCKET_IFNAME="Your SOCKET IFNAME"
-DEFAULT_YAML="dapo_qwen25_32b_A3_32k"
+DEFAULT_YAML="dapo_qwen25_32b_A2_20k"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"
 
@@ -17,8 +17,8 @@ export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 export MALLOC_MMAP_THRESHOLD_=512768
 export LCAL_COMM_ID=127.0.0.1:27001
 
-NNODES=4
-NPUS_PER_NODE=16
+NNODES=8
+NPUS_PER_NODE=8
 #修改为对应主节点IP
 MASTER_ADDR="IP FOR MASTER NODE"
 #修改为当前节点的通信网卡

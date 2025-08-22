@@ -20,10 +20,10 @@ megatron_training:
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
   tokenizer_name_or_path: ./Qwen2.5-32B
-  global_batch_size: 256   
-  seq_length: 2048 #
+  global_batch_size: 256
+  seq_length: 2048
   save_interval: 50
-  train_iters: 2000
+  train_iters: 200
   stage: ray_dapo
   attention_dropout: 0.0
   hidden_dropout: 0.0
@@ -37,33 +37,36 @@ megatron_training:
   full_shuffle_instruction_dataset: false
   seed: 1
   reset_position_ids: true
-  recompute_granularity: full
-  recompute_method: block
-  recompute_num_layers: 16
+  reset_attention_mask: true
 
 actor_config:
   model: qwen25_32b
   micro_batch_size: 1   
   tensor_model_parallel_size: 8
-  pipeline_model_parallel_size: 4
+  pipeline_model_parallel_size: 2
   lr: 1e-6
   lr_decay_style: constant
   min_lr: 0
-  weight_decay: 0.1 
+  weight_decay: 0.1
   lr_warmup_fraction: 0.0
-  clip_grad: 1.0 
+  clip_grad: 1.0
   adam_beta1: 0.9
   adam_beta2: 0.95
   finetune: true
-  load:  ./Qwen2.5-32B-tp8-pp4/
+  load: ./Qwen2.5-32B-tp8-pp2
   save: ./ckpt
   no_load_optim: true
   no_load_rng: true
-
+  context_parallel_size: 2
+  context_parallel_algo: megatron_cp_algo
+  cp_attention_mask_type: causal
 
 rl_config:
   blocking: true
   use_remove_padding: true
+  actor_max_packing_token_size: 45056
+  update_max_packing_token_size: 22528
+  use_dynamic_bsz: true
   use_dp_batch_balance: true
   actor_forward_micro_batch_size: 1
   actor_logprob_dispatch_size: 512
@@ -74,8 +77,8 @@ rl_config:
   use_integrated_worker: true
   gamma: 1.0
   lam: 0.95
-  adv_estimator: group_norm 
-  mini_batch_size: 32    
+  adv_estimator: group_norm
+  mini_batch_size: 32
   max_prompt_length: 2048
   epochs: 1
   clip_ratio: 0.2
@@ -98,7 +101,7 @@ rl_config:
 
   # 过长response惩罚措施
   overlong_buffer_enable: true
-  rollout_max_tokens : 30720
+  rollout_max_tokens : 20480
   overlong_buffer: 4096
   overlong_buffer_penalty_factor: 1.0
 
@@ -125,7 +128,7 @@ generate_config:
 
   # vllm 模型相关设置
   max_num_seqs: 1024
-  max_model_len: 32768
+  max_model_len: 22528
   max_num_batched_tokens: 8192
   dtype: "bfloat16"
   gpu_memory_utilization: 0.8
@@ -134,7 +137,7 @@ generate_config:
   sampling_config:
     seed: 1
     logprobs: 1
-    max_tokens: 30720
+    max_tokens: 20480
     top_p: 1.0
     top_k: -1
     min_p: 0.0

@@ -26,6 +26,7 @@ from vllm.distributed import parallel_state as vllm_ps
 from verl.utils.device import get_device_name, get_torch_device
 from verl.workers.rollout.base import BaseRollout
 from verl.workers.rollout.vllm_rollout.vllm_rollout_spmd import vLLMRollout
+from verl.workers.sharding_manager.hybrid_tp_config import HybridTPConfig
 
 from verl_npu.patch_util import NPUPatchHelper
 
@@ -44,6 +45,13 @@ class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):
         """
         super(BaseRollout, self).__init__()
         self.config = config
+
+        # create HybridTPConfig
+        self.hybrid_tp_config = HybridTPConfig.from_dict_config(
+            self.config.get("hybrid_tp", {}),
+        )
+
+        print(f"[NPU Patch] hybrid_tp_config is : {self.hybrid_tp_config if self.hybrid_tp_config else '{}'}")
 
         tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
         if tensor_parallel_size > torch.distributed.get_world_size():
@@ -77,7 +85,7 @@ class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):
                 raise ValueError(
                     "max_position_embeddings should be greater than total sequence length"
                 )
-        else:
+        else:  
             # handle type where there's a length extend factor
             # for using yarn as an example
             rope_scaling_factor = rope_scaling_config.get("factor", 1.0)
@@ -124,6 +132,23 @@ class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):
         if hasattr(config, "dp_model_parallel_size") and config.dp_model_parallel_size > 1:
             self._init_dp_env(config)
             enable_infer_ep = True
+
+        # Extract hybrid TP config for additional_config
+        additional_config = {}
+        if self.hybrid_tp_config.enabled:
+            # Extract tp_size values from hybrid_tp_config
+            if self.hybrid_tp_config.qkv_proj_tp_size is not None:
+                additional_config["qkvproj_tensor_parallel_size"] = self.hybrid_tp_config.qkv_proj_tp_size
+            if self.hybrid_tp_config.o_proj_tp_size is not None:
+                additional_config["oproj_tensor_parallel_size"] = self.hybrid_tp_config.o_proj_tp_size
+            if self.hybrid_tp_config.lm_head_tp_size is not None:
+                additional_config["lmhead_tensor_parallel_size"] = self.hybrid_tp_config.lm_head_tp_size
+
+        print(f"[NPU Patch] vLLM additional_config: {additional_config if additional_config else '{}'}")
+
+        # Add additional_config to engine_kwargs if not empty
+        if additional_config:
+            engine_kwargs["additional_config"] = additional_config
 
         self.inference_engine = LLM(
             model=model_path,

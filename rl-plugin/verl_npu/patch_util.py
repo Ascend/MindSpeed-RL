@@ -14,13 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import logging
 from types import MethodType, ModuleType
-from typing import Type, Union
+from typing import Type, Union, List, Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
 Patchable = Union[Type, ModuleType]
+
+# Global in-memory summary for applied patches
+_PATCH_SUMMARY: List[Dict[str, Any]] = []
+
+
+def _qualname(obj: Any) -> str:
+    """Return fully-qualified name for a class or module."""
+    module_name = getattr(obj, "__module__", None)
+    obj_name = getattr(obj, "__name__", repr(obj))
+    return f"{module_name}.{obj_name}" if module_name else obj_name
+
+
+def get_patch_summary() -> List[Dict[str, Any]]:
+    """Get a copy of the applied patch summary."""
+    return list(_PATCH_SUMMARY)
+
+
+def print_patch_summary() -> None:
+    """Print a well-formatted summary of all applied patches (rank0 only)."""
+    if not _is_primary_rank():
+        return
+    if not _PATCH_SUMMARY:
+        msg = "[NPU Patch] No patches applied."
+        logger.info(msg)
+        return
+
+    lines: List[str] = []
+    lines.append("\n================ NPU Patch Summary ================")
+    for index, record in enumerate(_PATCH_SUMMARY, start=1):
+        target = record.get("target", "<unknown>")
+        patch_cls = record.get("patch_class", "<unknown>")
+        lines.append(f"{index}. Target: {target}")
+        lines.append(f"   Patch : {patch_cls}")
+        changes: List[Dict[str, str]] = record.get("changes", [])
+        if changes:
+            lines.append("   Changes:")
+            for change in changes:
+                action = change.get("action", "?")
+                kind = change.get("kind", "attr")
+                name = change.get("name", "?")
+                lines.append(f"     - {action:<8} {kind:<11} {name}")
+        else:
+            lines.append("   Changes: <none>")
+    lines.append("===================================================\n")
+
+    msg = "\n".join(lines)
+    #log for visibility in various environments
+    logger.info(msg)
+
+
+def record_patch_entry(target_obj: Any, patch_obj: Any, changes: List[Dict[str, str]]) -> None:
+    """Record a custom patch entry (for non-NPUPatchHelper operations).
+
+    This is useful when we inject modules or symbols that are not handled by
+    NPUPatchHelper.apply_patch but still want to show in the patch summary.
+    """
+    _PATCH_SUMMARY.append({
+        "target": _qualname(target_obj) if not isinstance(target_obj, str) else target_obj,
+        "patch_class": _qualname(patch_obj) if not isinstance(patch_obj, str) else patch_obj,
+        "changes": changes,
+    })
 
 
 # Copy from ArcticInference to allow patch existing classes or modules.
@@ -116,6 +178,7 @@ class NPUPatchHelper:
         if "_npu_patches" not in target.__dict__:
             target._npu_patches = {}
 
+        changes: List[Dict[str, str]] = []
         for name, attr in cls.__dict__.items():
 
             # Skip special names and the '_npu_patch_target' itself
@@ -138,4 +201,52 @@ class NPUPatchHelper:
             replace = hasattr(target, name)
             setattr(target, name, attr)
             action = "replaced" if replace else "added"
-            logger.info(f"{cls.__name__} {action} {target.__name__}.{name}")
+            if _is_primary_rank():
+                logger.info(f"{cls.__name__} {action} {target.__name__}.{name}")
+            # Classify the kind of change for summary
+            if isinstance(attr, classmethod):
+                kind = "classmethod"
+            elif isinstance(attr, staticmethod):
+                kind = "staticmethod"
+            elif callable(attr):
+                kind = "callable"
+            else:
+                kind = "attribute"
+            changes.append({"name": name, "action": action, "kind": kind})
+
+        # Record a summary entry for this patch class
+        _PATCH_SUMMARY.append({
+            "target": _qualname(target),
+            "patch_class": _qualname(cls),
+            "changes": changes,
+        })
+
+
+def _is_primary_rank() -> bool:
+    """Return True if this process is the primary (rank 0) process.
+
+    Tries torch.distributed first; falls back to environment variables commonly
+    used in distributed launchers. Defaults to True for single-process runs.
+    """
+    # Try PyTorch distributed
+    try:
+        import torch.distributed as dist
+
+        if dist.is_available() and dist.is_initialized():
+            return dist.get_rank() == 0
+    except ImportError:
+        logger.warning("torch.distributed not available, falling back to environment variables")
+    except Exception as e:
+        logger.warning(f"Unexpected error checking torch.distributed rank: {e}, falling back to environment variables")
+
+    # Fallback to common env vars
+    for var in ("RANK", "SLURM_PROCID", "LOCAL_RANK"):
+        if var in os.environ:
+            try:
+                return int(os.environ.get(var, "0")) == 0
+            except ValueError as e:
+                logger.warning(f"Invalid value for environment variable {var}: {os.environ[var]}, error: {e}")
+                return True
+
+    # Single-process default
+    return True

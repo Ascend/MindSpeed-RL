@@ -288,15 +288,13 @@ class CustomDevelopCommand(develop):
 
 # 主安装函数
 def main():
-    print("Setting up mindspeed_rl...")
+    print("Setting up verl_npu plugin...")
     
     setup(
         name="verl_npu",
         version="0.0.1",
         license="Apache 2.0",
         description="verl npu backend plugin",
-        long_description=open("README.md", encoding="utf-8").read(),
-        long_description_content_type="text/markdown",
         packages=find_packages(include=["verl_npu"]),
         classifiers=[
             "Programming Language :: Python :: 3.9",

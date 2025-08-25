@@ -35,12 +35,6 @@ def dpo_train():
     from mindspeed_llm.tasks.posttrain.base.base_trainer import BaseTrainer
     BaseTrainer.model_provider = model_provider_swap
 
-    model, optimizer, opt_param_scheduler = setup_model_and_optimizer(
-        gpt_model_provider, ModelType.encoder_or_decoder)
-    logger.info('after model, optimizer and learning rate scheduler are built')
-
-    model_arch_config = get_model_config(model[0])
-
     # build tokenizer
     tokenizer = get_tokenizer(args.tokenizer_name_or_path,
                               prompt_type=args.prompt_type, prompt_type_path=args.prompt_type_path)
@@ -71,16 +65,6 @@ def dpo_train():
         extra_param=args
     )
     logger.info('after datasets are built')
-
-    # Backward compatibility, assume fixed batch size.
-    if args.iteration > 0 and args.consumed_train_samples == 0:
-        if args.train_samples is not None:
-            raise ValueError('only backward compatiblity support for iteration-based training')
-        args.consumed_train_samples = args.iteration * args.global_batch_size
-    if args.iteration > 0 and args.consumed_valid_samples == 0:
-        if args.train_samples is None:
-            args.consumed_valid_samples = (args.iteration // args.eval_interval) * \
-                                          args.eval_iters * args.global_batch_size
 
     data_loader = PromptDataLoader(
         train_dataset, args.global_batch_size,
@@ -303,7 +287,7 @@ def separate_config_and_parse_args(config):
     return megatron_config
 
 
-@hydra.main(config_path='../configs', config_name='dpo_qwen3_30b_a3b', version_base=None)
+@hydra.main(config_path='../configs', config_name='dpo_qwen3_30b_a3b_A3', version_base=None)
 def main(config):
     megatron_config = separate_config_and_parse_args(config)
     initialize_megatron(config=megatron_config)

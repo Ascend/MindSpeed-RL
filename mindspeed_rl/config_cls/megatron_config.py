@@ -381,6 +381,11 @@ class MegatronConfig(BaseConfig):
         self.use_cp_send_recv_overlap = False
         self.use_fused_ring_attention_update = False
         self.dpo_loss_type = 'sigmoid'
+        self.ref_model = ''
+        self.refer_model_iter = 1
+        self.wandb_exp_name = ''
+        self.wandb_project = ''
+        self.wandb_save_dir = ''
 
         self.use_ascend_coc = False
         self.coc_mode = -1

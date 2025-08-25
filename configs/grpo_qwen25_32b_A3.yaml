@@ -90,7 +90,7 @@ generate_config:
   offload_train_param: true
 
   # 推理时的并行配置
-  infer_tensor_parallel_size: 4
+  infer_tensor_parallel_size: 2
   infer_pipeline_parallel_size: 1
   infer_expert_parallel_size: 1
 

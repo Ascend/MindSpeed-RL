@@ -53,7 +53,7 @@ megatron_training:
 actor_config:
    context_parallel_size: 2
    context_parallel_algo: megatron_cp_algo
-   cp_attention_mask_type: causal
+   attention_mask_type: causal
 
 # 与remove_padding特性一起使用
 rl_config:
@@ -72,7 +72,7 @@ megatron_training:
 
 `context_parallel_algo` 表示选用的长序列并行方法，使能ring attention方案需要设置为**megatron_cp_algo**
 
-`cp_attention_mask_type` 表示选用的attention_mask类型，默认配置**causal**，当前也只支持该类型
+`attention_mask_type` 表示选用的attention_mask类型，默认配置**causal**，当前也只支持该类型
 
 特别的，此特性与**remove_padding**一起使用时，配置说明如下：
 

@@ -12,7 +12,7 @@ def get_batch_on_this_cp_rank(megatron_config, batch, actual_seq_len):
     if megatron_config.context_parallel_size <= 1:
         return batch
 
-    if (megatron_config.context_parallel_algo == 'megatron_cp_algo' and megatron_config.reset_attention_mask and megatron_config.cp_attention_mask_type == 'causal'):
+    if (megatron_config.context_parallel_algo == 'megatron_cp_algo' and megatron_config.reset_attention_mask and megatron_config.attention_mask_type == 'causal'):
         batch, index = _get_batch_on_this_cp_rank_in_megatron_cp_eod_padding(megatron_config, batch, actual_seq_len)
     elif megatron_config.context_parallel_algo == 'megatron_cp_algo':
         batch, index = _get_batch_on_this_cp_rank_in_megatron_cp(batch)

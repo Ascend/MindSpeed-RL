@@ -426,7 +426,7 @@ class BaseWorker(BaseRayWorker, ABC):
             torch.distributed.broadcast(batch_data_length[key].cuda(),
                                         get_pipeline_model_parallel_src_rank(self.parallel_state, use_vllm),
                                         group=get_pipeline_model_parallel_group(self.parallel_state, use_vllm))
-            index_without_pad = index.cpu().numpy().tolist()[:batch_data_shape[0]]
+            index_without_pad = index.cpu().numpy().tolist()[:batch_data_length_shape[0]]
 
         return index_without_pad
 

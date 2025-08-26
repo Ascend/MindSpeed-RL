@@ -78,7 +78,7 @@ rl_config:
   max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
-  entropy_coeff: 0.001
+  entropy_coeff: 0.0
   n_samples_per_prompt: 8
   rule_reward: true
   verifier_function: ["math_17k_acc"]
@@ -103,6 +103,7 @@ generate_config:
   # vllm 模型相关设置
   max_num_seqs: 512
   max_model_len: 4096
+  max_num_batched_tokens: 8192
   dtype: "bfloat16"
   gpu_memory_utilization: 0.9
   num_scheduler_steps: 1

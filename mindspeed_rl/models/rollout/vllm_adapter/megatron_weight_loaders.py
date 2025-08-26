@@ -117,7 +117,7 @@ def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
     for name, loaded_weight in actor_weights.items():
         if "qkv" in name:
             split_dim = hf_config.q_lora_rank if hf_config.q_lora_rank else \
-                (hf_config.qk_nope_head_dim + hf_config.qk_rope_head_dim) * hf_config.num_attention_heads
+                (hf_config.qk_head_dim + hf_config.qk_pos_emb_head_dim) * hf_config.num_attention_heads
             q_name = name.replace("qkv_proj", "q_a_proj" if hf_config.q_lora_rank else "q_proj")
             kv_name = name.replace("qkv_proj", "kv_a_proj_with_mqa")
             load_single_weight(params_dict, q_name, loaded_weight[:split_dim])

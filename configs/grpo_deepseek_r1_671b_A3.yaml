@@ -34,6 +34,8 @@ megatron_training:
   swap_optimizer: true
   moe_alltoall_overlap_comm: true
   reset_position_ids: true
+  use_ascend_coc: true
+  coc_fused_kernel: true
 
 actor_config:
   model: deepseekv3_671b

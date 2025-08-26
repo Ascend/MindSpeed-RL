@@ -308,7 +308,7 @@ class BaseTrainingEngine(ABC):
             batch['labels'] = labels
             
             cu_seqlens_padded_ring = cu_seqlens_padded
-            if self.megatron_config.cp_attention_mask_type == 'causal': 
+            if self.megatron_config.attention_mask_type == 'causal': 
                 cu_seqlens_padded_ring = (cu_seqlens_padded / get_ring_degree(self.megatron_config)).to(torch.int)
             self.set_actual_seq_len(cu_seqlens_padded_ring.tolist())
 

@@ -160,6 +160,8 @@ def initialize_megatron(
         ignore_unknown_args=False,
         allow_no_cuda=False,
         skip_mpu_initialization=False,
+        get_embedding_ranks=None,
+        get_position_embedding_ranks=None,
         config=None,
 ):
     """Set global variables, initialize distributed, and
@@ -180,8 +182,7 @@ def initialize_megatron(
     origin_sys_argv = sys.argv
     sys.argv = [sys.argv[0]]
     parse_args_from_config(config)
-    parse_args = parse_args_decorator(megatron.training.arguments.parse_args)
-    args = parse_args(extra_args_provider, ignore_unknown_args)
+    args = megatron.training.arguments.parse_args()
     sys.argv = origin_sys_argv
 
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
@@ -193,7 +194,7 @@ def initialize_megatron(
 
     set_global_variables(args)
 
-    if args.use_deter_comp:
+    if args.npu_deterministic:
         seed_all(args.seed)
         logger.info("deterministic computing is applied for npu.")
 
@@ -201,12 +202,14 @@ def initialize_megatron(
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
-        _initialize_distributed()
+        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
 
         # Random seeds for reproducibility.
         if args.rank == 0:
             logger.info("> setting random seeds to {} ...".format(args.seed))
         _set_random_seed(args.seed, args.data_parallel_random_init)
+        if args.use_ascend_mc2:
+            initialize_cfg_from_args(args)
 
     if skip_mpu_initialization:
         return None
@@ -238,7 +241,7 @@ def initialize_megatron(
         return None
 
 
-def _initialize_distributed():
+def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
     """Initialize torch.distributed and core model parallel."""
     args = get_args()
 
@@ -279,11 +282,20 @@ def _initialize_distributed():
                 args.pipeline_model_parallel_size,
                 args.virtual_pipeline_model_parallel_size,
                 args.pipeline_model_parallel_split_rank,
+                pipeline_model_parallel_comm_backend=args.pipeline_model_parallel_comm_backend,
                 context_parallel_size=args.context_parallel_size,
+                hierarchical_context_parallel_sizes=args.hierarchical_context_parallel_sizes,
                 expert_model_parallel_size=args.expert_model_parallel_size,
+                num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
+                expert_tensor_parallel_size=args.expert_tensor_parallel_size,
                 distributed_timeout_minutes=args.distributed_timeout_minutes,
                 nccl_communicator_config_path=args.nccl_communicator_config_path,
-                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-pp-dp',
+                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-cp-ep-pp-dp',
+                encoder_tensor_model_parallel_size=args.encoder_tensor_model_parallel_size,
+                encoder_pipeline_model_parallel_size=args.encoder_pipeline_model_parallel_size,
+                get_embedding_ranks=get_embedding_ranks,
+                get_position_embedding_ranks=get_position_embedding_ranks,
+                create_gloo_process_groups=args.enable_gloo_process_groups,
             )
             if args.rank == 0:
                 logger.info(

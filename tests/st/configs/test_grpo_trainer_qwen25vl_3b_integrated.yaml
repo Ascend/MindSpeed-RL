@@ -33,7 +33,7 @@ megatron_training:
   split: 100,0,0
   no_shuffle: true
   seed: 1234
-  use_deter_comp: false # 是否开启确定性计算
+  npu_deterministic: false # 是否开启确定性计算
 
 actor_config:
   model: qwen2.5vl_3b
@@ -82,7 +82,7 @@ rl_config:
   max_prompt_length: 1024
   epochs: 1
   clip_ratio: 0.2
-  entropy_coeff: 0
+  entropy_coeff: 0.0
   shuffle_mini_batch: false
   n_samples_per_prompt: 2
   rule_reward: true
@@ -108,6 +108,7 @@ generate_config:
   # vllm 模型相关设置
   max_num_seqs: 64
   max_model_len: 2000 # prompt_length + response_length
+  max_num_batched_tokens: 8192
   dtype: "bfloat16"
   gpu_memory_utilization: 0.8
 

@@ -54,12 +54,12 @@ bash examples/data/preprocess_data.sh orca_rlhf
 
 ## 启动训练
 
-以 Qwen3 30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_qwen3_30b_a3b.sh)的环境变量的配置：
+以 Qwen3 30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_trainer_qwen3_30b_a3b.sh)的环境变量的配置：
 1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
 2. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP；
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练
-bash examples/dpo/dpo_qwen3_30b_a3b.sh
+bash examples/dpo/dpo_trainer_qwen3_30b_a3b.sh
 ```
 
 ***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***

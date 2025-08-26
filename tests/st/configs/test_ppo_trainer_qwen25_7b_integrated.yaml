@@ -88,7 +88,7 @@ rl_config:
   epochs: 1
   clip_ratio: 0.2
   cliprange_value: 0.5
-  entropy_coeff: 0
+  entropy_coeff: 0.0
   shuffle_mini_batch: false
   n_samples_per_prompt: 2
   rule_reward: true

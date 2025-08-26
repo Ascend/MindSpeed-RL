@@ -69,7 +69,7 @@ class GenerateConfig(BaseConfig):
         # 模型的最大长度（以 token 为单位），默认为 2048
         self.max_model_len = 2048
 
-        self.max_num_batched_tokens = 2048
+        self.max_num_batched_tokens = 8192
 
         # 模型权重的数据类型，默认为 bfloat16
         self.dtype = "bfloat16"

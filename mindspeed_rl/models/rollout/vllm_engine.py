@@ -48,7 +48,7 @@ class VLLMInferEngine(BaseInferEngine):
             num_scheduler_steps: int = 1,
             max_num_seqs: int = 1,
             max_model_len: int = 2048,
-            max_num_batched_tokens: int = 2048,
+            max_num_batched_tokens: int = 8192,
             dtype: str = "bfloat16",
             gpu_memory_utilization: float = 0.5,
             trust_remote_code: bool = True,
@@ -348,7 +348,6 @@ class VLLMInferEngine(BaseInferEngine):
             outs = self._post_process_outputs(response)
         self.free_cache_engine()
         return outs
-
 
     @torch.no_grad()
     def async_generate_sequences(self, idx_list, indexes, stop_singal_func=None, **kwargs):

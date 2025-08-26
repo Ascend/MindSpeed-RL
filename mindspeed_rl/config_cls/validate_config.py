@@ -55,7 +55,7 @@ def validate_rl_args(
     if actor_config.context_parallel_size > 1 and actor_config.context_parallel_algo is not None:
         if actor_config.context_parallel_algo not in ["ulysses_cp_algo", "megatron_cp_algo"]:
             raise ValueError("Now just support ulysses CP and megatron cp(ring)")
-    if actor_config.cp_attention_mask_type not in ["causal"]:
+    if actor_config.attention_mask_type not in ["causal"]:
         raise ValueError("Now just support causal attention_mask_type")
     if actor_config.context_parallel_algo == "megatron_cp_algo" and actor_config.context_parallel_size > 1 and rl_config.use_remove_padding:
         if not actor_config.reset_attention_mask:

@@ -10,7 +10,6 @@ megatron_training:
   variable_seq_lengths: true
   tokenizer_not_use_fast: true
   dpo_loss_type: sigmoid
-
   # gpt_args:
   moe_grouped_gemm: true
   moe_permutation_async_comm: false

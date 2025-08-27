@@ -235,6 +235,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
         GRPO <br>
         DAPO <br>
         PPO <br>
+        DPO <br>
       </td>
       </td>
       <td> Preview</td>

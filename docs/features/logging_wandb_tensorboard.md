@@ -53,3 +53,6 @@ wandb可视化训练指标效果示例：
 ![ScreenShot_20250320113628](../../sources/images/logging/logging_2.PNG)
 
 ![ScreenShot_20250320113713](../../sources/images/logging/logging_3.PNG)
+
+注：
+>1.qwen3-30b dpo暂不支持TensorBoard，你可以使用WandB取代！

@@ -333,6 +333,7 @@ class TestActor():
             sampling_config=sampling_config,
             max_num_seqs=16,
             max_model_len=4096,
+            max_num_batched_tokens=8192,
             dtype="bfloat16",
             gpu_memory_utilization=0.6,
             trust_remote_code=True,

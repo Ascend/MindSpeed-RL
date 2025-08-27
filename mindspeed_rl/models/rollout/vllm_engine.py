@@ -48,7 +48,7 @@ class VLLMInferEngine(BaseInferEngine):
             num_scheduler_steps: int = 1,
             max_num_seqs: int = 1,
             max_model_len: int = 2048,
-            max_num_batched_tokens: int = 8192,
+            max_num_batched_tokens: int = 2048,
             dtype: str = "bfloat16",
             gpu_memory_utilization: float = 0.5,
             trust_remote_code: bool = True,

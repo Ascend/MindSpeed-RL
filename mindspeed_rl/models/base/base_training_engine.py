@@ -141,10 +141,16 @@ class BaseTrainingEngine(ABC):
         partitions = rearrange_micro_batches(seq_len_list, max_packing_token, dynamic_max_batch_size=dynamic_max_batch_size)
         batches = []
         for key, tensors in batch.items():
-            for batch_idx, partition in enumerate(partitions):
-                if batch_idx >= len(batches):
-                    batches.append({})
-                batches[batch_idx][key] = tensors[partition]
+            if isinstance(tensors, torch.Tensor):
+                for batch_idx, partition in enumerate(partitions):
+                    if batch_idx >= len(batches):
+                        batches.append({})
+                    batches[batch_idx][key] = tensors[partition]
+            elif isinstance(tensors, List):
+                for batch_idx, partition in enumerate(partitions):
+                    if batch_idx >= len(batches):
+                        batches.append({})
+                    batches[batch_idx][key] = torch.concat([tensors[p] for p in partition])
         return batches, partitions
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):

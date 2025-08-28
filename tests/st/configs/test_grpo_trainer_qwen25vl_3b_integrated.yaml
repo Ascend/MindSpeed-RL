@@ -65,7 +65,7 @@ rl_config:
   blocking: true
   gamma: 1.0
   lam: 0.95
-  use_dynamic_bsz: false
+  use_dynamic_bsz: true
   max_packing_token_size: [15000, 4000]
   actor_forward_micro_batch_size: 1
   ref_forward_micro_batch_size: 1

@@ -15,6 +15,18 @@ from mindspeed_rl.utils import get_tokenizer, Loggers, synchronize_time, seed_al
 logger = Loggers('train_dpo')
 
 
+def add_wandb_config(rl_config_dict, megatron_config):
+    if 'use_wandb' in rl_config_dict:
+        megatron_config.use_wandb = rl_config_dict['use_wandb']
+    if 'wandb_exp_name' in rl_config_dict:
+        megatron_config.wandb_exp_name = rl_config_dict['wandb_exp_name']
+    if 'wandb_project' in rl_config_dict:
+        megatron_config.wandb_project = rl_config_dict['wandb_project']
+    if 'wandb_save_dir' in rl_config_dict:
+        megatron_config.wandb_save_dir = rl_config_dict['wandb_save_dir']
+    return megatron_config
+
+
 def dpo_train():
     from megatron.core import parallel_state
     from megatron.core.utils import get_model_config
@@ -281,14 +293,18 @@ def model_provider_swap(self, pre_process, post_process):
 def separate_config_and_parse_args(config):
     model_config = config.model
     dpo_config = config.megatron_training
+    rl_config = config.get('rl_config', OmegaConf.create())
 
     OmegaConf.set_struct(model_config, False)
     OmegaConf.set_struct(dpo_config, False)
+    OmegaConf.set_struct(rl_config, False)
 
     dpo_config_dict = OmegaConf.to_container(dpo_config, resolve=True)
     model_config_dict = OmegaConf.to_container(model_config, resolve=True)
+    rl_config_dict = OmegaConf.to_container(rl_config, resolve=True)
 
     megatron_config = MegatronConfig(dpo_config_dict, model_config_dict)
+    megatron_config = add_wandb_config(rl_config_dict, megatron_config)
     return megatron_config
 
 

@@ -15,7 +15,8 @@ from mindspeed_rl.utils import get_tokenizer, Loggers, synchronize_time, seed_al
 logger = Loggers('train_dpo')
 
 
-def add_wandb_config(rl_config_dict, megatron_config):
+def add_config(rl_config_dict, profiler_config_dict, megatron_config):
+    # add wandb config
     if 'use_wandb' in rl_config_dict:
         megatron_config.use_wandb = rl_config_dict['use_wandb']
     if 'wandb_exp_name' in rl_config_dict:
@@ -24,6 +25,14 @@ def add_wandb_config(rl_config_dict, megatron_config):
         megatron_config.wandb_project = rl_config_dict['wandb_project']
     if 'wandb_save_dir' in rl_config_dict:
         megatron_config.wandb_save_dir = rl_config_dict['wandb_save_dir']
+
+    # add profile config
+    for key, value in profiler_config_dict.items():
+        if 'profile' in key:
+            setattr(megatron_config, key, value)
+        if key == 'profile_ranks' and value == 'all':
+            setattr(megatron_config, key, -1)
+
     return megatron_config
 
 
@@ -294,17 +303,20 @@ def separate_config_and_parse_args(config):
     model_config = config.model
     dpo_config = config.megatron_training
     rl_config = config.get('rl_config', OmegaConf.create())
+    profiler_config = config.get('profiler_config', OmegaConf.create()).get('integrated', OmegaConf.create())
 
     OmegaConf.set_struct(model_config, False)
     OmegaConf.set_struct(dpo_config, False)
     OmegaConf.set_struct(rl_config, False)
+    OmegaConf.set_struct(profiler_config, False)
 
     dpo_config_dict = OmegaConf.to_container(dpo_config, resolve=True)
     model_config_dict = OmegaConf.to_container(model_config, resolve=True)
     rl_config_dict = OmegaConf.to_container(rl_config, resolve=True)
+    profiler_config_dict = OmegaConf.to_container(profiler_config, resolve=True)
 
     megatron_config = MegatronConfig(dpo_config_dict, model_config_dict)
-    megatron_config = add_wandb_config(rl_config_dict, megatron_config)
+    megatron_config = add_config(rl_config_dict, profiler_config_dict, megatron_config)
     return megatron_config
 
 

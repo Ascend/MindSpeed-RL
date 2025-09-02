@@ -25,7 +25,7 @@ class BaseInferEngine(ABC):
             max_model_len: int = 2048,  # Default value set to 2048
             dtype: str = "bfloat16",  # Default value set to "bfloat16"
             gpu_memory_utilization: float = 0.5,  # Default value set to 0.5
-            trust_remote_code: bool = True,
+            trust_remote_code: bool = False,
             enable_expert_parallel: bool = False,
     ):
         """

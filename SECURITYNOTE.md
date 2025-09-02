@@ -50,6 +50,10 @@
 程序运行过程中，会通过nltk.load从用户指定的路径中加载语料库，需要保证网络安全，确保下载的语料包来源可信。
 
 
+## 远程代码执行安全声明
+系统默认启用远程代码执行功能(`trust_remote_code=true`)，该配置允许系统加载和运行自定义模型架构（如非官方模型结构、自定义算子等），根据模型配置从远程仓库下载并执行相关脚本，因此需要保证网络安全，并确保代码来源的可信性。建议优先使用官方或经过认证的模型，以降低潜在安全风险。
+
+
 ## 公开接口声明
 MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功能均通过shell脚本调用。入口脚本皆放置于cli目录下，分别为  train_grpo.py, train_orm.py, preprocess_data.py, convert_ckpt.py 和 infer_vllm.py。
 
@@ -80,5 +84,5 @@ MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功�
 | 用户将训练日志上传到wandb实现可视化|用户需要注册wandb账号，并开启`use_wandb`服务，系统将根据wandb login key将生成的日志同步到云端，利用WandB的强大功能实现可视化 | 随机端口 | 可能导致wandb login key以及训练日志泄露，以及日志传输过程中被篡改。 |
 | 调用`socket.socket`函数获取ip和端口|代码内部调用`socket.socket`函数，获取整网ip和端口 | 随机端口 | 可能导致整网ip和端口信息泄露。 |
 | 用户通过nltk.download下载语料库 | 用户在代码内部使用nltk.download来实现语料库的下载 | 随机端口 | 文件来源若不可信，在文件加载时可能存在反序列化漏洞，导致文件被篡改。 |
-
+| 用户启用远程代码执行时，transformers库自动执行远程模型仓库代码 | transformers库调用AutoTokenizer等类的`from_pretrained()`函数加载并执行远程模型仓库中的自定义代码（如.py文件）。| 随机端口 | 可能执行远程恶意代码，导致系统被入侵、数据泄露，甚至模型训练过程被完全掌控 |
 

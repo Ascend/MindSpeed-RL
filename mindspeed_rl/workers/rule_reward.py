@@ -15,13 +15,13 @@ logger = Loggers("rule_reward")
 @ray.remote
 class RuleReward(object):
 
-    def initialize(self, megatron_config, rl_config, tokenizer):
+    def initialize(self, megatron_config, rl_config, tokenizer, trust_remote_code=False):
         self.rl_config = rl_config
         self.megatron_config = megatron_config
         self.n_samples_per_prompt = rl_config.n_samples_per_prompt
         self.tokenizer = tokenizer
         self.hf_tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path,
-                                                          trust_remote_code=True)
+                                                          trust_remote_code=trust_remote_code)
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None):
         self.td = td

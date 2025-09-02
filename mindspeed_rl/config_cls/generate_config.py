@@ -52,7 +52,7 @@ class GenerateConfig(BaseConfig):
         # 设置 tokenizer 的名称或路径，默认指向一个示例路径，可根据实际情况修改
         self.tokenizer_name_or_path = "/path/to/tokenizer"
         # 是否信任远程代码，例如用于自定义 tokenizer，默认为 True
-        self.trust_remote_code = True
+        self.trust_remote_code = False
         
         # 推理时的张量并行大小，默认为 8
         self.infer_tensor_parallel_size = 8

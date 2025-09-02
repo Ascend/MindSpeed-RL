@@ -51,7 +51,7 @@ class VLLMInferEngine(BaseInferEngine):
             max_num_batched_tokens: int = 2048,
             dtype: str = "bfloat16",
             gpu_memory_utilization: float = 0.5,
-            trust_remote_code: bool = True,
+            trust_remote_code: bool = False,
             load_format: str = "megatron",
             enforce_eager: bool = False,
             torchair_graph: bool = False,

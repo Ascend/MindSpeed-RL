@@ -15,6 +15,8 @@ class GenerateConfig(BaseConfig):
     data_parallel_size: data parallel size for rollout (default: None)
     tokenizer_name_or_path: Path or name of the tokenizer. Default is "/path/to/tokenizer".
     trust_remote_code: Whether to trust remote code (e.g., for custom tokenizers). Default is True.
+    eplb_token_collects: Collect the number of tokens from each expert for EPLB.
+    eplb_token_save_path: Save path of the tokens-number of each expert.
 
     infer_tensor_parallel_size: Tensor parallel size during inference. Default is 8.
     infer_pipeline_parallel_size: Pipeline parallel size during inference. Default is 1.
@@ -30,6 +32,7 @@ class GenerateConfig(BaseConfig):
                    If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility.
     torchair_graph: Whether to enable TorchAir graph optimization. If True, uses accelerated computational graph optimizations.
     enable_expert_parallel: Whether to enable expert parallel computation for Mixture-of-Experts (MoE) layers.
+    expert_map_path: The path of expert_map in EPLB. When expert_map_path is None, the EPLB is used.
     sampling_config: Configuration for text generation sampling. Default values are set for various sampling parameters.
         - num_completions: The number of independent completions to generate for each input prompt. Default is 1.
         - logprobs: The number of top tokens to return log probabilities for. Default is 1.
@@ -53,6 +56,15 @@ class GenerateConfig(BaseConfig):
         self.tokenizer_name_or_path = "/path/to/tokenizer"
         # 是否信任远程代码，例如用于自定义 tokenizer，默认为 True
         self.trust_remote_code = False
+
+        # eplb
+        # token热度采集
+        self.eplb_token_collects = False
+        # token热度采集结果的保存路径
+        self.eplb_token_save_path = "./"
+        # eplb map table
+        self.expert_map_path = None
+
         
         # 推理时的张量并行大小，默认为 8
         self.infer_tensor_parallel_size = 8
@@ -85,6 +97,7 @@ class GenerateConfig(BaseConfig):
         self.enforce_eager = True
         self.torchair_graph = False
         self.enable_expert_parallel = False
+        self.chunked_prefill_for_mla = False
 
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {

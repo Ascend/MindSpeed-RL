@@ -55,9 +55,13 @@ class VLLMInferEngine(BaseInferEngine):
             load_format: str = "megatron",
             enforce_eager: bool = False,
             torchair_graph: bool = False,
+            chunked_prefill_for_mla: bool = False,
             limit_mm_image_per_prompt: int = 1,
             limit_mm_video_per_prompt: int = 0,
             enable_expert_parallel: bool = False,
+            expert_map_path: str = None,
+            eplb_token_collects: bool = False,
+            eplb_token_save_path: str = None,
             **kwargs
     ):
         """
@@ -82,6 +86,7 @@ class VLLMInferEngine(BaseInferEngine):
             trust_remote_code (bool): Whether to trust remote code (e.g., for custom tokenizers).
             **kwargs: Additional keyword arguments.
         """
+
         # Call the parent class's __init__ method
         super().__init__(
             tokenizer_name_or_path=tokenizer_name_or_path,
@@ -107,6 +112,11 @@ class VLLMInferEngine(BaseInferEngine):
         from vllm_ascend.patch import platform
         from vllm_ascend.patch import worker
         from mindspeed_rl.models.rollout.vllm_adapter import engine_core
+
+        # EPLB
+        from mindspeed_rl.models.rollout.vllm_adapter.fused_moe import set_EPLB_args
+        from mindspeed_rl.models.rollout.vllm_adapter import fused_moe
+        set_EPLB_args(eplb_token_collects, eplb_token_save_path)
 
         # Initialize sampling parameters from SamplingConfig
         self.sampling_config = sampling_config
@@ -193,13 +203,25 @@ class VLLMInferEngine(BaseInferEngine):
                     "graph_batch_sizes_init": False,
                     "graph_batch_sizes": graph_batch_sizes,
                 },
+                "chunked_prefill_for_mla": chunked_prefill_for_mla,
                 "ascend_scheduler_config": ascend_scheduler_config,
                 "refresh": True,
+                "expert_map_path": expert_map_path,
             }
         )
 
         self.engine = self.llm.llm_engine
         self.model = self.llm.llm_engine.model_executor.driver_worker.worker.model_runner.get_model()
+        # get eplb_map、global_redundant_expert_num、infer_local_num_experts（tensor）
+        if expert_map_path is not None:
+            self.fused_moe = self.model.model.layers[-1].mlp.experts
+            self.eplb_map = self.fused_moe.expert_load_balancer.expert_map_tensor
+            self.global_redundant_expert_num = self.fused_moe.global_redundant_expert_num
+            self.infer_local_num_experts = self.fused_moe.local_num_experts
+        else:
+            self.eplb_map = None
+            self.global_redundant_expert_num = 0
+            self.infer_local_num_experts = -1
 
         self.cpu_model = {}
         for name, params in self.model.named_parameters():
@@ -280,7 +302,7 @@ class VLLMInferEngine(BaseInferEngine):
 
     def sync_model_weights(self, params, load_format='megatron'):
         infer_parallel_config = InferParallelConfig(self.infer_tensor_parallel_size, self.infer_pipeline_parallel_size,
-                                                    self.infer_expert_parallel_size * self.infer_tensor_parallel_size)
+                                                    self.infer_expert_parallel_size * self.infer_tensor_parallel_size, self.infer_local_num_experts)
         load_megatron_weights(params,
                               self.model,
                               infer_parallel_config,

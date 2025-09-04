@@ -720,7 +720,11 @@ class ActorHybridWorkerBase(BaseWorker):
             trust_remote_code=self.generate_config.trust_remote_code,
             enforce_eager=self.generate_config.enforce_eager,
             torchair_graph=self.generate_config.torchair_graph,
+            chunked_prefill_for_mla=self.generate_config.chunked_prefill_for_mla,
             enable_expert_parallel=self.generate_config.enable_expert_parallel,
+            expert_map_path=self.generate_config.expert_map_path,
+            eplb_token_collects=self.generate_config.eplb_token_collects,
+            eplb_token_save_path=self.generate_config.eplb_token_save_path,
             max_num_batched_tokens=self.generate_config.max_num_batched_tokens,
             limit_mm_image_per_prompt=self.generate_config.limit_mm_image_per_prompt,
             limit_mm_video_per_prompt=self.generate_config.limit_mm_video_per_prompt

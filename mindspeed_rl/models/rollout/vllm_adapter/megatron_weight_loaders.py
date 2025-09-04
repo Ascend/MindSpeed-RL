@@ -9,10 +9,11 @@ from transformers.configuration_utils import PretrainedConfig
 
 
 class InferParallelConfig:
-    def __init__(self, infer_tensor_parallel_size: int, infer_pipeline_parallel_size: int, infer_expert_parallel_size: int):
+    def __init__(self, infer_tensor_parallel_size: int, infer_pipeline_parallel_size: int, infer_expert_parallel_size: int, infer_local_num_experts: int):
         self.infer_tensor_parallel_size = infer_tensor_parallel_size
         self.infer_pipeline_parallel_size = infer_pipeline_parallel_size
         self.infer_expert_parallel_size = infer_expert_parallel_size
+        self.infer_local_num_experts = infer_local_num_experts
 
 
 def load_megatron_weights(actor_weights: Dict, vllm_model: nn.Module,

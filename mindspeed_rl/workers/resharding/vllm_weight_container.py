@@ -49,7 +49,10 @@ class MegatronStyleVllmWeightContainer:
                  parallel_state=None,
                  weight_adaptor=None,
                  enable_validate=False,
-                 noop_layers=None) -> None:
+                 noop_layers=None,
+                 eplb_map=None,
+                 global_redundant_expert_num=0,
+                 infer_local_num_experts=-1,) -> None:
         """ Megatron style vllm weight container.
 
         Arguments:
@@ -71,11 +74,26 @@ class MegatronStyleVllmWeightContainer:
         self.megatron_model = megatron_model
         self.parallel_state = parallel_state
         self.weight_adaptor = weight_adaptor
-        self._num_hidden_layers = self.model_config.num_hidden_layers # 通过tokenier路径下的config.json获取hf的模型
+        # 通过tokenier路径下的config.json获取hf的模型
+        self._num_hidden_layers = self.model_config.num_hidden_layers 
         self._noop_layers = None
+        if hasattr(self.model_config, "first_k_dense_replace"):
+            self._first_k_dense = self.model_config.first_k_dense_replace
+        else:
+            self._first_k_dense = 0
+        #真正的moe层数
+        self._moe_layers = self._num_hidden_layers - self._first_k_dense  
         if noop_layers is not None:
             self._noop_layers = [int(layer_idx) for layer_idx in noop_layers.split(',')]
             self._num_hidden_layers += len(self._noop_layers)
+
+
+        # EPLB
+        self.eplb_map = eplb_map
+        self.global_redundant_expert_num = global_redundant_expert_num
+        self.infer_local_num_experts = infer_local_num_experts
+        self.per_rank_redundant_expert_num = self.global_redundant_expert_num // infer_expert_parallel_size
+        # self.global_redundant_expert_num总的冗余专家个数  self.infer_local_num_experts一个卡上的专家数（带冗余） 每张卡上的荣誉专家数
 
         # pp configs
         self._pp_rank = self.parallel_state.get_pipeline_model_parallel_rank()
@@ -115,6 +133,7 @@ class MegatronStyleVllmWeightContainer:
         self._infer_tp_size = infer_tensor_parallel_size
         self._infer_pp_size = infer_pipeline_parallel_size
         self._infer_ep_size = infer_expert_parallel_size
+        self._infer_ep_size_raw = infer_expert_parallel_size
         self.moe_tp_extend_ep = moe_tp_extend_ep
 
         # TODO: infer_expert_tensor_parallel_size and num_process is fixed.
@@ -175,13 +194,87 @@ class MegatronStyleVllmWeightContainer:
 
         # 执行_update_weight_buffers_ep+_send_receive_experts的前提条件
         if(self.moe_tp_extend_ep and self._infer_ep_size >= self._ep_size):
-            self._update_weight_buffers_ep()
-            self._send_receive_experts()
+
+            self._update_weight_buffers_ep() 
+            self._send_receive_experts() 
+
+            # 复用TP-EP建组部分
+            # 获得初始化映射表 eplb_map_initial
+            if self.eplb_map is not None:
+                tensor_model_parallel_size = self._infer_tp_size
+                expert_model_parallel_size = self._infer_ep_size_raw
+                tensor_and_expert_group_size = tensor_model_parallel_size * expert_model_parallel_size  
+                # npu数量，总专家数，一个卡上的专家数，专家层数
+                eplb_map_initial = self.create_initial_map(self._world_size, self.num_experts, int(self.num_experts / tensor_and_expert_group_size), self._moe_layers)
+                cur_rank = dist.get_rank()
+                eplb_map_initial = eplb_map_initial.to(self.eplb_map.device)
+                self._send_receive_redundancy_experts(eplb_map_initial, self.eplb_map, tensor_and_expert_group_size)
+
 
         params = self._get_all_params()
 
         params = _build_infer_param_dict(params=params)
         return params
+
+    def create_initial_map(self, world_size: int, num_experts: int, EP_group_num: int, moe_layer: int):
+        # 创建设备列表
+        eplb_map_initial = torch.zeros((moe_layer, world_size, EP_group_num), dtype=torch.int32)
+        # 计算每个设备的专家分配（所有层共享相同的分配）
+        per_device_experts = []
+        for device_id in range(world_size):
+            start_expert = (device_id * EP_group_num) % num_experts
+            experts = list(range(start_expert, start_expert + EP_group_num))
+            per_device_experts.append(experts)
+        for layer_idx in range(moe_layer):
+            for device_id in range(world_size):
+                # 将专家列表赋值到张量的相应位置
+                eplb_map_initial[layer_idx, device_id] = torch.tensor(per_device_experts[device_id], dtype=torch.int32)
+        return eplb_map_initial
+    
+    def _send_receive_redundancy_experts(self, eplb_map_initial, eplb_map, tensor_and_expert_group_size):
+        # 当前进程的 rank（全局编号），用于决定收发信息的节点。 作为目标节点
+        cur_rank = dist.get_rank()  
+        # 一个npu上有几个ep
+        ep_group = int(self.num_experts / tensor_and_expert_group_size)
+        
+        for layer_id in range(eplb_map.size(0)): 
+            for cur_pp_rank in range(self._pp_size):
+                for memory_buffer in self.weight_buffers[cur_pp_rank].memory_buffers.values():
+                    for name in sorted(memory_buffer.tensor_indices.keys()):
+                        op_list = []
+                        layer_id_replace = layer_id + self._first_k_dense
+                        # 筛选专家权重 
+                        if "mlp.experts" in name and f"layers.{layer_id_replace}." in name: 
+                            tensor_to_send = memory_buffer.get_by_name(name) 
+                            tensor_to_replace = torch.empty_like(tensor_to_send)
+                            ex_group_initial_rank = cur_rank // tensor_and_expert_group_size * tensor_and_expert_group_size  
+                            #======收=======
+                            for idx, target_expert in enumerate(eplb_map[layer_id, cur_rank, :]):
+                                # 前面这部分是目标节点所在tp-ep建组的第一个npu节点  该专家的源节点rank
+                                src_rank = ex_group_initial_rank + target_expert // ep_group  
+                                # 目标节点需要的专家 在源节点的位置
+                                src_idx = target_expert % ep_group  
+                                if src_rank == cur_rank:
+                                    # 同一个rank不需要通信，直接复制
+                                    tensor_to_replace[idx] = tensor_to_send[src_idx]
+                                else:
+                                    recv_op = dist.P2POp(dist.irecv, tensor_to_replace[idx], src_rank, tag=idx)
+                                    op_list.append(recv_op)
+                            #=======发======
+                            # 遍历所在建组，即所在通信组 
+                            for dst_rank in range(ex_group_initial_rank, ex_group_initial_rank + tensor_and_expert_group_size): 
+                                # 所在通信组的目标专家表
+                                for idx, target_expert in enumerate(eplb_map[layer_id, dst_rank, :]):
+                                    if target_expert in eplb_map_initial[layer_id, cur_rank, :]:
+                                        if dst_rank != cur_rank:
+                                            send_op = dist.P2POp(dist.isend, tensor_to_send[target_expert % ep_group], dst_rank, tag=idx)
+                                            op_list.append(send_op)
+                            # 通信
+                            if op_list:
+                                reqs = dist.batch_isend_irecv(op_list)
+                                for req in reqs:
+                                    req.wait()
+                            memory_buffer.copy_by_name(name, tensor_to_replace)
 
     def _build_num_layer_list(self, num_layer_list):
         if num_layer_list:
@@ -235,7 +328,8 @@ class MegatronStyleVllmWeightContainer:
         Build buffers from vllm state dict. Totally build train pp_size buffers, each buffer corresponds to a pack of megatron weight.
         Return a list of buffers, and a reference dict megatron_param_name->buffer.
         """
-        vllm_names = list(dict(self.vllm_model.named_parameters()).keys()) # 获取每个pp内部的weights name
+        # 获取每个pp内部的weights name
+        vllm_names = list(dict(self.vllm_model.named_parameters()).keys()) 
         if is_multimodal():
             layers_num = [sum(num_layer_list) for num_layer_list in self._num_layer_list]
         else:
@@ -403,6 +497,7 @@ class MegatronStyleVllmWeightContainer:
             self.weight_buffer_meta = self.weight_adaptor.get_weight_buffer_meta(self.vllm_model, combined_names_per_pp)
             self.experts_weight_buffer_meta = get_weight_buffer_meta_from_buffer(self.weight_buffer_meta)
             self.experts_memory_buffers = build_experts_memory_buffer(self.experts_weight_buffer_meta, self.experts_memory_expand_N)
+            expert_pernode = int(self.num_experts / self._infer_ep_size_raw / self._infer_tp_size)
 
             # Step2 将weights_buffer上对应的权重放到experts_buffer中
             if(cur_pp_rank == pp_rank):
@@ -424,7 +519,7 @@ class MegatronStyleVllmWeightContainer:
                     if((self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name):
                         megatron_param = megatron_params_dict[vpp_rank][megatron_name]
                         dtype = self.experts_weight_buffer_meta[hf_name]['dtype']
-                        self.experts_memory_buffers[dtype].copy_by_name(hf_name, megatron_param)
+                        self.experts_memory_buffers[dtype].copy_by_name_smallershape(hf_name, megatron_param, expert_pernode)
 
             # Step3 后续的操作可以复用
             global_src = dist.get_global_rank(group=self._pp_group, group_rank=cur_pp_rank)

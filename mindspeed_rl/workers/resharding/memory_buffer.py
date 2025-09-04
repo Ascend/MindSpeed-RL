@@ -61,6 +61,23 @@ class MemoryBuffer:
             raise RuntimeError(f"The shape of two tensor not match, The weight_name of the tensor is: {param_name}") from err
         buffer_tensor.copy_(param)
 
+    def copy_by_name_smallershape(self, param_name: str, param, expert_pernode):
+        buffer_tensor = self.get_by_name(param_name)
+        pp = buffer_tensor.shape[0]
+        param_part_num = param.numel() // pp
+        param_reshape = param.view(-1)
+        for index in range(pp):
+        # 取出前 expert_pernode 个通道
+            param_part = param_reshape[index * param_part_num:(index + 1) * param_part_num]
+            target_region = buffer_tensor[index, :expert_pernode, :, :]
+        # 检查是否连续
+            if not target_region.is_contiguous():
+                raise RuntimeError(f"Target region is not contiguous — cannot safely reshape without copying.")
+            # reshape 成 param 的形状
+            target_region = target_region.view(param_part.shape)
+            # 原地复制数据
+            target_region.copy_(param_part)
+
     def get_by_name(self, param_name: str):
         """
         Retrieve the original tensor view from the buffer based on the param_name.

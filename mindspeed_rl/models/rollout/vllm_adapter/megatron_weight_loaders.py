@@ -127,9 +127,15 @@ def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
         if name not in params_dict.keys():
             raise ValueError(f"unexpected key {name} in deepseek_megatron_weight_loader")
         if "mlp.experts.w13_weight" in name:
-            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
+            if infer_paralle_config.infer_local_num_experts == -1:
+                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
+            else:
+                loaded_weight.copy_(loaded_weight.view(infer_paralle_config.infer_local_num_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
         if "mlp.experts.w2_weight" in name:
-            loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
+            if infer_paralle_config.infer_local_num_experts == -1:
+                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
+            else:
+                loaded_weight.copy_(loaded_weight.view(infer_paralle_config.infer_local_num_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 

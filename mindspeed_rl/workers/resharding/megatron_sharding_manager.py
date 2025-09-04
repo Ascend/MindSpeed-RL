@@ -19,7 +19,6 @@ Megatron Sharding Mananger:
 Manager used to shard weight and offload/onload optimizer from training stage to inference stage
 """
 import os
-
 import vllm.distributed.parallel_state as ps
 
 from mindspeed_rl.utils.loggers import Loggers
@@ -88,7 +87,11 @@ class MegatronShardingManager:
             parallel_state=parallel_state,
             weight_adaptor=self.weight_adaptor,
             enable_validate=enable_validate,
-            noop_layers=noop_layers)
+            noop_layers=noop_layers,
+            eplb_map=self.inference_engine.eplb_map,
+            global_redundant_expert_num=self.inference_engine.global_redundant_expert_num,
+            infer_local_num_experts=self.inference_engine.infer_local_num_experts
+            )
 
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload

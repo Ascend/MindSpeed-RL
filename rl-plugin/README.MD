@@ -35,7 +35,19 @@ git checkout 8365f70e925
 pip install -e .
 ```
 
-## 2、安装 verl
+## 2、安装 MindSpeed 与 Megatron
+```bash
+# MindSpeed
+git clone https://gitee.com/ascend/MindSpeed.git
+cd MindSpeed
+pip install -e .
+cd ..
+
+# Megatron
+pip install git+https://github.com/NVIDIA/Megatron-LM.git@core_v0.12.1
+```
+
+## 3、安装 verl
 ```bash
 git clone https://github.com/volcengine/verl.git
 cd verl
@@ -44,12 +56,13 @@ pip install -e .
 cd ..
 ```
 
-## 3、安装插件
+## 4、安装插件
 ```bash
 # 请确保 vllm 已正确安装并且之后不会做覆盖
 git clone https://gitee.com/ascend/MindSpeed-RL.git
 cd MindSpeed-RL/rl-plugin
 pip install -v -e .
+cd ../..
 ```
 
 **注意**：安装插件前需要保证verl源码安装，否则插件不能生效。如果无法源码安装verl，需要指定verl源码路径：
@@ -60,5 +73,8 @@ VERL_PATH=path_to_verl pip install -e .
 
 # 启动训练
 
-安装成功后，参考verl正常运行模型即可
+安装成功后，将 `MindSpeed-RL/tests/verl_examples` 下提供的参考配置脚本放入 verl 目录下，具体为：
 
+`configs` 目录提供具体模型及算法配置
+
+`dapo`及`grpo`目录提供与 `configs` 对应的执行脚本，运行时配置好该脚本中的 `DEFAULT_SH` 即可拉起

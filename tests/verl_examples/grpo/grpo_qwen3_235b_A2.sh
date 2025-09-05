@@ -5,22 +5,19 @@ export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1
 #TASK_QUEUE_ENABLE，下发优化，图模式设置为1，非图模式设置为2
 export TASK_QUEUE_ENABLE=2
-export VLLM_USE_V1=1
-export HCCL_OP_EXPANSION_MODE="AIV"
-export VLLM_ASCEND_ENABLE_FLASHCOMM=1
 export HCCL_ASYNC_ERROR_HANDLING=0
 export HCCL_EXEC_TIMEOUT=3600
 export HCCL_CONNECT_TIMEOUT=3600
 
 #修改为当前需要跑的用例路径
-DEFAULT_YAML="recipe/dapo/test_dapo_qwen3_32b_fsdp2.sh"
-echo "Use $DEFAULT_YAML"
+DEFAULT_SH="./test_grpo_qwen3_235b_A2.sh"
+echo "Use $DEFAULT_SH"
 
 ulimit -n 32768
 mkdir logs
 
-NNODES=1
-NPUS_PER_NODE=16
+NNODES=16
+NPUS_PER_NODE=8
 #修改为对应主节点IP
 MASTER_ADDR="IP FOR MASTER NODE"
 #修改为当前节点的通信网卡

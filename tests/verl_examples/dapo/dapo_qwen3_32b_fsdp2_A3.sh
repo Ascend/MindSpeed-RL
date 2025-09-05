@@ -10,8 +10,8 @@ export HCCL_EXEC_TIMEOUT=3600
 export HCCL_CONNECT_TIMEOUT=3600
 
 #修改为当前需要跑的用例路径
-DEFAULT_YAML="recipe/dapo/test_dapo_qwen3_32b_fsdp2.sh"
-echo "Use $DEFAULT_YAML"
+DEFAULT_SH="./test_dapo_qwen3_32b_fsdp2_A3.sh"
+echo "Use $DEFAULT_SH"
 
 ulimit -n 32768
 mkdir logs

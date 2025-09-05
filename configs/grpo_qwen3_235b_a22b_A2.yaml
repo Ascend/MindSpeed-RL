@@ -105,7 +105,7 @@ generate_config:
   # vllm 模型相关设置
   max_num_seqs: 64
   max_model_len: 16384
-  max_num_batched_tokens: 8192
+  max_num_batched_tokens: 16384
   dtype: "bfloat16"
   gpu_memory_utilization: 0.85
   enable_prefix_caching: true

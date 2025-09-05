@@ -3,7 +3,7 @@ import ray
 import numpy as np
 
 from mindspeed_rl.utils.loggers import Loggers
-from mindspeed_rl.utils.utils import get_current_dp_range_indexes, extract_from_dict
+from mindspeed_rl.utils.utils import get_current_dp_range_indexes, extract_from_dict, is_multimodal
 from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, padding_dict_to_tensor_dict
 
 logger = Loggers("DynamicSampling")
@@ -18,9 +18,11 @@ class DynamicSampling(object):
         self.global_batch_size = megatron_config.global_batch_size
         self.guarantee_order = rl_config.guarantee_order
 
-    def init_transfer_dock(self, td, sampling_transfer_dock):
+    def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
         self.td = td
+        self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
+        self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def dynamic_sampling(self):
         experience_consumer_stage = 'dynamic_sampling'
@@ -59,4 +61,9 @@ class DynamicSampling(object):
                     experience_data = extract_from_dict(batch_data, kept_idx_list)
                     experience_data = padding_dict_to_tensor_dict(experience_data)
                     ray.get(self.td.put_experience.remote(experience_data, index_list))
+                    if is_multimodal():
+                        mm_columns = ray.get(self.mm_sampling_transfer_dock.get_columns.remote(experience_consumer_stage))
+                        batch_mm_data = ray.get(self.mm_sampling_transfer_dock.get_experience_dict.remote(mm_columns, kept_idx_list, False))
+                        mm_index_list = [i // self.n_samples_per_prompt for i in index_list]
+                        ray.get(self.mm_td.put_experience.remote(batch_mm_data, mm_index_list))
 

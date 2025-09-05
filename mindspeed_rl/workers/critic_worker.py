@@ -114,10 +114,11 @@ class CriticWorkerBase(BaseWorker):
         self.critic_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
         MsProbe.config_init(self.msprobe_config)
 
-    def init_transfer_dock(self, td, mm_td, sampling_transfer_dock=None):
+    def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
+        self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def get_iteration(self):
         return self.args.iteration

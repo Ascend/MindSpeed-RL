@@ -8,12 +8,13 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.dynamic_sampling import DynamicSampling
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
+from mindspeed_rl.trainer.utils import MMGRPOTransferDock
 from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_dapo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.metrics import Metric
-from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
+from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort, is_multimodal
 
 
 class RayDAPOTrainer(RayBaseTrainer):
@@ -87,6 +88,8 @@ class RayDAPOTrainer(RayBaseTrainer):
 
         self.transfer_dock = None
         self.sampling_transfer_dock = None
+        self.mm_transfer_dock = None
+        self.mm_sampling_transfer_dock = None
         self.metrics = Metric()
         self.kwargs = kwargs
         self.should_filter = self.kwargs['filter_groups_enable']
@@ -121,24 +124,28 @@ class RayDAPOTrainer(RayBaseTrainer):
                                                                   metrics=self.metrics,
                                                                   addition_columns=self.addition_columns,
                                                                   addition_consumers=self.addition_consumers)
+            if is_multimodal():
+                self.mm_transfer_dock = MMGRPOTransferDock.remote(self.max_num_prompt_in_batch, self.n_samples_per_prompt)
+                self.mm_sampling_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
             for sampling in self.dynamic_sampling_list:
-                sampling.init_transfer_dock.remote(self.transfer_dock,
-                                                   sampling_transfer_dock=self.sampling_transfer_dock)
+                sampling.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
         else:
             self.transfer_dock = GRPOTransferDock.remote(self.td_max_len, self.n_samples_per_prompt,
                                                          max_age=self.partial_rollout_max_split,
                                                          GBS_train=self.global_batch_size,
                                                          metrics=self.metrics, addition_columns=self.addition_columns,
                                                          addition_consumers=self.addition_consumers)
+            if is_multimodal():
+                self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
 
-        self.actor_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+        self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
         if self.ref_worker:
-            self.ref_worker.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+            self.ref_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
         for reward in self.reward_list:
             if hasattr(reward, 'sync_init_transfer_dock'):
-                reward.sync_init_transfer_dock(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+                reward.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
             else:
-                reward.init_transfer_dock.remote(self.transfer_dock, sampling_transfer_dock=self.sampling_transfer_dock)
+                reward.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
         if self.should_filter:
@@ -155,10 +162,16 @@ class RayDAPOTrainer(RayBaseTrainer):
             ray.get(self.sampling_transfer_dock.clear.remote(consumer='dynamic_sampling'))
             index_list = ray.get(self.sampling_transfer_dock.prefetch_request_index.remote(data_num))
             if index_list:
+                if is_multimodal():
+                    ray.get(self.mm_sampling_transfer_dock.clear.remote())
+                    ray.get(self.mm_sampling_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
                 batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys,
                                                         indexes=index_list, add_another_batch=add_another_batch)
                 ray.get(self.sampling_transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
         else:
+            if is_multimodal():
+                ray.get(self.mm_transfer_dock.clear.remote())
+                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
             batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys,
                                                     add_another_batch=add_another_batch)
             ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))

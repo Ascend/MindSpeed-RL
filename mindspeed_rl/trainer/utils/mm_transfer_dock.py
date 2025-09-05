@@ -43,6 +43,7 @@ class MMGRPOTransferDock(TransferDock):
         self.n_samples_per_prompt = n_samples_per_prompt
         self.consumer_columns = {
             "actor_rollout": ["image", "image_shape", "image_num", "video", "video_shape", "video_fps", "video_num"],
+            "dynamic_sampling": ["pixel_values", "image_grid_thw", "image_num", "video_num"],
             "actor_log_prob": ["pixel_values", "image_grid_thw", "image_num", "video_num"],
             "ref_log_prob": ["pixel_values", "image_grid_thw", "image_num", "video_num"],
             "actor_train": ["pixel_values", "image_grid_thw", "image_num", "video_num"],
@@ -96,6 +97,39 @@ class MMGRPOTransferDock(TransferDock):
                 experience.append(list(itemgetter(*indexes)(self.experience_data[single_column])))
 
         return trans_mm_experience_to_output(experience, experience_columns)
+
+    def get_experience_dict(
+            self,
+            experience_columns: List[str],
+            indexes: List[int] = None,
+            get_n_samples: bool = True,
+    ):
+        """Get multimodal experience data from GRPOTransferDock.
+
+        Args:
+            experience_columns: Columns from which to get data.
+            indexes: Rows from which to get data.
+
+        Returns: Data dict.
+
+        """
+        if indexes is None:
+            return {}
+
+        if get_n_samples:
+            indexes = indexes[::self.n_samples_per_prompt]
+
+        indexes = [i // self.n_samples_per_prompt for i in indexes]
+        experience = []
+        for single_column in experience_columns:
+            if len(indexes) == 1:
+                experience.append([self.experience_data[single_column][indexes[0]]])
+            else:
+                experience.append(list(itemgetter(*indexes)(self.experience_data[single_column])))
+        result = {}
+        for i, columns in enumerate(experience_columns):
+            result[columns] = experience[i]
+        return result
 
     def put_experience(
             self,

@@ -3,7 +3,7 @@ import ray
 from transformers import AutoTokenizer
 import torch
 
-from mindspeed_rl.models.rule_verifier import compute_verifier_score, math_compute_score
+from mindspeed_rl.models.rule_verifier import compute_verifier_score, math_compute_score, math_acc_reward
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, padding_dict_to_tensor_dict
@@ -23,10 +23,11 @@ class RuleReward(object):
         self.hf_tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path,
                                                           trust_remote_code=trust_remote_code)
 
-    def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None):
+    def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
+        self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def compute_rm_score(self):
         experience_consumer_stage = 'rule_reward'
@@ -85,8 +86,9 @@ class RuleReward(object):
                     output = padding_dict_to_tensor_dict(output)
                     cur_td.put_experience.remote(data_dict=output, indexes=index)
                 else:
-                    mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
-                    batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index))
+                    mm_cur_td = self.mm_sampling_transfer_dock if self.mm_sampling_transfer_dock else self.mm_td
+                    mm_columns = ray.get(mm_cur_td.get_columns.remote(experience_consumer_stage))
+                    batch_mm_data = ray.get(mm_cur_td.get_experience.remote(mm_columns, index))
                     batch_data.update(batch_mm_data)
 
                     reward_tensor = torch.zeros((batch_data['responses'].size(0), 1), dtype=torch.float32)
@@ -98,9 +100,12 @@ class RuleReward(object):
                         for label in batch_data['labels']:
                             labels.append(label)
 
+                    metrics_score = []
                     for i, (response_str, label) in enumerate(zip(response_strs, labels)):
                         token_level_rewards = math_compute_score(response_str, label)
                         reward_tensor[i, 0] = token_level_rewards
+                        metrics_score.append(int(math_acc_reward(response_str, label)))
+                    metrics = {"acc_for_dapo_rewards/mean": metrics_score}
                     rm_scores = reward_tensor
                     reward_tensor_reshaped = reward_tensor.reshape(-1, self.n_samples_per_prompt)
                     reward_mean = reward_tensor_reshaped.mean(dim=1, keepdim=True)
@@ -108,5 +113,10 @@ class RuleReward(object):
                     reward_tensor_normalized = (reward_tensor_reshaped - reward_mean) / reward_std
                     reward_tensor = reward_tensor_normalized.reshape(original_shape)
                     output = {"rm_scores": rm_scores, "token_level_rewards": reward_tensor}
+                    if self.rl_config.filter_groups_enable:
+                        metric = torch.tensor(metrics[self.rl_config.filter_groups_metric], dtype=torch.float32,
+                                            device=rm_scores.device)
+                        metric = metric.reshape(rm_scores.shape)
+                        output["metric_for_dapo"] = metric
                     output = padding_dict_to_tensor_dict(output)
-                    self.td.put_experience.remote(data_dict=output, indexes=index)
+                    cur_td.put_experience.remote(data_dict=output, indexes=index)

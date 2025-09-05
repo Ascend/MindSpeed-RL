@@ -258,9 +258,9 @@ class RayActorGroup:
         for actor in self.actor_handlers:
             self.temp_actor_ref_objs.append(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock))
 
-    def sync_init_transfer_dock(self, transfer_dock, mm_transfer_dock=None, sampling_transfer_dock=None):
+    def sync_init_transfer_dock(self, transfer_dock, mm_transfer_dock=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
         for actor in self.actor_handlers:
-            ray.get(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock, sampling_transfer_dock))
+            ray.get(actor.init_transfer_dock.remote(transfer_dock, mm_transfer_dock, sampling_transfer_dock, mm_sampling_transfer_dock))
 
     def enter_infer_mode(self, blocking=False):
         for actor in self.actor_handlers:

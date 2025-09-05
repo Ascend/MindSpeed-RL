@@ -453,7 +453,10 @@ class BaseWorker(BaseRayWorker, ABC):
             client = self.zmq_client if self.zmq_client is not None else None
 
         if is_multimodal():
-            mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
+            if self.sampling_transfer_dock and is_generate:
+                mm_columns = ray.get(self.mm_sampling_transfer_dock.get_columns.remote(experience_consumer_stage))
+            else:
+                mm_columns = ray.get(self.mm_td.get_columns.remote(experience_consumer_stage))
         else:
             mm_columns = []
 
@@ -482,7 +485,11 @@ class BaseWorker(BaseRayWorker, ABC):
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
-                batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples))
+                if self.sampling_transfer_dock and is_generate:
+                    batch_mm_data = ray.get(self.mm_sampling_transfer_dock.get_experience.remote(mm_columns, index,
+                                                                                                 get_n_samples))
+                else:
+                    batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples))
 
             if not index:
                 index = [-1] * experience_count
@@ -678,11 +685,21 @@ class BaseWorker(BaseRayWorker, ABC):
                     ray.get(self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index))
                 else:
                     self.sampling_transfer_dock.put_experience.remote(data_dict=output, indexes=index)
+                if is_multimodal():
+                    if sync:
+                        ray.get(self.mm_sampling_transfer_dock.put_experience.remote(batch=output, indexes=index))
+                    else:
+                        self.mm_sampling_transfer_dock.put_experience.remote(batch=output, indexes=index)
             else:
                 if sync:
                     ray.get(self.td.put_experience.remote(data_dict=output, indexes=index))
                 else:
                     self.td.put_experience.remote(data_dict=output, indexes=index)
+                if is_multimodal():
+                    if sync:
+                        ray.get(self.mm_td.put_experience.remote(batch=output, indexes=index))
+                    else:
+                        self.mm_td.put_experience.remote(batch=output, indexes=index)
 
     @mstx_timer_decorator
     def collect_transfer_dock_mm_data(self, output, index, use_vllm=False):

@@ -32,6 +32,7 @@ class GenerateConfig(BaseConfig):
                    If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility.
     torchair_graph: Whether to enable TorchAir graph optimization. If True, uses accelerated computational graph optimizations.
     enable_expert_parallel: Whether to enable expert parallel computation for Mixture-of-Experts (MoE) layers.
+    ascend_scheduler_config_enabled: Whether to enable ascend scheduler config.
     expert_map_path: The path of expert_map in EPLB. When expert_map_path is None, the EPLB is used.
     sampling_config: Configuration for text generation sampling. Default values are set for various sampling parameters.
         - num_completions: The number of independent completions to generate for each input prompt. Default is 1.
@@ -97,7 +98,7 @@ class GenerateConfig(BaseConfig):
         self.enforce_eager = True
         self.torchair_graph = False
         self.enable_expert_parallel = False
-        self.chunked_prefill_for_mla = False
+        self.ascend_scheduler_config_enabled = True
 
         # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {

@@ -55,7 +55,7 @@ class VLLMInferEngine(BaseInferEngine):
             load_format: str = "megatron",
             enforce_eager: bool = False,
             torchair_graph: bool = False,
-            chunked_prefill_for_mla: bool = False,
+            ascend_scheduler_config_enabled: bool = True,
             limit_mm_image_per_prompt: int = 1,
             limit_mm_video_per_prompt: int = 0,
             enable_expert_parallel: bool = False,
@@ -167,7 +167,7 @@ class VLLMInferEngine(BaseInferEngine):
             update_megatron_weight_loader()
 
         limit_mm_per_prompt_dict = {}
-        ascend_scheduler_config = {"enabled": True}
+        ascend_scheduler_config = {"enabled": ascend_scheduler_config_enabled}
         graph_batch_sizes = [max_num_seqs] if torchair_graph else []
         if is_multimodal():
             if limit_mm_image_per_prompt > 0:
@@ -203,7 +203,6 @@ class VLLMInferEngine(BaseInferEngine):
                     "graph_batch_sizes_init": False,
                     "graph_batch_sizes": graph_batch_sizes,
                 },
-                "chunked_prefill_for_mla": chunked_prefill_for_mla,
                 "ascend_scheduler_config": ascend_scheduler_config,
                 "refresh": True,
                 "expert_map_path": expert_map_path,

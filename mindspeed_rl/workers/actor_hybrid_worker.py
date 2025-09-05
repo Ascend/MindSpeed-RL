@@ -720,7 +720,7 @@ class ActorHybridWorkerBase(BaseWorker):
             trust_remote_code=self.generate_config.trust_remote_code,
             enforce_eager=self.generate_config.enforce_eager,
             torchair_graph=self.generate_config.torchair_graph,
-            chunked_prefill_for_mla=self.generate_config.chunked_prefill_for_mla,
+            ascend_scheduler_config_enabled=self.generate_config.ascend_scheduler_config_enabled,
             enable_expert_parallel=self.generate_config.enable_expert_parallel,
             expert_map_path=self.generate_config.expert_map_path,
             eplb_token_collects=self.generate_config.eplb_token_collects,

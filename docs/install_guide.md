@@ -120,8 +120,8 @@ sudo apt install libjemalloc2
 ```
 在启动任务前执行如下命令通过环境变量导入jemalloc：
 ```shell
-# arm64架构
-export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+# arm64架构(可通过 find /usr -name libjemalloc.so.2 确认文件是否存在) 
+export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 # x86_64架构
 export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 ```
@@ -143,8 +143,8 @@ make install
 ```
 在启动任务前执行如下命令通过环境变量导入jemalloc：
 ```shell
-#根据实际安装路径设置环境变量，例如安装路径为:/usr/local/lib/libjemalloc.so.2,可通过以下命令来设置环境变量
-export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+#根据实际安装路径设置环境变量，例如安装路径为:/usr/local/lib/libjemalloc.so.2,可通过以下命令来设置环境变量(可通过 find /usr -name libjemalloc.so.2 确认文件是否存在)
+export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 ```
 
 > 如以上安装过程出现错误，可以通过提出issue获得更多解决建议。

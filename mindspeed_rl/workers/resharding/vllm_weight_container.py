@@ -117,7 +117,7 @@ class MegatronStyleVllmWeightContainer:
         self._ep_size = self.parallel_state.get_expert_model_parallel_world_size()
 
         if moe_tp_extend_ep:
-            self._ep_group = self.parallel_state.get_expert_tensor_parallel_group()
+            self._ep_group = self.parallel_state.get_tensor_and_expert_parallel_group()
             self._ep_size = self._tp_size * self._ep_size
         else:
             self._ep_group = self.parallel_state.get_expert_model_parallel_group()

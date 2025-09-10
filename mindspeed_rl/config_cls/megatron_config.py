@@ -34,8 +34,8 @@ class MegatronConfig(BaseConfig):
     high_freq_factor: High frequency factor (default: None)
     original_max_position_embeddings: Original maximum position embeddings (default: None)
     max_position_embeddings: Maximum position embeddings (default: None)
-    beta_fast: Yarn rope: rope beta fast (default: 32)
-    beta_slow: Yarn rope: rope beta slow (default: 1)
+    rope_scaling_beta_fast: Yarn rope: rope beta fast (default: 32)
+    rope_scaling_beta_slow: Yarn rope: rope beta slow (default: 1)
     rope_scaling_mscale: Yarn rope: rope mscale (default: 1.0)
     rope_scaling_mscale_all_dim: Yarn rope: rope mscale all dim (default: 0.0)
     rope_scaling_original_max_position_embeddings: Yarn rope: rope original max position embeddings (default: None)
@@ -65,9 +65,9 @@ class MegatronConfig(BaseConfig):
     bf16: Whether to use BF16 precision (default: False)
     untie_embeddings_and_output_weights: Untie embeddings and output weights (default: False)
 
-    multi_latent_attention: Use Multi-head Latent Attention(MLA) (default: False)
-    qk_pos_emb_head_dim: The qk head dim for rope (default: None)
-    qk_head_dim: The qk head dim for only self-attn (default: None)
+    multi_head_latent_attention: Use Multi-head Latent Attention(MLA) (default: False)
+    qk_rope_head_dim: The qk head dim for rope (default: None)
+    qk_nope_head_dim: The qk head dim for only self-attn (default: None)
     q_lora_rank: The low rank of q (default: None)
     kv_lora_rank: The low rank of k and v (default: None)
     v_head_dim: The head dim of v (default: None)
@@ -83,10 +83,10 @@ class MegatronConfig(BaseConfig):
     moe_router_topk: Number of experts to route to for each token (default: 2)
     num_experts: Number of Experts in MoE (None means no MoE) (default: None)
     n_shared_experts: This value is the number of shared experts (default: None)
-    moe_ffn_hidden_size: The ffn hidden size of MoE layer (default: None)
-    moe_router_load_balancing_type: Determines the load balancing strategy for the router (default: aux_loss)
-    moe_router_num_groups: Number of groups for routed experts (default: None)
-    moe_router_group_topk: Choose topK group experts in group_limited_greedy_topK method (default: None)
+    moe_intermediate_size: The ffn hidden size of MoE layer (default: None)
+    n_group: Number of groups for routed experts (default: None)
+    topk_group: Choose topK group experts in group_limited_greedy_topK method (default: None)
+    routed_scaling_factor: The routed scaling factor (default: None)
     moe_router_topk_scaling_factor: The routed scaling factor (default: None)
     norm_topk_prob: Normalize the topk weight (default: False)
     moe_router_score_function: Score function for MoE TopK routing. Can be 'softmax' or 'sigmoid' (default: softmax)
@@ -201,8 +201,8 @@ class MegatronConfig(BaseConfig):
     reuse_fp32_param: The distributed training optimizer frees up 'param copies of FP32 to save memory. (default: False)
     moe_tp_extend_ep: use tp group to extend experts parallelism instead of sharding weight tensor of experts in tp group
     moe_alltoall_overlap_comm: moe_alltoall_overlap_comm
-    noop_layers:  noop layers string ，PP切分时，层不够加的冗余层
-    attention_mask_type: attention mask type in cp
+    noop_layers:  noop layers string
+    cp_attention_mask_type: attention mask type in cp
     reset_attention_mask: reset attention_mask in cp
     use_cp_send_recv_overlap: To support send receive overlap in cp, suggest to be true
     use_fused_ring_attention_update:  use fused_ring_attention_update in cp, suggest to be true
@@ -235,8 +235,8 @@ class MegatronConfig(BaseConfig):
         self.high_freq_factor = None
         self.original_max_position_embeddings = None
         self.max_position_embeddings = None
-        self.beta_fast = 32
-        self.beta_slow = 1
+        self.rope_scaling_beta_fast = 32
+        self.rope_scaling_beta_slow = 1
         self.rope_scaling_mscale = 1.0
         self.rope_scaling_mscale_all_dim = 0.0
         self.rope_scaling_original_max_position_embeddings = None
@@ -250,9 +250,9 @@ class MegatronConfig(BaseConfig):
         self.num_query_groups = 1
         self.untie_embeddings_and_output_weights = False
 
-        self.multi_latent_attention = False
-        self.qk_pos_emb_head_dim = None
-        self.qk_head_dim = None
+        self.multi_head_latent_attention = False
+        self.qk_rope_head_dim = None
+        self.qk_nope_head_dim = None
         self.q_lora_rank = None
         self.kv_lora_rank = None
         self.v_head_dim = None
@@ -270,11 +270,11 @@ class MegatronConfig(BaseConfig):
         self.moe_router_topk = 2
         self.num_experts = None
         self.n_shared_experts = None
-        self.moe_ffn_hidden_size = None
+        self.moe_intermediate_size = None
         self.moe_router_load_balancing_type = 'aux_loss'
-        self.moe_router_num_groups = None
-        self.moe_router_group_topk = None
-        self.moe_router_topk_scaling_factor = None
+        self.n_group = None
+        self.topk_group = None
+        self.routed_scaling_factor = None
         self.norm_topk_prob = False
         self.moe_router_score_function = 'softmax'
         self.moe_router_enable_expert_bias = False
@@ -370,13 +370,13 @@ class MegatronConfig(BaseConfig):
         self.recompute_num_layers = None
         self.num_layer_list = None
         self.dataset_additional_keys = []
-        self.npu_deterministic = False
+        self.use_deter_comp = False
         self.overlap_param_gather = False
         self.recompute_activation_function = False
         self.swap_attention = False
         self.ai_framework = None
         self.noop_layers = None
-        self.attention_mask_type = 'causal'
+        self.cp_attention_mask_type = 'causal'
         self.reset_attention_mask = False
         self.use_cp_send_recv_overlap = False
         self.use_fused_ring_attention_update = False

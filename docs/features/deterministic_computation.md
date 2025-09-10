@@ -54,7 +54,7 @@
     使能方法，在megatron_training参数中加入
 
     ```
-    npu_deterministic: true
+    use_deter_comp: true
     ```
 
     注：DPO算法场景下还需要在[DPO启动脚本](../../examples/dpo/dpo_qwen3_30b_a3b.sh)中加入环境变量开关 `export HCCL_DETERMINISTIC=True`

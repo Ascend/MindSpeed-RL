@@ -59,7 +59,7 @@ actor_config:
   no_load_rng: false
   context_parallel_size: 2
   context_parallel_algo: megatron_cp_algo
-  attention_mask_type: causal
+  cp_attention_mask_type: causal
 
 rl_config:
   blocking: true

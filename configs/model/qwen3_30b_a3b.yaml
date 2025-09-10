@@ -22,10 +22,10 @@ qwen3_30b_a3b:
   num_experts: 128
   moe_router_topk: 8
   moe_router_load_balancing_type: aux_loss
-  moe_ffn_hidden_size: 768
+  moe_intermediate_size: 768
   moe_grouped_gemm: true
   moe_permutation_async_comm: true
-  moe_token_dispatcher_type: alltoall_seq
+  moe_token_dispatcher_type: alltoall
   moe_aux_loss_coeff: 0.001
 
   kv_channels: 128

@@ -109,8 +109,7 @@ def train(config):
             ).initialize()
 
             reward_list.append(reward_worker)
-            
-    actor_config.max_prompt_length = rl_config.max_prompt_length
+       
     num_process = get_node_nums()
     if rl_config.rule_reward:
         pg = placement_group(
@@ -216,6 +215,7 @@ def parse_training_config(config: Dict):
             role="integrated"
         ),
     })
+    actor_config.max_prompt_length = rl_config.max_prompt_length
 
     msprobe_config = MsprobeConfig(
             config.get("msprobe_config", {}),
@@ -242,7 +242,7 @@ def get_megatron_module():
     from megatron.training import get_args
     from megatron.core.pipeline_parallel import get_forward_backward_func
     from megatron.core import DistributedDataParallel as LocalDDP
-    from megatron.core.transformer.module import Float16Module
+    from megatron.legacy.model import Float16Module
     from megatron.training.training import get_model, unwrap_model
     from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
     from megatron.core.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
@@ -385,8 +385,6 @@ def initialize_megatron(
         ignore_unknown_args=False,
         allow_no_cuda=False,
         skip_mpu_initialization=False,
-        get_embedding_ranks=None,
-        get_position_embedding_ranks=None,
         config=None,
 ):
     """Set global variables, initialize distributed, and
@@ -407,7 +405,8 @@ def initialize_megatron(
     from mindspeed_llm.training.arguments import parse_args_decorator
     import megatron
 
-    args = megatron.training.arguments.parse_args()
+    parse_args = parse_args_decorator(megatron.training.arguments.parse_args)
+    args = parse_args(extra_args_provider, ignore_unknown_args)
     sys.argv = origin_sys_argv
 
     if not allow_no_cuda:
@@ -432,7 +431,7 @@ def initialize_megatron(
 
     set_global_variables(args)
 
-    if args.npu_deterministic:
+    if args.use_deter_comp:
         seed_all(args.seed)
         logger.info("deterministic computing is applied for npu.")
 
@@ -440,14 +439,12 @@ def initialize_megatron(
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
-        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
+        _initialize_distributed()
 
         # Random seeds for reproducibility.
         if args.rank == 0:
             logger.info("> setting random seeds to {} ...".format(args.seed))
         _set_random_seed(args.seed, args.data_parallel_random_init)
-        if args.use_ascend_mc2:
-            initialize_cfg_from_args(args)
 
     if skip_mpu_initialization:
         return None
@@ -479,7 +476,7 @@ def initialize_megatron(
         return None
 
 
-def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
+def _initialize_distributed():
     """Initialize torch.distributed and core model parallel."""
     from megatron.core import parallel_state
     from megatron.training import get_args
@@ -526,20 +523,11 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
                 args.pipeline_model_parallel_size,
                 args.virtual_pipeline_model_parallel_size,
                 args.pipeline_model_parallel_split_rank,
-                pipeline_model_parallel_comm_backend=args.pipeline_model_parallel_comm_backend,
                 context_parallel_size=args.context_parallel_size,
-                hierarchical_context_parallel_sizes=args.hierarchical_context_parallel_sizes,
                 expert_model_parallel_size=args.expert_model_parallel_size,
-                num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
-                expert_tensor_parallel_size=args.expert_tensor_parallel_size,
                 distributed_timeout_minutes=args.distributed_timeout_minutes,
                 nccl_communicator_config_path=args.nccl_communicator_config_path,
-                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-cp-ep-pp-dp',
-                encoder_tensor_model_parallel_size=args.encoder_tensor_model_parallel_size,
-                encoder_pipeline_model_parallel_size=args.encoder_pipeline_model_parallel_size,
-                get_embedding_ranks=get_embedding_ranks,
-                get_position_embedding_ranks=get_position_embedding_ranks,
-                create_gloo_process_groups=args.enable_gloo_process_groups,
+                order='tp-cp-ep-dp-pp' if not args.use_tp_pp_dp_mapping else 'tp-pp-dp',
             )
             if args.rank == 0:
                 logger.info(

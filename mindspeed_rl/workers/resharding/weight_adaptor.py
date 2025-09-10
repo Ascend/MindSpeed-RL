@@ -119,18 +119,18 @@ class MegatronVLLMWeightAdaptor(BaseWeightAdaptor):
             if name.endswith("linear_qk_nope.weight"):
                 num_attention_heads_per_tp = int(self.model_config.num_attention_heads / train_tp_size)
         
-                qk_head_dim = self.model_config.qk_head_dim
-                qk_pos_emb_head_dim = self.model_config.qk_pos_emb_head_dim
+                qk_nope_head_dim = self.model_config.qk_nope_head_dim
+                qk_rope_head_dim = self.model_config.qk_rope_head_dim
                 v_head_dim = self.model_config.v_head_dim
         
                 prefix = name.replace("linear_qk_nope.weight", "")
-                param_dict[prefix + "linear_q_up_proj.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_qk_nope.weight"].reshape(num_attention_heads_per_tp, qk_head_dim, -1), param_dict[prefix + "linear_qk_rope.weight"].reshape(num_attention_heads_per_tp, qk_pos_emb_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_head_dim + qk_pos_emb_head_dim), -1))
-                param_dict[prefix + "linear_q_up_proj.weight"].tensor_model_parallel = True
-                param_dict[prefix + "linear_q_up_proj.weight"].partition_dim = param_dict[prefix + "linear_qk_nope.weight"].partition_dim
-                param_dict[prefix + "linear_kv_up_proj.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_kv_nope.weight"].reshape(num_attention_heads_per_tp, qk_head_dim, -1), param_dict[prefix + "linear_v.weight"].reshape(num_attention_heads_per_tp, v_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_head_dim + v_head_dim), -1))
-                param_dict[prefix + "linear_kv_up_proj.weight"].tensor_model_parallel = True
-                param_dict[prefix + "linear_kv_up_proj.weight"].partition_dim = param_dict[prefix + "linear_kv_nope.weight"].partition_dim
-                
+                param_dict[prefix + "linear_qb.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_qk_nope.weight"].reshape(num_attention_heads_per_tp, qk_nope_head_dim, -1), param_dict[prefix + "linear_qk_rope.weight"].reshape(num_attention_heads_per_tp, qk_rope_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_nope_head_dim + qk_rope_head_dim), -1))
+                param_dict[prefix + "linear_qb.weight"].tensor_model_parallel = True
+                param_dict[prefix + "linear_qb.weight"].partition_dim = param_dict[prefix + "linear_qk_nope.weight"].partition_dim
+                param_dict[prefix + "linear_kvb.weight"] = torch.nn.Parameter(torch.concat([param_dict[prefix + "linear_kv_nope.weight"].reshape(num_attention_heads_per_tp, qk_nope_head_dim, -1), param_dict[prefix + "linear_v.weight"].reshape(num_attention_heads_per_tp, v_head_dim, -1)], dim=1).reshape(num_attention_heads_per_tp * (qk_nope_head_dim + v_head_dim), -1))
+                param_dict[prefix + "linear_kvb.weight"].tensor_model_parallel = True
+                param_dict[prefix + "linear_kvb.weight"].partition_dim = param_dict[prefix + "linear_kv_nope.weight"].partition_dim
+        
         return param_dict
 
     @staticmethod
@@ -252,8 +252,8 @@ class DeepSeekMVWeightAdaptor(MegatronVLLMWeightAdaptor):
             ("mlp.linear_fc2", "mlp.down_proj"),
             ("decoder.final_layernorm", "model.norm"),
             ("output_layer", "lm_head"),
-            ("self_attention.linear_q_up_proj", "self_attn.q_b_proj"),
-            ("self_attention.linear_kv_up_proj", "self_attn.kv_b_proj"),
+            ("self_attention.linear_qb", "self_attn.q_b_proj"),
+            ("self_attention.linear_kvb", "self_attn.kv_b_proj"),
             ("mlp.router.expert_bias", "mlp.gate.e_score_correction_bias"),
             ('mlp.router', 'mlp.gate'),  # weight, expert_bias
             ("mlp.shared_experts.linear_fc1", "mlp.shared_experts.gate_up_proj"),
@@ -261,7 +261,7 @@ class DeepSeekMVWeightAdaptor(MegatronVLLMWeightAdaptor):
             ("mlp.experts.weight1", "mlp.experts.w13_weight"),
             ("mlp.experts.weight2", "mlp.experts.w2_weight"),
             ("self_attention.q_layernorm", "self_attn.q_a_layernorm"),
-            ("self_attention.kv_layernorm", "self_attn.kv_a_layernorm"),
+            ("self_attention.k_layernorm", "self_attn.kv_a_layernorm"),
         ]
 
     def get_weight_buffer_meta(self, model, valid_names=None):

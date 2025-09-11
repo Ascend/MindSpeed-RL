@@ -40,7 +40,6 @@ class MegatronShardingManager:
             optimizer_offload=False,
             grad_offload=False,
             train_param_offload=False,
-            enable_validate=False,
             megatron_model=None,
             model_config=None,
             infer_tensor_parallel_size=None,
@@ -59,7 +58,6 @@ class MegatronShardingManager:
             optimizer (MegatronOptimizer): Optimizer instance used for model training.
             optimizer_offload (bool): Whether to offload optimizer operations to a separate device.
             grad_offload (bool): whether to offload gradient computation to CPU during training.
-            enable_validate (bool): Whether to enable communication data validate.
             megatron_model (nn.Module or nn.ModuleList): Megatron model instance.
             model_config (MegatronConfig): Configuration for the model.
             infer_tensor_parallel_size (int): Tensor parallel size during inference.
@@ -86,7 +84,6 @@ class MegatronShardingManager:
             moe_tp_extend_ep=moe_tp_extend_ep,
             parallel_state=parallel_state,
             weight_adaptor=self.weight_adaptor,
-            enable_validate=enable_validate,
             noop_layers=noop_layers,
             eplb_map=self.inference_engine.eplb_map,
             global_redundant_expert_num=self.inference_engine.global_redundant_expert_num,
@@ -96,7 +93,6 @@ class MegatronShardingManager:
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload
         self.train_param_offload = train_param_offload
-        self.enable_validate = enable_validate
         self.inference_engine.offload_model_weights()
         self.megatron_offloader = megatron_offloader
 

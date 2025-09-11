@@ -777,7 +777,6 @@ class ActorHybridWorkerBase(BaseWorker):
             optimizer_offload=self.generate_config.offload_train_optimizer,
             grad_offload=self.generate_config.offload_train_grad,
             train_param_offload=self.generate_config.offload_train_param,
-            enable_validate=self.rl_config.enable_sharding_validate,
             megatron_offloader=self.actor_offloader,
             noop_layers=self.megatron_config.noop_layers
         )

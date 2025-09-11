@@ -44,7 +44,6 @@ class RLConfig(BaseConfig):
 
     shuffle_mini_batch: Whether to shuffle minibatch (default: False)
     n_samples_per_prompt: Number of samples per prompt (default: 1)
-    enable_sharding_validate: Whether to enable sharding validation (default: False)
     tp_split_expert:
     use_tensorboard: Whether to use tensorboard (default: False)
     use_wandb: Whether to use wandb (default: False)
@@ -98,7 +97,6 @@ class RLConfig(BaseConfig):
         self.use_kl_in_reward = False
 
         self.shuffle_mini_batch = False
-        self.enable_sharding_validate = False
         self.tp_split_expert = False
 
         self.use_tensorboard = False

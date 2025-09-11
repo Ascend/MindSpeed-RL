@@ -54,48 +54,5 @@ def get_tensor_parallel_partition_dim(param):
     return param.partition_dim
 
 
-def tp_md5_validate(infer_params_for_md5, origin_params_for_md5, log_prefix):
-    md5_tensor = bytes_to_tensor(origin_params_for_md5)
-    origin_params_md5_allgather_tensor = []
-    for _ in range(get_tp_allgather_world_size()):
-        origin_params_md5_allgather_tensor.append(torch.empty_like(md5_tensor))
-    torch.distributed.all_gather(origin_params_md5_allgather_tensor, md5_tensor, group=get_tp_allgather_group())
-    for index, params in enumerate(infer_params_for_md5):
-        recv_md5_tensor = bytes_to_tensor(params)
-        validate_md5(origin_params_md5_allgather_tensor[index], recv_md5_tensor, log_prefix)
-
-
-def update_md5_by_rank(infer_param, param, origin_params_for_md5, infer_params_for_md5):
-    # compute current param' md5 value at current rank
-    param_bytes = param.data.to(torch.float32).cpu().numpy().tobytes()
-    origin_params_for_md5.update(param_bytes)
-    # Calculate the md5 values of all received params in the TP group, separated by rank
-    for index, recv_param in enumerate(infer_param):
-        recv_param_bytes = recv_param.data.to(torch.float32).cpu().numpy().tobytes()
-        infer_params_for_md5[index].update(recv_param_bytes)
-
-
-def bytes_to_tensor(bytes_data):
-    md5_tensor = torch.tensor([int(h, 16) for h in bytes_data.hexdigest()], dtype=torch.int64,
-                              device=torch.cuda.current_device())
-    return md5_tensor
-
-
-def compute_md5(model):
-    hash_value = hashlib.md5()
-    for memory_buffer in model.memory_buffers.values():
-        param_bytes = memory_buffer.data.detach().to(torch.float32).cpu().numpy().tobytes()
-        hash_value.update(param_bytes)
-    md5_tensor = bytes_to_tensor(hash_value)
-    return md5_tensor
-
-
-def validate_md5(md5_tensor_src, md5_tensor, log_prefix):
-    if torch.equal(md5_tensor_src, md5_tensor):
-        logging.info(f"{log_prefix} md5 validate Hash: The weights of the two models match.")
-    else:
-        logging.info(f"{log_prefix} md5 validate Hash: The weights of the two models do not match.")
-
-
 def is_fake_tp_param(name, moe_tp_extended_ep):
     return 'mlp.experts.weight' in name and moe_tp_extended_ep

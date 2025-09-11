@@ -348,7 +348,6 @@ class TestActor():
             optimizer_offload=True,
             grad_offload=True,
             train_param_offload=True,
-            enable_validate=False,
             megatron_offloader=self.megatron_offloader
         )
         torch.cuda.empty_cache()

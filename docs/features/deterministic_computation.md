@@ -45,7 +45,7 @@
 
       DAPO场景下使能确定性计算，应配置动态采样参数为false，才能保证每轮迭代的数据输入是一致的。
       ```
-      filter_groups_enable: true
+      filter_groups_enable: false
       ```
 
 ### 2. 使能确定性计算参数

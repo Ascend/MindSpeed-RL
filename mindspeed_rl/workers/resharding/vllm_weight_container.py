@@ -30,8 +30,8 @@ import vllm.distributed.parallel_state as ps
 
 from mindspeed_rl.workers.resharding.memory_buffer import build_model_weight_buffer, calc_padded_numel
 import mindspeed_rl.workers.resharding.utils
-from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, tp_md5_validate, \
-    update_md5_by_rank, compute_md5, validate_md5, _build_infer_param_dict, get_tp_allgather_group, \
+from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, \
+    _build_infer_param_dict, get_tp_allgather_group, \
     get_tp_allgather_world_size, is_tensor_parallel_param, get_tp_group, is_fake_tp_param
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.utils import is_multimodal
@@ -48,7 +48,6 @@ class MegatronStyleVllmWeightContainer:
                  moe_tp_extend_ep=False,
                  parallel_state=None,
                  weight_adaptor=None,
-                 enable_validate=False,
                  noop_layers=None,
                  eplb_map=None,
                  global_redundant_expert_num=0,
@@ -66,7 +65,6 @@ class MegatronStyleVllmWeightContainer:
             moe_tp_extend_ep (bool): Controls whether expert model parameters are split across multiple GPUs.
             parallel_state (ModuleType): Megatron parallel state of the model.
             weight_adaptor (WeightAdaptor): Provides a set of tools to transfer from training weight to inference weight.
-            enable_validate (bool): Whether to enable communication data validate.
         """
 
         self.vllm_model = vllm_model
@@ -144,11 +142,6 @@ class MegatronStyleVllmWeightContainer:
 
         # validate parallel configs
         self._validate_parallel_config()
-
-        # md5 validate
-        self.enable_validate = enable_validate
-        self.origin_params_for_md5 = None
-        self.infer_params_for_md5 = None
 
         self._rank = dist.get_rank()
         self._init_tensor_model_parallel_allgather_group()
@@ -450,10 +443,6 @@ class MegatronStyleVllmWeightContainer:
         name_pairs = sorted(list(set([(name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
                                     for vpp_rank, names_per_vpp in enumerate(weight_names_meta) for name in names_per_vpp])))
 
-        if self.enable_validate:
-            self.origin_params_for_md5 = hashlib.md5()
-            self.infer_params_for_md5 = [hashlib.md5() for _ in range(get_tp_allgather_world_size())]
-
         # 检查 linear_fc1 和 linear_fc2 权重形状是否符合特定关系（fc1 包含门控和扩展参数，因此大小是 fc2 的两倍）。不符合条件的模型不被支持。
         for _, vpp_rank, megatron_name in name_pairs:
             if not megatron_name.startswith("image_encoder") and megatron_name.endswith("linear_fc1.weight"):
@@ -479,10 +468,6 @@ class MegatronStyleVllmWeightContainer:
                 param = _transfer_from_megatron_division(megatron_param, megatron_name)
                 weight_buffer.copy_by_name(hf_name, param)
 
-        # tp md5 validate
-        if self.enable_validate:
-            tp_md5_validate(self.infer_params_for_md5, self.origin_params_for_md5,
-                            f"rank[{self._rank}] tp params allgather")
 
     def _update_weight_buffers_ep(self):
         # 构造临时的experts_memory_buffers
@@ -556,14 +541,6 @@ class MegatronStyleVllmWeightContainer:
             global_src = dist.get_global_rank(group=self._pp_group, group_rank=cur_pp_rank)
             for memory_buffer in self.weight_buffers[cur_pp_rank].memory_buffers.values():
                 dist.broadcast(tensor=memory_buffer.data, src=global_src, group=self._pp_group, async_op=False)
-            if self.enable_validate:
-                md5_tensor = compute_md5(self.weight_buffers[cur_pp_rank])
-                if self._rank == global_src:
-                    dist.broadcast(md5_tensor, group=self._pp_group, src=global_src, async_op=False)
-                else:
-                    md5_tensor_src = torch.zeros_like(md5_tensor, dtype=torch.int64, device=torch.cuda.current_device())
-                    dist.broadcast(md5_tensor_src, group=self._pp_group, src=global_src, async_op=False)
-                    validate_md5(md5_tensor_src, md5_tensor, f"rank[{self._rank}] pp resharding params")
 
 
     def get_expert_router(self, cur_rank, train_tp_ep_size, infer_tp_ep_size, world_size):
@@ -759,8 +736,6 @@ class MegatronStyleVllmWeightContainer:
             # allocate a new tensor with proper size
             infer_param = [torch.empty_like(param) for _ in range(tp_allgather_size)]
             torch.distributed.all_gather(infer_param, param, group=tp_allgather_group)
-            if self.enable_validate:
-                update_md5_by_rank(infer_param, param, self.origin_params_for_md5, self.infer_params_for_md5)
             part_len = len(infer_param) // self._infer_tp_size
             start = self._rank % self._infer_tp_size
             part_param = infer_param[part_len * start:part_len * (start + 1)]

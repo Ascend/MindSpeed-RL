@@ -55,8 +55,8 @@ actor_config:
   finetune: false
   load: ./Qwen2.5-32B-tp8-pp2
   save: ./ckpt
-  no_load_optim: false
-  no_load_rng: false
+  no_load_optim: true
+  no_load_rng: true
   context_parallel_size: 2
   context_parallel_algo: megatron_cp_algo
   cp_attention_mask_type: causal

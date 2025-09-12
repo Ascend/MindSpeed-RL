@@ -128,10 +128,8 @@ class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):
             engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
 
         # patch this for npu
-        enable_infer_ep = False
         if hasattr(config, "dp_model_parallel_size") and config.dp_model_parallel_size > 1:
             self._init_dp_env(config)
-            enable_infer_ep = True
 
         # Extract hybrid TP config for additional_config
         additional_config = {}
@@ -165,9 +163,10 @@ class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):
             disable_log_stats=config.disable_log_stats,
             max_num_batched_tokens=max_num_batched_tokens,
             enable_chunked_prefill=config.enable_chunked_prefill,
-            enable_prefix_caching=True,
+            enable_prefix_caching=config.get("enable_prefix_caching", True),
             trust_remote_code=trust_remote_code,
-            enable_expert_parallel=enable_infer_ep,
+            enable_expert_parallel=config.get("enable_expert_parallel", False),
+            max_num_seqs=int(config.get("max_num_seqs", 256)),
             compilation_config={"cudagraph_capture_sizes": [8, 16, 32, 64, 128, 192, 256, 384]},
             seed=config.get("seed", 0),
             **lora_kwargs,

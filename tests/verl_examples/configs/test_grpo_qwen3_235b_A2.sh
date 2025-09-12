@@ -37,6 +37,7 @@ python3 -m verl.trainer.main_ppo --config-path=config \
     +actor_rollout_ref.rollout.dp_model_parallel_size=8 \
     +actor_rollout_ref.rollout.rollout_world_size=128 \
     actor_rollout_ref.rollout.name=vllm \
+    +actor_rollout_ref.rollout.enable_expert_parallel=True \
     actor_rollout_ref.actor.megatron.param_offload=${offload} \
     actor_rollout_ref.actor.megatron.optimizer_offload=${offload} \
     actor_rollout_ref.actor.megatron.grad_offload=${offload} \

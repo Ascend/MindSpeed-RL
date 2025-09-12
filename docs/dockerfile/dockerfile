@@ -29,7 +29,7 @@ RUN echo "\n" >> ~/.bashrc  && \
 # 添加非root用户
 RUN umask 0022 && groupadd HwHiAiUser && useradd -g HwHiAiUser -d /home/HwHiAiUser -m HwHiAiUser -s /bin/bash
 
-RUN wget https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/community-edition/20250630-0630poc/pytorch_v2.5.1.zip -O torch.zip --no-check-certificate && \
+RUN wget https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/community-edition/20250630-0630poc/pytorch_v2.5.1.zip -O torch.zip && \
     unzip torch.zip && \
     tar -xzvf pytorch_v2.5.1_py310.tar.gz && \
     pip install torch_npu-2.5.1.post1.dev20250612-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl

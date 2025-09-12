@@ -15,7 +15,7 @@
 ```bash
 # 读取math_17k数据集
 cd dataset/
-wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet --no-check
+wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet
 cd ..
 ```
 
@@ -32,7 +32,7 @@ bash examples/data/preprocess_data.sh math_17k
 # 读取deepscaler数据集
 mkdir dataset
 cd dataset/
-wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json --no-check
+wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json
 cd ..
 ```
 

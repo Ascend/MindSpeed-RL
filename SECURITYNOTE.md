@@ -59,9 +59,7 @@ MindSpeed-RL 暂时未发布wheel包，无正式对外公开接口，所有功�
 |      类型      |                          文件名                             |             公网IP地址/公网URL地址/域名/邮箱地址             |                   用途说明                    |
 | :------------: |:----------------------------------------------------------:| :----------------------------------------------------------: |:-----------------------------------------:|
 |  开源引入  |                  MindSpeed-RL/tests/test_tools/dist_test.py       |          https://github.com/microsoft/DeepSpeed/blob/master/tests/unit/common.py      |              开源引入 common 参考代码          |
-|  开源引入  |                  MindSpeed-RL/mindspeed_rl/models/rollout/vllm_adapter/vllm_parallel_state.py      |          8.8.8.8      |              引入公网IP地址          |
-|  开源引入  |                  MindSpeed-RL/mindspeed_rl/workers/base_worker.py       |          8.8.8.8      |              引入公网IP地址          |
-
+|  开源引入  |                  MindSpeed-RL/mindspeed_rl/utils/utils.py      |          8.8.8.8      |              引入公网IP地址          |
 
 ## 通信安全加固
 

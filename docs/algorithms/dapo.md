@@ -15,7 +15,7 @@ MindSpeed RL 仓库复现 [Decoupled Clip and Dynamic sAmpling Policy Optimizati
 # 读取 Math 17K 数据集
 mkdir dataset
 cd dataset/
-wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet --no-check
+wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet
 cd ..
 ```
 

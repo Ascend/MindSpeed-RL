@@ -15,7 +15,7 @@ MindSpeed RL 仓库现已支持 [ Direct Preference Optimization (DPO) ](https:/
 # 读取orca_dpo_pairs数据集
 mkdir dataset
 cd dataset/
-wget https://huggingface.co/datasets/Intel/orca_dpo_pairs/resolve/main/orca_rlhf.jsonl --no-check
+wget https://huggingface.co/datasets/Intel/orca_dpo_pairs/resolve/main/orca_rlhf.jsonl
 cd ..
 ```
 

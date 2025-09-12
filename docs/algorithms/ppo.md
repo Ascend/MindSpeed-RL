@@ -18,7 +18,7 @@
 # 读取deepscaler数据集
 mkdir dataset
 cd dataset/
-wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json --no-check
+wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json
 cd ..
 ```
 

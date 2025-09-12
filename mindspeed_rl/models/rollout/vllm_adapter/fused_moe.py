@@ -18,7 +18,7 @@ import torch_npu
 from torch import nn
 from vllm.config import get_current_vllm_config
 from vllm.distributed import GroupCoordinator
-from vllm.distributed.parallel_state import get_ep_group
+from vllm.distributed.parallel_state import (get_ep_group, get_tp_group)
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.fused_moe.layer import (FusedMoE, MoEConfig, UnquantizedFusedMoEMethod)
 
@@ -27,7 +27,8 @@ from vllm_ascend.ascend_config import get_ascend_config
 from vllm_ascend.ascend_forward_context import FusedMoEState
 from vllm_ascend.distributed.parallel_state import get_mc2_group
 from vllm_ascend.ops.expert_load_balancer import ExpertLoadBalancer
-from vllm_ascend.ops.fused_moe import fused_experts, fused_experts_with_all2allv, select_experts, fused_experts_with_all2all_buffer, fused_experts_with_mc2, AscendFusedMoE
+from vllm_ascend.ops.fused_moe import fused_experts, fused_experts_with_all2allv, select_experts, fused_experts_with_all2all_buffer, AscendFusedMoE
+from vllm_ascend.utils import (AscendSocVersion, dispose_tensor, get_ascend_soc_version, npu_stream_switch, npu_wait_tensor, super_kernel)
 import vllm_ascend
 
 
@@ -52,24 +53,181 @@ VLLM_ASCEND_MOE_ALL2ALL_BUFFER: bool = envs_ascend.VLLM_ASCEND_MOE_ALL2ALL_BUFFE
 
 
 # EPLB add args: log2phy, global_redundant_expert_num
-def fused_experts_with_mc2_wrapper(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        expert_map = kwargs.get("expert_map", None)
-        global_redundant_expert_num = kwargs.get("global_redundant_expert_num", 0)
+def fused_experts_with_mc2(
+    hidden_states: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    topk_weights: torch.Tensor,
+    topk_ids: torch.Tensor,
+    top_k: int,
+    expert_map: torch.Tensor = None,
+    moe_all_to_all_group_name: Optional[str] = None,
+    log2phy: torch.Tensor = None,
+    global_redundant_expert_num: int = 0,
+    shared_experts: Optional[Any] = None,
+    is_torchair: bool = False,
+    hidden_states_for_share: Optional[Any] = None,
+    mc2_mask: Optional[torch.Tensor] = None,
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    if mc2_mask is None:
+        raise ValueError(f"mc2_mask cannot be None")
+    if log2phy is not None:
+        topk_ids = log2phy[topk_ids]
+    quant_mode = 0
+    ep_group = get_mc2_group()
+    ep_rank_id = ep_group.rank_in_group
+    ep_world_size = ep_group.world_size
+    tp_world_size = get_tp_group().world_size
 
-        # add moe_expert_num
-        if expert_map is not None:
-            kwargs["moe_expert_num"] = len(expert_map) + global_redundant_expert_num
-        else:
-            kwargs["moe_expert_num"] = global_redundant_expert_num
+    #  `global_bs` should be equal to `max_num_tokens_across_dp` * `ep_world_size`,
+    # and `max_num_tokens_across_dp` has been split into `tp_world_size` parts before.
+    global_bs = (
+        math.ceil(get_forward_context().max_tokens_across_dp / tp_world_size) *
+        ep_world_size)
 
-        return fn(*args, **kwargs)
-    return wrapper
+    #  Currently, when in A3 or in torchair graph, we need to pass in some extra param into dispatch & combine
+    need_extra_args = get_ascend_soc_version(
+    ) == AscendSocVersion.A3 or is_torchair
+
+    #  Currently, when in A3, we need to pass in some extra param into dispatch & combine
+    a3_need_extra_args = get_ascend_soc_version() == AscendSocVersion.A3
+
+    enable_dispatch_v2 = hasattr(torch_npu, "npu_moe_distribute_dispatch_v2")
+
+    if (expert_map is not None):
+        moe_expert_num = len(expert_map) + global_redundant_expert_num
+    else:
+        moe_expert_num = global_redundant_expert_num
+
+    kwargs_mc2 = {
+        "x": hidden_states,
+        "expert_ids": topk_ids,
+        "expert_shard_type": 0,
+        "shared_expert_rank_num": 0,
+        "moe_expert_num": moe_expert_num,
+        "global_bs": global_bs,
+    }
+
+    stage1_kwargs = {
+        "scales": None,
+        "quant_mode": quant_mode,
+        "group_ep": moe_all_to_all_group_name,
+        "ep_world_size": ep_world_size,
+        "ep_rank_id": ep_rank_id,
+    }
+    if need_extra_args:
+        stage1_kwargs.update({
+            "group_tp": moe_all_to_all_group_name,
+            "tp_world_size": 1,
+            "tp_rank_id": 0,
+        })
+    if a3_need_extra_args and enable_dispatch_v2:
+        stage1_kwargs.update({
+            "x_active_mask": mc2_mask,
+        })
+
+    kwargs_mc2.update(stage1_kwargs)
+
+    output = torch_npu.npu_moe_distribute_dispatch_v2(
+        **kwargs_mc2
+    ) if enable_dispatch_v2 else torch_npu.npu_moe_distribute_dispatch(
+        **kwargs_mc2)
+
+    expand_x, dynamic_scale, assist_info_for_combine, expert_token_nums, ep_recv_counts = output[
+        0:5]
+
+    if shared_experts is not None:
+        with npu_stream_switch("moe_secondary", 0):
+            npu_wait_tensor(hidden_states_for_share, topk_weights)
+            shared_gate_up, _ = shared_experts.gate_up_proj(
+                hidden_states_for_share)
+            npu_wait_tensor(shared_gate_up, expand_x)
+            shared_act = shared_experts.act_fn(shared_gate_up)
+
+    w1 = w1.transpose(1, 2)
+
+    group_list = expert_token_nums.to(torch.int64)
+    gate_up_out_list = torch_npu.npu_grouped_matmul(
+        x=[expand_x],
+        weight=[w1],
+        split_item=2,
+        # 1 means count mode, to avoid cumulative operation of the group list
+        group_list_type=1,
+        group_type=0,
+        group_list=group_list,
+    )
+
+    gate_up_out = torch.cat(gate_up_out_list, dim=0)
+    gate_up_out = torch_npu.npu_swiglu(gate_up_out)
+
+    w2 = w2.transpose(1, 2)
+    down_out_list = torch_npu.npu_grouped_matmul(
+        x=[gate_up_out],
+        weight=[w2],
+        split_item=2,
+        group_list_type=1,
+        group_type=0,
+        group_list=group_list,
+    )
+
+    down_out_list = torch.cat(down_out_list, dim=0)
+
+    # moeCombine
+    kwargs_mc2 = {
+        "expand_x": down_out_list,
+        "expert_ids": topk_ids,
+        "expert_scales": topk_weights.to(torch.float32),
+        "expert_shard_type": 0,
+        "shared_expert_rank_num": 0,
+        "moe_expert_num": moe_expert_num,
+        "global_bs": global_bs,
+    }
+    tp_recv_counts = output[5]
+    stage3_kwargs = {
+        "ep_send_counts": ep_recv_counts,
+        "group_ep": moe_all_to_all_group_name,
+        "ep_world_size": ep_world_size,
+        "ep_rank_id": ep_rank_id,
+    }
+    if enable_dispatch_v2:
+        stage3_kwargs.update({
+            "assist_info_for_combine":
+            assist_info_for_combine,
+        })
+    else:
+        stage3_kwargs.update({
+            "expand_idx": assist_info_for_combine,
+        })
+    if need_extra_args:
+        stage3_kwargs.update({
+            "tp_send_counts": tp_recv_counts,
+            "group_tp": moe_all_to_all_group_name,
+            "tp_world_size": 1,
+            "tp_rank_id": 0,
+        })
+    if a3_need_extra_args and enable_dispatch_v2:
+        stage3_kwargs.update({
+            "x_active_mask": mc2_mask,
+        })
+    kwargs_mc2.update(stage3_kwargs)
+
+    hidden_states = torch_npu.npu_moe_distribute_combine_v2(
+        **kwargs_mc2
+    ) if enable_dispatch_v2 else torch_npu.npu_moe_distribute_combine(
+        **kwargs_mc2)
+
+    group_list_type = 1
+    if shared_experts is None:
+        return hidden_states, expert_token_nums, group_list_type
+    else:
+        with npu_stream_switch("moe_secondary", 0):
+            npu_wait_tensor(shared_act, down_out_list)
+            shared_hidden_states, _ = shared_experts.down_proj(shared_act)
+        return hidden_states, shared_hidden_states, expert_token_nums, group_list_type
 
 
-# # currently expert parallelism implemented with all2all
-# # is under-optimized.
+#  currently expert parallelism implemented with all2all
+#  is under-optimized.
 def fused_experts_with_all2all(
     hidden_states: torch.Tensor,
     w1: torch.Tensor,
@@ -238,6 +396,15 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
         except AttributeError:
             self.moe_all_to_all_group_name = None
 
+    def process_weights_after_loading(self, layer):
+        super(UnquantizedFusedMoEMethod,
+              self).process_weights_after_loading(layer)
+        layer.w13_weight = torch.nn.Parameter(self._maybe_pad_weight(
+            layer.w13_weight.data),
+                                              requires_grad=False)
+        layer.w2_weight = torch.nn.Parameter(self._maybe_pad_weight(
+            layer.w2_weight.data),
+                                             requires_grad=False)
 
     def apply(
         self,
@@ -441,7 +608,7 @@ def AscendFusedMoE_wrapper(init_fn):
     return wrapper
 
 
-vllm_ascend.ops.fused_moe.fused_experts_with_mc2 = fused_experts_with_mc2_wrapper(fused_experts_with_mc2)
+vllm_ascend.ops.fused_moe.fused_experts_with_mc2 = fused_experts_with_mc2
 vllm_ascend.ops.fused_moe.fused_experts_with_all2all = fused_experts_with_all2all
 vllm_ascend.ops.fused_moe.AscendUnquantizedFusedMoEMethod = AscendUnquantizedFusedMoEMethod
 vllm_ascend.ops.fused_moe.AscendFusedMoE.__init__ = AscendFusedMoE_wrapper(AscendFusedMoE.__init__)

@@ -12,6 +12,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
  🚀🚀🚀 Partial Rollout功能已支持！！🚀🚀🚀
 
 --- 
+# 通知: 本项目已经正式迁移至 [Gitcode](https://gitcode.com/Ascend) 平台
 
 ## 安装指南
 

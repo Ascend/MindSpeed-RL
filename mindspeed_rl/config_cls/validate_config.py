@@ -350,6 +350,16 @@ def validate_rl_args(
                                    rl_config.critic_update_dispatch_size,
                                    "Critic Update")
 
+    # 若指定了自定义的actor_update_dispatch_size，检查 actor_update_dispatch_size 是否符合 on_policy/off_policy 策略要求
+    if rl_config.actor_update_dispatch_size:
+        if rl_config.actor_update_dispatch_size < rl_config.mini_batch_size / actor_data_parallel_size:
+            raise ValueError(
+                f"actor_update_dispatch_size={rl_config.actor_update_dispatch_size} "
+                f"must be >= mini_batch_size/actor_data_parallel_size "
+                f"({rl_config.mini_batch_size}/{actor_data_parallel_size}="
+                f"{int(rl_config.mini_batch_size/actor_data_parallel_size)})"
+            )
+
     if rl_config.filter_groups_enable:
         # 若开启dapo动态采样，update的gbs=filter_groups_train_batch_size
         rl_config.actor_update_dispatch_size = (

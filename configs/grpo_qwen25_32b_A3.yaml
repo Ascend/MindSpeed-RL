@@ -61,7 +61,7 @@ rl_config:
   ref_forward_micro_batch_size: 16
   reward_dispatch_size: 64
   adv_dispatch_size: 64
-  actor_update_dispatch_size: 16
+  actor_update_dispatch_size: 1024
   use_integrated_worker: true
   gamma: 1.0
   lam: 0.95

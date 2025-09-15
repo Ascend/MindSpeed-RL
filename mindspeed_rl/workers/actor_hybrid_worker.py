@@ -212,20 +212,10 @@ class ActorHybridWorkerBase(BaseWorker):
             experience_columns = ['responses', 'advantages', 'old_log_prob', 'input_ids', 'response_length', 'prompt_length']
         else:
             experience_columns = ['responses', 'advantages', 'old_log_prob', 'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
-
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids'])
-            experience_count = self.rl_config.actor_update_dispatch_size
-        else:
-            experience_count = (
-                self.megatron_config.global_batch_size // self.parallel_state.get_data_parallel_world_size()
-            )
-        
-        if self.rl_config.filter_groups_enable:
-            experience_count = (
-                    self.rl_config.filter_groups_train_batch_size * self.rl_config.n_samples_per_prompt //
-                    self.parallel_state.get_data_parallel_world_size()
-            )
+
+        experience_count = self.rl_config.actor_update_dispatch_size
         
         if skip_actor_log_prob:
             experience_columns.remove('old_log_prob')

@@ -12,6 +12,7 @@ import random
 from contextlib import contextmanager
 from functools import wraps
 from typing import Dict, List
+from pathlib import Path
 
 import ast
 import ray
@@ -21,6 +22,10 @@ import torch
 import torch_npu
 import torch.distributed as dist
 from torch import Tensor
+
+
+cur_file_dir = Path(__file__).absolute().parent
+base_dir = os.path.realpath(os.path.join(cur_file_dir, "..", ".."))
 
 
 def get_node_nums():
@@ -411,8 +416,13 @@ class MsProbe:
             return
         if not cls.config.configurations_dump:
             return
+        dump_path = cls.config.dump_path
+        if not os.path.isabs(dump_path):
+            dump_path = os.path.realpath(dump_path)
+            if not dump_path.startswith(base_dir):
+                raise ValueError(f"Invalid path:  {dump_path} is not within the allowed directory {base_dir} ")
         try:
-            save_json(data, os.path.join(cls.config.dump_path, 'configurations.json'))
+            save_json(data, os.path.join(dump_path, 'configurations.json'))
         except Exception:
             print("Save configuratons failed.")
 

@@ -6,8 +6,8 @@ import pytest
 import mindspeed_rl
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from mindspeed_rl.workers.reference_woker import ReferenceWorker
-from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.reference_worker import ReferenceWorker
+from mindspeed_rl.workers.reward_worker import RewardWorker
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.generate_config import GenerateConfig

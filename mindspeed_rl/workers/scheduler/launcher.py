@@ -34,8 +34,8 @@ from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeCon
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.base_worker import BaseWorker
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from mindspeed_rl.workers.reference_woker import ReferenceWorker
-from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.reference_worker import ReferenceWorker
+from mindspeed_rl.workers.reward_worker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.workers.critic_worker import CriticWorker
 from mindspeed_rl.workers.vit_worker import VitWorker

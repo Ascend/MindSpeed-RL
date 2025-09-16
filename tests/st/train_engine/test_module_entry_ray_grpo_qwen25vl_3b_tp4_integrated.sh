@@ -23,18 +23,19 @@ cp -r /data/for_dt/code/multimodal/Megatron-LM ./
 cd Megatron-LM
 cp -r megatron "$PROJECT_PATH"/
 cd ..
-git clone https://gitee.com/ascend/MindSpeed.git
+git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
 git checkout 6d63944cb2470a0bebc38dfb65299b91329b8d92
 cp -r mindspeed "$PROJECT_PATH"/
 cd ..
-git clone https://gitee.com/ascend/MindSpeed-MM.git
+git clone https://gitcode.com/Ascend/MindSpeed-MM.git
 cd ./MindSpeed-MM
+git checkout 13ab398849d55375cfca278dab2b81bb89f3044f
+# MMRL的入口脚本在MM仓，RL仓跑ST时需拷贝(先拷贝脚本，因为有更新，后面再切换commitID)
+cp -r posttrain_vlm_grpo.py "$PROJECT_PATH"/
 # 注意这里MM固定了commitID，避免MM的PR合入打断RL的CI
 git checkout 6837ca14495ba0320171df844fc050f7f3e8658e
 cp -r mindspeed_mm "$PROJECT_PATH"
-# MMRL的入口脚本在MM仓，RL仓跑ST时需拷贝
-cp -r posttrain_vlm_grpo.py "$PROJECT_PATH"/
 # MMRL的模型配置在MM仓，RL仓跑ST时需拷贝
 cp examples/rl/model/qwen2.5vl_3b.json "$PROJECT_PATH"/
 # MMRL的runtime_env在MM仓，RL仓跑ST时需拷贝

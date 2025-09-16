@@ -32,8 +32,8 @@ from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.ppo_trainer_hybrid import RayPPOTrainer
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from mindspeed_rl.workers.reference_woker import ReferenceWorker
-from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.reference_worker import ReferenceWorker
+from mindspeed_rl.workers.reward_worker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.workers.critic_worker import CriticWorker
 from mindspeed_rl.workers.scheduler.launcher import construct_colocate_placement_groups

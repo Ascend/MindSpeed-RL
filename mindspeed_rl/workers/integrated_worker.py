@@ -18,8 +18,8 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, profi
 from mindspeed_rl.utils.utils import MsProbe
 
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorkerBase
-from mindspeed_rl.workers.reference_woker import ReferenceWorkerBase
-from mindspeed_rl.workers.reward_woker import RewardWorkerBase
+from mindspeed_rl.workers.reference_worker import ReferenceWorkerBase
+from mindspeed_rl.workers.reward_worker import RewardWorkerBase
 from mindspeed_rl.models.reference import Reference
 from mindspeed_rl.models.reward import Reward
 

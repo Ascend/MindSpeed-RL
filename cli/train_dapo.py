@@ -31,7 +31,7 @@ from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.workers.dynamic_sampling import DynamicSampling
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from mindspeed_rl.workers.reward_woker import RewardWorker
+from mindspeed_rl.workers.reward_worker import RewardWorker
 from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.trainer.dapo_trainer_hybrid import RayDAPOTrainer
 

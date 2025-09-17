@@ -43,7 +43,7 @@ if [ "$MASTER_ADDR" = "$CURRENT_IP" ]; then
       if [ "$device_count" -eq "$NNODES" ]; then
           echo "Ray cluster is ready with $device_count devices (from $npu_count NPU resources), starting Python script."
           ray status
-          bash $DEFAULT_YAML
+          bash $DEFAULT_SH
           break
       else
           echo "Waiting for Ray to allocate $NNODES devices. Current device count: $device_count"

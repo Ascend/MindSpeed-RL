@@ -90,16 +90,17 @@ generate_config:
   offload_train_param: true
 
   # 推理时的并行配置
-  infer_tensor_parallel_size: 4
+  infer_tensor_parallel_size: 2
   infer_pipeline_parallel_size: 1
   infer_expert_parallel_size: 1
 
   # vllm 模型相关设置
   max_num_seqs: 64
   max_model_len: 3072
-  max_num_batched_tokens: 8192
+  max_num_batched_tokens: 2048
   dtype: "bfloat16"
   gpu_memory_utilization: 0.6
+  ascend_scheduler_config_enabled: false
 
   # 采样配置
   sampling_config:

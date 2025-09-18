@@ -65,16 +65,16 @@ actor_config:
 rl_config:
   blocking: true
   use_remove_padding: true
-  # use_dynamic_bsz: true
-  # use_dp_batch_balance: true
-  max_packing_token_size: 4096
   use_integrated_worker: true
+  use_dynamic_bsz: true
+  ref_forward_micro_batch_size: 4
+  max_packing_token_size: 4096
   gamma: 1.0
   lam: 0.95
   adv_estimator: group_norm
   kl_penalty: low_var_kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.1
+  init_kl_coef: 0.05
   mini_batch_size: 128
   max_prompt_length: 1024
   epochs: 1
@@ -85,7 +85,6 @@ rl_config:
   rule_reward: true
   verifier_function: ["math_verify_reward"]
   verifier_weight: [1.0]
-  ref_forward_micro_batch_size: 4
   actor_resource:
     num_npus: 256
 

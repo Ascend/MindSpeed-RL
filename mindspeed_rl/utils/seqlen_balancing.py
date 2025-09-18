@@ -307,6 +307,35 @@ def _balance_bins(bins: List[dict], max_capacity: int):
             break
 
 
+def heapq_partition_with_max(seqlen_list: List[int], k_partitions: int, max_token_len: int):
+    # 初始化
+    sorted_seqlen = sorted([(seqlen, i) for i, seqlen in enumerate(seqlen_list)], reverse=True)
+
+    # 初始化堆：每个组维护 [当前和, 元素数量, 组编号, 组内元素]
+    groups = [[0, 0, i, []] for i in range(k_partitions)]
+    group_num = len(groups)
+    heapq.heapify(groups)
+
+    partitions = []
+    for seqlen, i in sorted_seqlen:
+        current_group = heapq.heappop(groups)
+
+        if current_group[0] + seqlen > max_token_len:
+            partitions.append(current_group[3])
+            new_group = [seqlen, 1, group_num, [i]]
+            group_num = group_num + 1
+            heapq.heappush(groups, new_group)
+        else:
+            # 将元素加入该组
+            current_group[0] += seqlen  # 当前组总和增加
+            current_group[1] += 1  # 当前组元素数量加1
+            current_group[3].append(i)  # 当前组加入元素
+            # 如果未满员，重新放回堆中
+            heapq.heappush(groups, current_group)
+    partitions.extend([group[3] for group in groups])
+    return partitions
+
+
 def rearrange_micro_batches(
     seqlen_list: List[int],
     max_token_len: int,
@@ -331,44 +360,22 @@ def rearrange_micro_batches(
         # Use balanced bin packing algorithm with capacity constraints
         return balanced_bin_packing(seqlen_list=seqlen_list, max_capacity=max_token_len)
 
-    if max(seqlen_list) > max_token_len:
-        raise ValueError(
-            f"seqlen of items:[{max(seqlen_list)}] must <= max_token_len:[{max_token_len}]"
-        )
+    # Calculate the minimum number of bins
+    total_sum_of_seqlen = sum(seqlen_list)
+    k_partitions = (total_sum_of_seqlen + max_token_len - 1) // max_token_len
 
-    total_seqlen = sum(seqlen_list)
-    k_partitions = (total_seqlen + max_token_len - 1) // max_token_len
+    partitions = heapq_partition_with_max(seqlen_list=seqlen_list, k_partitions=k_partitions, max_token_len=max_token_len)
+    k_partitions = torch.tensor(len(partitions))
 
     if dynamic_max_batch_size is not None:
-        k_partitions = max(
-            k_partitions,
-            (len(seqlen_list) + dynamic_max_batch_size - 1) // dynamic_max_batch_size
-        )
-
-    def _check_partitions(partitions):
-        for partition in partitions:
-            partition_seqlen = [seqlen_list[idx] for idx in partition]
-            if sum(partition_seqlen) > max_token_len:
-                return False
-        return True
-
-    max_partitions = len(seqlen_list)
-    while k_partitions <= max_partitions:
-        partitions = heapq_partition(
-            seqlen_list=seqlen_list,
-            k_partitions=k_partitions,
-            equal_size=False
-        )
-        if _check_partitions(partitions):
-            break
-        k_partitions += 1
-    else:
-        raise RuntimeError("Could not find a valid partitioning within the allowed number of partitions.")
-
+        k_partitions = max(k_partitions, (len(seqlen_list) + dynamic_max_batch_size - 1) // dynamic_max_batch_size)
+        
     if dist.is_initialized():
-        k_partitions_tensor = torch.tensor([k_partitions], device='npu')
-        dist.all_reduce(k_partitions_tensor, op=dist.ReduceOp.MAX, group=dp_group)
-        k_partitions = k_partitions_tensor.cpu().item()
+        k_partitions = torch.tensor([k_partitions], device='npu')
+        dist.all_reduce(k_partitions, op=dist.ReduceOp.MAX, group=dp_group)
+        k_partitions = k_partitions.cpu().item()
+
+    partitions = karmarkar_karp(seqlen_list=seqlen_list, k_partitions=k_partitions, equal_size=False)
 
     return partitions
 

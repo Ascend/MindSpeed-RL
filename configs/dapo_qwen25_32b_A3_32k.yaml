@@ -73,7 +73,7 @@ rl_config:
   ref_dispatch_size: 512
   reward_dispatch_size: 512
   adv_dispatch_size: 512
-  actor_update_dispatch_size: 512
+  actor_update_dispatch_size: 128
   use_integrated_worker: true
   gamma: 1.0
   lam: 0.95

@@ -54,7 +54,7 @@ bash examples/data/preprocess_data.sh deepscaler
 [Qwen2.5-32B](https://huggingface.co/Qwen/Qwen2.5-32B/tree/main)  为参考。
 #### critic model权重文件
 为了保证训练稳定性，使用预训练好的奖励模型权重进行训练，权重文件可以从 Huggingface 网站上获取，在这里以
-[nvidia/Qwen-2.5-Nemotron-32B-Reward](https://huggingface.co/nvidia/Qwen-2.5-Nemotron-32B-Reward)  为参考。
+[Qwen-2.5-Nemotron-32B-Reward](https://huggingface.co/nvidia/Qwen-2.5-Nemotron-32B-Reward)  为参考。
 
 ### hf 转 mcore
 

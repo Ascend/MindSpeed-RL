@@ -1,21 +1,28 @@
   <p align="center"> <img src="./sources/images/logo.png" height="110px" width="500px"> </p>
 
+# 简介
+
+---
 
 
-MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [昇腾芯片](https://www.hiascend.com/) 生态合作伙伴提供端到端的RL训推解决方案，支持超大昇腾集群训推共卡/分离部署、多模型异步流水调度、训推异构切分通信等核心加速能力
 
---- 
+MindSpeed RL：基于昇腾生态的强化学习加速框架，旨在为华为 [昇腾芯片](https://www.hiascend.com/) 生态合作伙伴提供端到端的RL训推解决方案，支持超大昇腾集群训推共卡/分离部署、多模型异步流水调度、训推异构切分通信等核心加速能力。
 
-## NEWS
+# 最新消息
+
+---
 
 
- 🚀🚀🚀 Partial Rollout功能已支持！！🚀🚀🚀
 
---- 
+  已支持Partial Rollout功能
 
-## 安装指南
+# 版本说明
 
-本版本为**预览非正式发布**版本， 依赖配套如下表，安装步骤参考[安装指南](./docs/install_guide.md)
+---
+
+
+
+MindSpeed RL依赖配套如下表：
 
 <table>
   <tr>
@@ -42,7 +49,7 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tr>
   <tr>
     <td>Python</td>
-    <td><a href="https://gitee.com/ascend/pytorch#pytorch%E4%B8%8Epython%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8">PT配套版本</a></td>
+    <td><a href="https://gitcode.com/ascend/pytorch#pytorch%E4%B8%8Epython%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8">PT配套版本</a></td>
   </tr>
   <tr>
     <td>PyTorch</td>
@@ -57,13 +64,33 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
   </tr>
 </table>
 
-## 快速入门
+更多详情请参考[版本配套表](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/install_guide.md#%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8)。
 
-  如何快速在昇腾训练设备上运行 MindSpeed-RL 可详见 [快速入门](./docs/algorithms/grpo.md)
+注意：本版本为**预览非正式发布**版本。
 
-## 使用指南
+# 安装
 
-### 训练算法
+---
+
+
+
+MindSpeed RL具体的安装请参考[安装指南](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/install_guide.md#%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97)。
+
+# 快速上手
+
+---
+
+
+
+  快速在昇腾训练设备上运行 MindSpeed RL可详见[快速入门](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/algorithms/grpo.md#grpo)。
+
+# 使用指南
+
+---
+
+
+
+## 训练算法
 
 <table>
   <thead>
@@ -86,11 +113,11 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
     </tr>
     <tr>
-      <td><a href="https://gitee.com/ascend/MindSpeed-MM/tree/master/examples/rl">Doc</a></td>
+      <td><a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Doc</a></td>
       <td  rowspan="1">
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-3B</a> <br>
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-7B</a> <br>
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-32B</a> <br>
+        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-3B</a> <br>
+        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-7B</a> <br>
+        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-32B</a> <br>
       </td>
       <td> Released</td>
     </tr>
@@ -130,11 +157,11 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
   </tbody>
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
+注意："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本。
 
-注：使用Ray拉起任务的算法，如GRPO，环境变量需要在[runtime_env.yaml](./configs/envs/runtime_env.yaml)处配置
+注意：使用Ray拉起任务的算法，如GRPO，环境变量需要在[runtime_env.yaml](./configs/envs/runtime_env.yaml)处配置。
 
-### 核心特性
+## 核心特性
 
 <table>
   <thead>
@@ -212,11 +239,10 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td> Preview</td>
     </tr>
   </tbody>
-
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
+注意："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本。
 
-### 效率工具
+## 效率工具
 
 <table>
   <thead>
@@ -277,9 +303,13 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
     </tr>
   </tbody>
 </table>
-注："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本
+注意："Preview"发布状态表示预览非正式发布版本，"Released"发布状态表示正式发布版本。
 
-## 版本维护策略
+# 版本维护策略
+
+----
+
+
 
 MindSpeed RL版本有以下五个维护阶段：
 
@@ -299,12 +329,42 @@ MindSpeed RL已发布版本维护策略：
 | 2.1.0              | \            | 正式版本     |  商用      |   \  | \        | 2025/12/30 |
 | 2.0.0              | \            | 预览版本     |  预览      |   \  | \        | 2025/9/30 |
 
+#  安全声明
 
-## 安全声明
-详细[安全声明](./SECURITYNOTE.md)
+---
 
 
-## 致谢
+
+[MindSpeed RL 安全声明](./SECURITYNOTE.md)
+
+
+
+# 免责声明
+
+---
+
+
+
+## 致MindSpeed RL使用者
+
+1. MindSpeed RL提供的模型仅供您用于非商业目的。
+2. 对于各模型，MindSpeed RL平台仅提示性地向您建议可用于训练的数据集，华为不提供任何数据集，如您使用这些数据集进行训练，请您特别注意应遵守对应数据集的License，如您因使用数据集而产生侵权纠纷，华为不承担任何责任。
+3. 如您在使用MindSpeed RL模型过程中，发现任何问题（包括但不限于功能问题、合规问题），请在gitcode提交issue，我们将及时审视并解决。
+4. MindSpeed功能依赖的Megatron等第三方开源软件，均由第三方社区提供和维护，因第三方开源软件导致的问题的修复依赖相关社区的贡献和反馈。您应理解，MindSpeed仓库不保证对第三方开源软件本身的问题进行修复，也不保证会测试、纠正所有第三方开源软件的漏洞和错误。
+
+## 致数据集所有者
+
+如果您不希望您的数据集在MindSpeed RL中的模型被提及，或希望更新MindSpeed RL中的模型关于您的数据集的描述，请在gitcode提交issue，我们将根据您的issue要求删除或更新您的数据集描述。衷心感谢您对MindSpeed RL的理解和贡献。
+
+## License声明
+
+Ascend MindSpeed RL提供的模型，如模型目录下存在License的，以该License为准。如模型目录下不存在License的，以Apache 2.0许可证许可，对应许可证文本可查阅Ascend MindSpeed RL根目录。
+
+# 致谢
+
+---
+
+
 
 MindSpeed RL由华为公司的下列部门以及昇腾生态合作伙伴联合贡献 ：
 
@@ -316,16 +376,4 @@ MindSpeed RL由华为公司的下列部门以及昇腾生态合作伙伴联合�
 - 全球技术服务部
 - 华为云计算
 
-感谢来自社区的每一个PR，共同打造业界领先的RL训推系统
-
-
-## 免责声明
-
-### 致MindSpeed RL使用者
-1. MindSpeed RL提供的模型仅供您用于非商业目的。
-2. 对于各模型，MindSpeed RL平台仅提示性地向您建议可用于训练的数据集，华为不提供任何数据集，如您使用这些数据集进行训练，请您特别注意应遵守对应数据集的License，如您因使用数据集而产生侵权纠纷，华为不承担任何责任。
-3. 如您在使用MindSpeed RL模型过程中，发现任何问题（包括但不限于功能问题、合规问题），请在Gitee提交issue，我们将及时审视并解决。
-4. MindSpeed功能依赖的Megatron等第三方开源软件，均由第三方社区提供和维护，因第三方开源软件导致的问题的修复依赖相关社区的贡献和反馈。您应理解，MindSpeed仓库不保证对第三方开源软件本身的问题进行修复，也不保证会测试、纠正所有第三方开源软件的漏洞和错误。
-
-### 致数据集所有者
-如果您不希望您的数据集在MindSpeed RL中的模型被提及，或希望更新MindSpeed RL中的模型关于您的数据集的描述，请在Gitee提交issue，我们将根据您的issue要求删除或更新您的数据集描述。衷心感谢您对MindSpeed RL的理解和贡献。
+感谢来自社区的每一个PR，共同打造业界领先的RL训推系统。

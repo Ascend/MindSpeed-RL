@@ -1,7 +1,7 @@
 # DAPO
 
 ## 简介
-MindSpeed RL 仓库复现 [Decoupled Clip and Dynamic sAmpling Policy Optimization (DAPO) ](https://arxiv.org/abs/2503.14476) 后训练方法.前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
+MindSpeed RL 仓库复现 [Decoupled Clip and Dynamic sAmpling Policy Optimization (DAPO) ](https://arxiv.org/abs/2503.14476) 后训练方法。前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
 配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)

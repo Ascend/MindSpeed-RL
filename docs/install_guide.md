@@ -100,7 +100,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### PTA安装
+### PyTorch框架安装
 
 ```shell
 # 安装torch和torch_npu

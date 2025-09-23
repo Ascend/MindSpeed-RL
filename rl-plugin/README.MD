@@ -38,7 +38,7 @@ pip install -e .
 ## 2、安装 MindSpeed 与 Megatron
 ```bash
 # MindSpeed
-git clone https://gitee.com/ascend/MindSpeed.git
+git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
 pip install -e .
 cd ..
@@ -59,7 +59,7 @@ cd ..
 ## 4、安装插件
 ```bash
 # 请确保 vllm 已正确安装并且之后不会做覆盖
-git clone https://gitee.com/ascend/MindSpeed-RL.git
+git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 cd MindSpeed-RL/rl-plugin
 pip install -v -e .
 cd ../..

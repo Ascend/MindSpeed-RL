@@ -10,7 +10,7 @@ msprobe模块为强化学习训练流程提供了配置采集、关键过程数�
 
 ### 前置条件
 
-安装msprobe三方库，[安装指南](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/01.installation.md)。
+安装msprobe三方库，[安装指南](https://gitcode.com/Ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/01.installation.md)。
 
 ### 配置选项
 
@@ -130,6 +130,6 @@ compare_distributed(
 
 ### 更多功能
 
-[关键数据比对指南（key_data_dump）](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/34.RL_collect.md#%E7%BB%93%E6%9E%9C%E6%AF%94%E5%AF%B9)
+[关键数据比对指南（key_data_dump）](https://gitcode.com/Ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/34.RL_collect.md#%E7%BB%93%E6%9E%9C%E6%AF%94%E5%AF%B9)
 
-[模型层数据比对指南（actor_train_dump、reference_dump、critic_train_dump）](https://gitee.com/ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/10.accuracy_compare_PyTorch.md#222-compare_distributed-%E5%87%BD%E6%95%B0)
+[模型层数据比对指南（actor_train_dump、reference_dump、critic_train_dump）](https://gitcode.com/Ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/10.accuracy_compare_PyTorch.md#222-compare_distributed-%E5%87%BD%E6%95%B0)

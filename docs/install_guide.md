@@ -10,7 +10,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 | 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
 | 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
-[昇腾辅助软件](https://gitee.com/ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
+[昇腾辅助软件](https://gitcode.com/Ascend/pytorch/tree/master#%E6%98%87%E8%85%BE%E8%BE%85%E5%8A%A9%E8%BD%AF%E4%BB%B6)中有更多关于PyTorch和CANN的版本信息。
 
 ## 安装依赖的软件
 
@@ -107,7 +107,7 @@ pip install -e .
 pip install torch-2.5.1-cp310-cp310-*.whl
 pip install torch_npu-2.5.1.*.manylinux2014_aarch64.whl
 
-# apex for Ascend 构建参考 https://gitee.com/ascend/apex
+# apex for Ascend 构建参考 https://gitcode.com/Ascend/apex
 pip install apex-0.1.dev*.whl
 ```
 
@@ -151,9 +151,9 @@ export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 
 ## 准备源码
 ```shell
-git clone https://gitee.com/ascend/MindSpeed-RL.git 
+git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 
-git clone https://gitee.com/ascend/MindSpeed.git 
+git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
 git checkout ca70c1338f1b3d1ce46a0ea426e5779ae1312e2e  # 参考MindSpeed-LLM依赖版本
 pip install -r requirements.txt 

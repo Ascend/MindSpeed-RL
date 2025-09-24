@@ -14,6 +14,7 @@
 
 ```bash
 # 读取math_17k数据集
+mkdir dataset
 cd dataset/
 wget https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k/resolve/main/data/dapo-math-17k.parquet
 cd ..
@@ -103,26 +104,26 @@ rl_config:
 
 **时间相关指标说明**
 
-| 指标                                 | 说明                                                     |
-| ------------------------------------ | -------------------------------------------------------- |
-| `timing/all`                         | 一次迭代总时间                                           |
-| `timing/update`                      | 一次迭代中actor model进行update耗时                      |
-| `timing/rollout`                     | 一次迭代中actor model进行rollout耗时                     |
-| `timing/old_log_p`                   | 一次迭代中actor model计算log p耗时                       |
-| `timing/reference_model`             | 一次迭代中reference model计算log p耗时                   |
-| `timing/resharding_to_train`         | 权重转到训练mode耗时                                     |
-| `timing/resharding_to_infer`         | 权重转到推理mode耗时                                     |
-| `timing/adv`                         | 计算advantages耗时                                       |
-| `timing/non_overlap_reference_model` | reference model计算log_p耗时的未被掩盖时间               |
-| `timing/non_overlap_rule_reward`     | rule_reward耗时的未被掩盖时间                            |
-| `timing/non_overlap_reward_model`    | reward_model耗时的未被掩盖时间                           |
-| `timing/non_overlap_adv`             | advantages计算耗时的未被掩盖时间                         |
-| `timing/rule_reward`                 | rule reward打分耗时                                      |
-| `timing/reward_model`                | reward model打分耗时                                     |
-| `timing/ref_onload`                  | reference model计算logp过程中，onload耗时                |
-| `timing/ref_offload`                 | reference model计算logp过程中，offload耗时               |
+| 指标                                 | 说明                                                  |
+| ------------------------------------ | ----------------------------------------------------- |
+| `timing/all`                         | 一次迭代总时间                                        |
+| `timing/update`                      | 一次迭代中actor model进行update耗时                   |
+| `timing/rollout`                     | 一次迭代中actor model进行rollout耗时                  |
+| `timing/old_log_p`                   | 一次迭代中actor model计算logp耗时                     |
+| `timing/reference_model`             | 一次迭代中reference model计算logp耗时                 |
+| `timing/resharding_to_train`         | 权重转到训练mode耗时                                  |
+| `timing/resharding_to_infer`         | 权重转到推理mode耗时                                  |
+| `timing/adv`                         | 计算advantages耗时                                    |
+| `timing/non_overlap_reference_model` | reference model计算logp耗时的未被掩盖时间               |
+| `timing/non_overlap_rule_reward`     | rule_reward耗时的未被掩盖时间                         |
+| `timing/non_overlap_reward_model`    | reward_model耗时的未被掩盖时间                        |
+| `timing/non_overlap_adv`             | advantages计算耗时的未被掩盖时间                        |
+| `timing/rule_reward`                 | rule reward打分耗时                                   |
+| `timing/reward_model`                | reward model打分耗时                                  |
+| `timing/ref_onload`                  | reference model计算logp过程中，onload耗时             |
+| `timing/ref_offload`                 | reference model计算logp过程中，offload耗时            |
 
-* 全共卡方案下总时间计算方式
+* 全共卡方案下总时间分布
 
 `timing/all` >= `timing/rollout` +`timing/old_log_p` + `timing/update`  +  `timing/reference` + `timing/reshard_to_train` + `timing/reshard_to_infer`  + `max(timing/non_overlap_rule_reward, timing/non_overlap_reference_model)`
 

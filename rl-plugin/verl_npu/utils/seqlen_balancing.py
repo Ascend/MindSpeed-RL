@@ -5,7 +5,7 @@ from typing import List
 
 import torch
 from torch import distributed as dist
-from verl_npu.patch_util import NPUPatchHelper
+from verl_npu.core import NPUPatchHelper
 from verl.utils import seqlen_balancing
 from verl.utils.device import get_device_name
 

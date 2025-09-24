@@ -191,17 +191,16 @@ class MegatronStyleVllmWeightContainer:
             self._update_weight_buffers_ep() 
             self._send_receive_experts() 
 
-            # 复用TP-EP建组部分
-            # 获得初始化映射表 eplb_map_initial
+            # EPLB
             if self.eplb_map is not None:
                 tensor_model_parallel_size = self._infer_tp_size
                 expert_model_parallel_size = self._infer_ep_size_raw
                 tensor_and_expert_group_size = tensor_model_parallel_size * expert_model_parallel_size  
-                # npu数量，总专家数，一个卡上的专家数，专家层数
                 eplb_map_initial = self.create_initial_map(self._world_size, self.num_experts, int(self.num_experts / tensor_and_expert_group_size), self._moe_layers)
-                cur_rank = dist.get_rank()
                 eplb_map_initial = eplb_map_initial.to(self.eplb_map.device)
-                self._send_receive_redundancy_experts(eplb_map_initial, self.eplb_map, tensor_and_expert_group_size)
+                #根据EP-TP建组组数，扩展单实例的eplb_map为多实例的eplb_map_expanded
+                eplb_map_expanded = self.eplb_map.repeat(1, self._world_size // tensor_and_expert_group_size, 1)
+                self._send_receive_redundancy_experts(eplb_map_initial, eplb_map_expanded, tensor_and_expert_group_size)
 
 
         params = self._get_all_params()
@@ -225,11 +224,8 @@ class MegatronStyleVllmWeightContainer:
         return eplb_map_initial
     
     def _send_receive_redundancy_experts(self, eplb_map_initial, eplb_map, tensor_and_expert_group_size):
-        # 当前进程的 rank（全局编号），用于决定收发信息的节点。 作为目标节点
         cur_rank = dist.get_rank()  
-        # 一个npu上有几个ep
         ep_group = int(self.num_experts / tensor_and_expert_group_size)
-        
         for layer_id in range(eplb_map.size(0)): 
             for cur_pp_rank in range(self._pp_size):
                 for memory_buffer in self.weight_buffers[cur_pp_rank].memory_buffers.values():

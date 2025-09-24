@@ -2,7 +2,8 @@
 
 ## 简介
 
-以 MindSpeed RL 仓库复现 [# Proximal Policy Optimization Algorithms (PPO) ]([1707.06347](https://arxiv.org/pdf/1707.06347)) 后训练方法为例来帮助用户快速入门，前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
+以 MindSpeed RL 仓库复现 [# Proximal Policy Optimization Algorithms (PPO) ]((https://arxiv.org
+)) 后训练方法为例来帮助用户快速入门，前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
 

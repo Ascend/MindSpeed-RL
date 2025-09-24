@@ -32,10 +32,10 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
       <td rowspan="3">8.2.RC1</td>
   </tr>
   <tr>
-    <td>Kernel（算子包）</td>
+    <td>Kernels（算子包）</td>
   </tr>
   <tr>
-    <td>NNAL（Ascend Transformer Boost加速库）</td>
+    <td>NNAL神经网络加速库（Ascend Transformer Boost加速库）</td>
   </tr>
   <tr>
   </tr>

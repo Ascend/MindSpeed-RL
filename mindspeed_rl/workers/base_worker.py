@@ -104,7 +104,7 @@ class BaseRayWorker:
     @staticmethod
     def _get_free_port():
         with socket.socket() as sock:
-            sock.bind(("", 0))
+            sock.bind((get_current_node_ip(), 0))
             return sock.getsockname()[1]
 
     def get_master_addr_port(self):

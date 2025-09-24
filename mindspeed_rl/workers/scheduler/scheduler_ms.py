@@ -134,10 +134,10 @@ class WorkerGroupSchedulerMS(WorkerMS):
     def __init__(self):
         super().__init__()
         self.success = False
-        with socket.socket() as sock:
-            sock.bind(("", 0))
-            self.port_ = sock.getsockname()[1]
         self.host_ = ray._private.services.get_node_ip_address()
+        with socket.socket() as sock:
+            sock.bind((self.host_, 0))
+            self.port_ = sock.getsockname()[1]
         rank_zero_info = {
                 "MS_SCHED_HOST": str(self.host_),
                 "MS_SCHED_PORT": str(self.port_),

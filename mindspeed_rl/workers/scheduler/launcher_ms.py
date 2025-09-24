@@ -155,7 +155,7 @@ class RayActorGroupMs:
     @staticmethod
     def _get_free_port():
         with socket.socket() as sock:
-            sock.bind(("", 0))
+            sock.bind((self._get_current_node_ip(), 0))
             return sock.getsockname()[1]
 
     @staticmethod

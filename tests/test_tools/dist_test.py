@@ -47,7 +47,7 @@ def get_master_port(base_port=29500, port_range_size=1000):
     sock = socket.socket()
     while port < max_port:
         try:
-            sock.bind(("", port))
+            sock.bind((os.environ.get("MASTER_ADDR", '127.0.0.1'), port))
             sock.close()
             return str(port)
         except OSError:

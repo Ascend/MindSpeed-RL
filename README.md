@@ -90,11 +90,11 @@ MindSpeed RL是基于昇腾生态的强化学习加速框架，旨在为华为 [
       <td rowspan="1">Released<br>
     </tr>
     <tr>
-      <td><a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Doc</a></td>
+      <td><a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Doc</a></td>
       <td  rowspan="1">
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-3B</a> <br>
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-7B</a> <br>
-        <a href="https://gitee.com/ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-32B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-3B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-7B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.1.0/examples/rl">Qwen2.5VL-32B</a> <br>
       </td>
       <td rowspan="1">Released<br>
     </tr>
@@ -244,8 +244,8 @@ MindSpeed RL由华为公司的下列部门以及昇腾生态合作伙伴联合�
 ### 致MindSpeed RL使用者
 1. MindSpeed RL提供的模型仅供您用于非商业目的。
 2. 对于各模型，MindSpeed RL平台仅提示性地向您建议可用于训练的数据集，华为不提供任何数据集，如您使用这些数据集进行训练，请您特别注意应遵守对应数据集的License，如您因使用数据集而产生侵权纠纷，华为不承担任何责任。
-3. 如您在使用MindSpeed RL模型过程中，发现任何问题（包括但不限于功能问题、合规问题），请在Gitee提交issue，我们将及时审视并解决。
+3. 如您在使用MindSpeed RL模型过程中，发现任何问题（包括但不限于功能问题、合规问题），请在GitCode提交issue，我们将及时审视并解决。
 4. MindSpeed功能依赖的Megatron等第三方开源软件，均由第三方社区提供和维护，因第三方开源软件导致的问题的修复依赖相关社区的贡献和反馈。您应理解，MindSpeed仓库不保证对第三方开源软件本身的问题进行修复，也不保证会测试、纠正所有第三方开源软件的漏洞和错误。
 
 ### 致数据集所有者
-如果您不希望您的数据集在MindSpeed RL中的模型被提及，或希望更新MindSpeed RL中的模型关于您的数据集的描述，请在Gitee提交issue，我们将根据您的issue要求删除或更新您的数据集描述。衷心感谢您对MindSpeed RL的理解和贡献。
+如果您不希望您的数据集在MindSpeed RL中的模型被提及，或希望更新MindSpeed RL中的模型关于您的数据集的描述，请在GitCode提交issue，我们将根据您的issue要求删除或更新您的数据集描述。衷心感谢您对MindSpeed RL的理解和贡献。

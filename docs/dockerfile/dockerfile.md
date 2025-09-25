@@ -29,7 +29,7 @@ npu-smi info
 
 ```shell
 source /usr/local/Ascend/ascend-toolkit/set_env.sh 
-git clone -b master https://gitee.com/ascend/apex.git
+git clone -b master https://gitcode.com/Ascend/apex.git
 cd apex/
 bash scripts/build.sh --python=3.10
 

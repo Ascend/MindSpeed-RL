@@ -46,11 +46,11 @@ RUN pip uninstall setuptools -y \
     git checkout 908a851 && \
     COMPILE_CUSTOM_KERNELS=0 pip install -e .
 
-RUN git clone https://gitee.com/ascend/MindSpeed-RL.git && \
+RUN git clone https://gitcode.com/Ascend/MindSpeed-RL.git && \
     cd  MindSpeed-RL && \
     git checkout acb2c70182283  && \
     cd ../  && \
-    git clone https://gitee.com/ascend/MindSpeed.git && \
+    git clone https://gitcode.com/Ascend/MindSpeed.git && \
     cd  MindSpeed && \
     git checkout 2c085cc9  && \
     pip install -r requirements.txt && \

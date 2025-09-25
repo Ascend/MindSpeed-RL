@@ -46,7 +46,7 @@
  
 ### 参数配置方式
  
-当前框架默认采用训推全共卡式部署（[全共卡部署](https://gitee.com/ascend/MindSpeed-RL/blob/master/docs/features/integrated_worker.md)），用户可以通过直接配置`actor_config`及`generate_config`指定训练及推理并行策略即会自动启用Resharding在线权重重切分。
+当前框架默认采用训推全共卡式部署（[全共卡部署](https://gitcode.com/Ascend/MindSpeed-RL/blob/master/docs/features/integrated_worker.md)），用户可以通过直接配置`actor_config`及`generate_config`指定训练及推理并行策略即会自动启用Resharding在线权重重切分。
  
 ```yaml
 actor_config:

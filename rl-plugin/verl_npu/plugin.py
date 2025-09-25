@@ -3,6 +3,7 @@
 from verl_npu.workers.rollout.vllm_rollout.vllm_rollout_spmd import vLLMRolloutPatch
 from verl_npu.utils.seqlen_balancing import SeqlenBalancingPatch
 from .transformers_npu.qwen2_patch import apply_qwen2_patch
+from .transformers_npu.qwen3_moe_patch import apply_qwen3_moe_patch
 from .transformers_npu.npu_flash_attention_patch import apply_npu_flash_attention_patch
 from .core import print_patch_summary
 
@@ -15,6 +16,7 @@ def apply_npu_plugin():
     vLLMRolloutPatch.apply_patch()
     SeqlenBalancingPatch.apply_patch()
     apply_qwen2_patch()
+    apply_qwen3_moe_patch()
     apply_npu_flash_attention_patch()
 
     from verl_npu.workers.megatron_workers import ActorRolloutRefWorkerPatch

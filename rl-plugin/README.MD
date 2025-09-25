@@ -40,6 +40,7 @@ pip install -e .
 # MindSpeed
 git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
+git checkout 1cdd0abd75e40936ad31721c092f57c695dd72c4
 pip install -e .
 cd ..
 

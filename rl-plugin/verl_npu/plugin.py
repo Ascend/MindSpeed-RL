@@ -17,6 +17,9 @@ def apply_npu_plugin():
     apply_qwen2_patch()
     apply_npu_flash_attention_patch()
 
+    from verl_npu.workers.megatron_workers import ActorRolloutRefWorkerPatch
+    ActorRolloutRefWorkerPatch.apply_patch()
+
     print_patch_summary()
     
     # In verl, the driver process aggregates the computation results of workers via Ray. 

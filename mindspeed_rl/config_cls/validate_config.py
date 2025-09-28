@@ -222,6 +222,12 @@ def validate_rl_args(
     # 初始化经验计数配置
     if rl_config.filter_groups_enable:
         # 若开启dapo动态采样，logp和adv的gbs=filter_groups_train_batch_size
+        _validate_data_parallel(rl_config.filter_groups_train_batch_size,
+                        actor_data_parallel_size,
+                        actor_config.micro_batch_size,
+                        rl_config.n_samples_per_prompt,
+                        "ActorForDapo")
+                        
         rl_config.actor_logprob_dispatch_size = (
             rl_config.actor_logprob_dispatch_size or
             (rl_config.filter_groups_train_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size)

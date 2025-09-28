@@ -92,7 +92,7 @@ cd ..
 ```
 
 ### vllm_ascend安装
-（注：若机器为x86架构，安装vllm_ascend的requirements.txt时需注释torch和torch_npu的安装）
+（注：若机器为x86架构，需要先进行[PyTorch框架安装](#PyTorch框架安装)中的torch和torch_npu安装，安装vllm_ascend时，注释requirements.txt和pyproject.toml中torch和torch_npu的安装）
 ```shell
 git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
@@ -102,7 +102,7 @@ pip install -e .
 ```
 
 ### PyTorch框架安装
-（可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
+（注：可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
 ```shell
 # 安装torch和torch_npu
 pip install torch-2.5.1-cp310-cp310-*.whl
@@ -168,7 +168,7 @@ git checkout core_r0.8.0
 cp -r megatron ../MindSpeed-RL/
 cd ..
 
-git clone https://gitee.com/ascend/MindSpeed-LLM.git -b 2.1.0
+git clone https://gitcode.com/Ascend/MindSpeed-LLM.git -b 2.1.0
 cd MindSpeed-LLM
 git checkout bf1e61f
 cp -r mindspeed_llm ../MindSpeed-RL/

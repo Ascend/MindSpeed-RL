@@ -31,7 +31,7 @@
 
 * 在 MoE 前向计算时，系统会拦截 `AscendUnquantizedFusedMoEMethod.apply` 调用。
 * 自动统计 `topk_ids`（即每个 token 被路由到的 expert ID），并按 layer 累计。
-* 所有数据会收集到 **rank0** 所在的节点上，统一写入一个 JSON 文件。
+* 每个**rank**的数据会收集各自所在的节点上，并保存各自对应的 JSON 文件。
 * JSON 文件格式如下：
 
 ```json
@@ -56,6 +56,7 @@
   * 内层 key 表示 expert ID
   * 值为该 expert 被分配的 token 数
 
+* 收集每个节点上的json文件到主节点上
 ---
 
 ### 2. 配置方法
@@ -65,7 +66,7 @@
 ```yaml
 generate:
   token_collects: true                # 是否开启 token 收集
-  token_save_path: "/path/to/save"    # JSON 文件保存目录
+  token_save_path: "/path/to/save"    # JSON 文件保存目录, 默认为json_file
 ```
 
 参数说明：
@@ -77,33 +78,49 @@ generate:
 * `token_save_path`:
 
   * 必填，指定 JSON 文件存储目录
-  * 最终只会生成 **一个汇总文件**：
+  * 最终每个rank收集到的数据会保存在其所在节点上：
 
     ```
-    token_collects_all.json
+    "eplb_token_collects_{rank}.json" 
     ```
+
+
+在 `examples\eplb\collect_json_file.sh` 中修改以下参数：
+```yaml
+# 远程服务器列表（格式：user@ip）
+SERVERS = (
+      "root@IP"
+      "root@IP"
+      )            
+```
+参数说明：
+
+* `SERVERS`:
+
+  * 必填，指定远程服务器列表
 
 ---
 
 ### 3. 运行效果
 
-1. 运行推理或训练后，各 rank 会先本地统计数据，再通过分布式通信汇总到 rank0。
+1. 运行推理或训练后，各 rank 会本地统计数据，并存储在当前节点的`token_save_path`目录下。
 
-2. rank0 会在 `token_save_path` 下生成一个 JSON 文件：
+2.  `token_save_path` 下会生成多个 JSON 文件：
 
    ```bash
-   $ ls /mnt/data2/MindSpeed-RL
-   token_collects_all.json
+   eplb_token_collects_{rank}.json
    ```
 
-3. 文件中保存了 **所有 rank 的统计结果**，包含每层每个 expert 的 token 数。
+3. 文件中保存了 **各个 rank 的统计结果**，包含每层每个 expert 的 token 数。
+
+4. 在主节点运行`examples\eplb\collect_json_file.sh`后，各个节点上的 JSON 文件会被统一收集到主节点上。
 
 ---
 
 ### 4. 注意事项
 
 * **性能开销**：开启采集后会增加统计与 JSON I/O，建议在 profiling 或 debug 时使用。
-* **多机环境**：数据会自动聚合，用户只需查看 rank0 生成的 `token_collects_all.json` 文件。
+* **多机环境**：共享存储场景下，不需要在主节点运行`examples\eplb\collect_json_file.sh` 所有 JSON 文件会被统一收集到共享存储中。
 * **文件写入安全**：采用临时文件 + 原子替换，避免因进程异常退出导致 JSON 文件损坏。
 * **配置优先级**：`yaml` 中的配置会覆盖代码默认值。
 ---
@@ -185,7 +202,7 @@ python  mindspeed_rl/workers/eplb/eplb_generate_map_ds.py \
 
 * 其中：
 
-  * json_folder 表示 `token_collects_all.json` 所在目录，与 `Step1 MOE Token Collect` 中的 `token_save_path` 一致
+  * json_folder 表示 主节点上 `eplb_token_collects_{rank}.json` 所在目录，与 `Step1 MOE Token Collect` 中的 `token_save_path` 一致
   * num_replicas 表示冗余专家总数（含原始专家）
   * num_groups 表示负载均衡策略中的专家分组数, 要求能被num_gpus整除
   * num_nodes 表示机器数

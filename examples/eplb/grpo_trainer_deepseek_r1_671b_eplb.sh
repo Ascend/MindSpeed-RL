@@ -10,6 +10,7 @@ echo "Use $YAML"
 
 ulimit -n 32768
 mkdir logs
+mkdir json_file
 
 export TASK_QUEUE_ENABLE=2
 export HCCL_IF_BASE_PORT=24703

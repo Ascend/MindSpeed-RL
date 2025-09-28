@@ -20,6 +20,7 @@ def find_replacement(current_group, expert_idx, weight, used_experts):
 
 
 def tensor_to_json(tensor: torch.Tensor, num_gpus: int, output_path):
+    # 数据格式转换 Tensor -> Json 目标格式
     num_layers, num_replicas = tensor.shape
     experts_per_device = num_replicas // num_gpus
 
@@ -58,38 +59,38 @@ def tensor_to_json(tensor: torch.Tensor, num_gpus: int, output_path):
 
 
 def load_and_aggregate(json_folder: str) -> torch.Tensor:
-    # 构造单一文件路径
-    filepath = os.path.join(json_folder, "token_collects_all.json")
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"File not found: {filepath}")
-
-    # 读取并规范化键为 int，同时统计最大 layer / expert
-    with open(filepath, "r") as f:
-        raw = json.load(f)
-
-    norm: Dict[int, Dict[int, int]] = {}
+    # 读取并统计所有热点数据
+    files: List[str] = [
+        os.path.join(json_folder, f)
+        for f in os.listdir(json_folder)
+        if f.endswith(".json")
+    ]
+    if not files:
+        raise FileNotFoundError(f"No .json files found in: {json_folder}")
+    loaded: List[Dict[int, Dict[int, int]]] = []
     max_layer = -1
     max_expert = -1
-
-    for layer_id_str, experts_map in raw.items():
-        layer_id = int(layer_id_str)
-        expert_dict = {int(eid): int(cnt) for eid, cnt in experts_map.items()}
-        norm[layer_id] = expert_dict
-
-        if expert_dict:
-            max_expert = max(max_expert, max(expert_dict.keys()))
-        max_layer = max(max_layer, layer_id)
-
+    for path in files:
+        with open(path, "r") as f:
+            raw = json.load(f)
+        norm: Dict[int, Dict[int, int]] = {}
+        for layer_id_str, experts_map in raw.items():
+            layer_id = int(layer_id_str)
+            expert_dict = {int(eid): int(cnt) for eid, cnt in experts_map.items()}
+            norm[layer_id] = expert_dict
+            if expert_dict:
+                max_expert = max(max_expert, max(expert_dict.keys()))
+            max_layer = max(max_layer, layer_id)
+        loaded.append(norm)
     # 初始化 [num_layers, num_experts] 矩阵
     num_layers = max_layer + 1 if max_layer >= 0 else 0
     num_experts = max_expert + 1 if max_expert >= 0 else 0
     mat = torch.zeros((num_layers, num_experts), dtype=torch.long)
-
-    # 累加到矩阵
-    for layer_id, experts in norm.items():
-        for eid, cnt in experts.items():
-            mat[layer_id, eid] += cnt
-
+    # 累加
+    for data in loaded:
+        for layer_id, experts in data.items():
+            for eid, cnt in experts.items():
+                mat[layer_id, eid] += cnt
     return mat
 
 
@@ -109,23 +110,21 @@ if __name__ == "__main__":
     num_nodes = args.num_nodes
     num_gpus = args.num_gpus
     output_path = args.output_path
-
+    # 计算冗余专家
     phy2log, log2phy, logcnt = eplb.rebalance_experts(weight, num_replicas, num_groups, num_nodes, num_gpus)
-    #一张卡上的冗余专家数
     experts_per_gpu = num_replicas // num_gpus 
-    #总本地专家数
     num_experts = weight.size(1)
-
+    # 冗余专家去重
     for layer in range(weight.size(0)):
         weight_layer = weight[layer]
         for gpu in range(num_gpus):
             start = gpu * experts_per_gpu
             end = start + experts_per_gpu
-            #遍历当前层 当前gpu上的专家列表
+            # 遍历当前层的专家列表
             group = phy2log[layer, start:end] 
-            #用于记录当前组中已经出现过的专家
+            # 用于记录当前组中已经出现过的专家
             seen = set() 
-            #用于记录已经尝试替换但不合适的专家，避免重复尝试
+            # 用于记录已经尝试替换但不合适的专家
             used_experts = set() 
             for j in range(experts_per_gpu):
                 expert = group[j].item()
@@ -136,5 +135,4 @@ if __name__ == "__main__":
                         replacement = find_replacement(group.tolist(), expert, weight_layer, used_experts)
                     phy2log[layer, start + j] = replacement
                 seen.add(phy2log[layer, start + j].item())
-
     tensor_to_json(phy2log, num_gpus, output_path)

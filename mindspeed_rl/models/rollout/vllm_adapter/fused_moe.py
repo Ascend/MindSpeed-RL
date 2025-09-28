@@ -251,7 +251,6 @@ def fused_experts_with_all2all(
     num_tokens, _ = hidden_states.shape
     num_experts = w1.shape[0]
     device = hidden_states.device
-
     # EPLB update global_num_experts
     if expert_map is not None:
         global_num_experts = len(expert_map) + global_redundant_expert_num
@@ -273,6 +272,7 @@ def fused_experts_with_all2all(
 
         global_expert_tokens = torch.bincount(expanded_expert_idx,
                                               minlength=global_num_experts)
+
         scatter_sizes = global_expert_tokens.view(ep_group.world_size,
                                                   -1).sum(-1)
 
@@ -462,50 +462,25 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
         eplb_token_collects, eplb_token_save_path = get_EPLB_args()
         if eplb_token_collects:
             self.layers = layer.moe_instance_id
-            rank = dist.get_rank()
-            world_size = dist.get_world_size()
+            filepath = os.path.join(eplb_token_save_path, f"eplb_token_collects_{torch.distributed.get_rank()}.json")
 
-            # cur_rank
-            local_stats = {self.layers: {eid: 0 for eid in range(global_num_experts)}}
+            if os.path.exists(filepath):
+                with open(filepath, "r") as f:
+                    experts_loads = json.load(f)
+                # key 转 int
+                experts_loads = {int(k): {int(e): v for e, v in vdict.items()} for k, vdict in experts_loads.items()}
+            else:
+                experts_loads = {}
+
+            # 当前层的统计
+            if self.layers not in experts_loads:
+                experts_loads[self.layers] = {eid: 0 for eid in range(global_num_experts)}
+            
             unique_ids, counts = torch.unique(topk_ids, return_counts=True)
-            for uid, cnt in zip(unique_ids.tolist(), counts.tolist()):
-                local_stats[self.layers][uid] += cnt
-                
-            all_stats = [None for _ in range(world_size)]
-            dist.all_gather_object(all_stats, local_stats)
-
-            # all ranks
-            if rank == 0:
-                # merge
-                merged_stats = {}
-                for rank_stats in all_stats:
-                    for layer_id, e_dict in rank_stats.items():
-                        if layer_id not in merged_stats:
-                            merged_stats[layer_id] = {eid: 0 for eid in range(global_num_experts)}
-                        for eid, cnt in e_dict.items():
-                            merged_stats[layer_id][eid] += cnt
-
-                filepath = os.path.join(eplb_token_save_path, f"token_collects_all.json")
-                if os.path.exists(filepath):
-                    with open(filepath, "r") as f:
-                        old_stats = json.load(f)
-                    old_stats = {int(k): {int(e): v for e, v in vdict.items()} for k, vdict in old_stats.items()}
-                else:
-                    old_stats = {}
-
-                # merge old_stats
-                for layer_id, e_dict in merged_stats.items():
-                    if layer_id not in old_stats:
-                        old_stats[layer_id] = {eid: 0 for eid in range(global_num_experts)}
-                    for eid, cnt in e_dict.items():
-                        old_stats[layer_id][eid] += int(cnt)
-
-                with tempfile.NamedTemporaryFile("w", delete=False, dir=os.path.dirname(filepath)) as tmpfile:
-                    json.dump(old_stats, tmpfile, indent=2)
-                    tmpfile.flush()
-                    os.fsync(tmpfile.fileno())
-                    temp_name = tmpfile.name
-                shutil.move(temp_name, filepath)
+            for eid, cnt in zip(unique_ids.tolist(), counts.tolist()):
+                experts_loads[self.layers][eid] += cnt
+            with open(filepath, "w") as f:
+                json.dump(experts_loads, f, indent=2)
 
         topk_weights = topk_weights.to(x.dtype)
 

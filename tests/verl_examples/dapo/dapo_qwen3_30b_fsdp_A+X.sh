@@ -21,7 +21,7 @@ echo "Use $DEFAULT_SH"
 ulimit -n 32768
 mkdir logs
 
-NNODES=1
+NNODES=2
 NPUS_PER_NODE=16
 #修改为对应主节点IP
 MASTER_ADDR="IP FOR MASTER NODE"

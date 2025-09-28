@@ -92,6 +92,7 @@ cd ..
 ```
 
 ### vllm_ascend安装
+（注：若机器为x86架构，安装vllm_ascend的requirements.txt时需注释torch和torch_npu的安装）
 ```shell
 git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
@@ -101,11 +102,11 @@ pip install -e .
 ```
 
 ### PyTorch框架安装
-
+（可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
 ```shell
 # 安装torch和torch_npu
 pip install torch-2.5.1-cp310-cp310-*.whl
-pip install torch_npu-2.5.1.*.manylinux2014_aarch64.whl
+pip install torch_npu-2.5.1.*.manylinux2014_*.whl
 
 # apex for Ascend 构建参考 https://gitcode.com/Ascend/apex
 pip install apex-0.1.dev*.whl

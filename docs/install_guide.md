@@ -165,7 +165,7 @@ git checkout core_r0.8.0
 cp -r megatron ../MindSpeed-RL/
 cd ..
 
-git clone https://gitee.com/ascend/MindSpeed-LLM.git
+git clone https://gitcode.com/Ascend/MindSpeed-LLM.git
 cd MindSpeed-LLM
 git checkout b2868282b073394e40172232bd5d60052b130660
 cp -r mindspeed_llm ../MindSpeed-RL/

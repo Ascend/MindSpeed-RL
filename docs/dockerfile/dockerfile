@@ -61,7 +61,7 @@ RUN git clone https://gitcode.com/Ascend/MindSpeed-RL.git && \
     git checkout core_r0.8.0 && \
     cp -r megatron ../MindSpeed-RL/ && \
     cd .. && \
-    git clone https://gitee.com/ascend/MindSpeed-LLM.git && \
+    git clone https://gitcode.com/Ascend/MindSpeed-LLM.git && \
     cd MindSpeed-LLM && \
     git checkout 1cd73e869f4c && \
     cp -r mindspeed_llm ../MindSpeed-RL/ && \

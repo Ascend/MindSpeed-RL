@@ -65,10 +65,10 @@ bash examples/data/preprocess_data.sh deepscaler
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B)  为参考。
 ### hf 转 mcore
-在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitee.com/ascend/MindSpeed-LLM) 权重转换部分 。
+在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
 
 ### mcore 转 hf（可选）
-训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitee.com/ascend/MindSpeed-LLM) 权重转换部分 。
+训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
 
 ## 启动训练
 

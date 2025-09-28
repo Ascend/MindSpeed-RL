@@ -10,7 +10,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 | 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
 | 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
-[昇腾辅助软件](https://gitee.com/ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
+[昇腾辅助软件](https://gitcode.com/Ascend/pytorch#昇腾辅助软件)中有更多关于PyTorch和CANN的版本信息。
 
 ## 安装依赖的软件
 
@@ -92,7 +92,7 @@ cd ..
 ```
 
 ### vllm_ascend安装
-（注：若机器为x86架构，安装vllm_ascend的requirements.txt时需注释torch和torch_npu的安装）
+（注：若机器为x86架构，需要先进行[PyTorch框架安装](#PyTorch框架安装)中的torch和torch_npu安装，安装vllm_ascend时，注释requirements.txt和pyproject.toml中torch和torch_npu的安装）
 ```shell
 git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
@@ -102,7 +102,7 @@ pip install -e .
 ```
 
 ### PyTorch框架安装
-（可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
+（注：可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
 ```shell
 # 安装torch和torch_npu
 pip install torch-2.5.1-cp310-cp310-*.whl
@@ -152,9 +152,9 @@ export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 
 ## 准备源码
 ```shell
-git clone https://gitee.com/ascend/MindSpeed-RL.git 
+git clone https://gitcode.com/Ascend/MindSpeed-RL.git 
 
-git clone https://gitee.com/ascend/MindSpeed.git 
+git clone https://gitcode.com/Ascend/MindSpeed.git 
 cd MindSpeed
 git checkout ca70c1338f1b3d1ce46a0ea426e5779ae1312e2e  # 参考MindSpeed-LLM依赖版本
 pip install -r requirements.txt 
@@ -168,7 +168,7 @@ git checkout core_r0.8.0
 cp -r megatron ../MindSpeed-RL/
 cd ..
 
-git clone https://gitee.com/ascend/MindSpeed-LLM.git -b 2.1.0
+git clone https://gitcode.com/Ascend/MindSpeed-LLM.git -b 2.1.0
 cd MindSpeed-LLM
 git checkout bf1e61f
 cp -r mindspeed_llm ../MindSpeed-RL/

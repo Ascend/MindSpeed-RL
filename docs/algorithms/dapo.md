@@ -85,7 +85,11 @@ bash examples/data/preprocess_data.sh math_17k
 bash examples/dapo/dapo_trainer_qwen25_32b.sh
 ```
 
-***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+***注意：***
+
+***1、所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+
+***2、Moe模型开启mc2暂不支持EP跨超节点***
 
 ## 断点续训
 进行断点续训时，需要注意配置以下参数：

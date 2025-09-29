@@ -48,9 +48,9 @@ megatron_training:
   use_rotary_position_embeddings: true
   use_fused_swiglu: true
   use_fused_rmsnorm: true
-  swap_attention: true
+  swap_attention: false
   no_shuffle: true
-  attention_mask_type: general
+  cp_attention_mask_type: general
 
   # data_args:
   data_path: ./dataset/dpo
@@ -66,7 +66,7 @@ megatron_training:
   save: ./ckpt
   model: qwen3_30b_a3b
   ref_model: ./model_weights/Qwen3-30B-TP2-PP8-EP1/
-  ref_model_iter: 1
+  refer_model_iter: 1
 
   # output_args:
   log_interval: 1

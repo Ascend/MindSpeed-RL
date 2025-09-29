@@ -218,13 +218,13 @@ def initialize_megatron(
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
-        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
+        _initialize_distributed()
 
         # Random seeds for reproducibility.
         if args.rank == 0:
             logger.info("> setting random seeds to {} ...".format(args.seed))
         _set_random_seed(args.seed, args.data_parallel_random_init)
-        if args.use_ascend_mc2:
+        if args.use_mc2:
             initialize_cfg_from_args(args)
 
     if skip_mpu_initialization:

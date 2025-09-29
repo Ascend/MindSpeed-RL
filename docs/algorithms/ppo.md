@@ -61,7 +61,14 @@ bash examples/data/preprocess_data.sh deepscaler
 
 在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
 
-***注意： 1、所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下; 2、critic model与actor model的模型结构有差异，转换时需要额外添加--orm参数***
+***注意：***
+
+***1、所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+
+***2、critic model与actor model的模型结构有差异，转换时需要额外添加--orm参数***
+
+***3、Moe模型开启mc2暂不支持EP跨超节点***
+
 
 ### mcore 转 hf（可选）
 

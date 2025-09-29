@@ -7,7 +7,7 @@ from mindspeed_rl.models.rule_verifier import compute_verifier_score, math_compu
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.trainer.utils.transfer_dock import pad_experience
 from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, padding_dict_to_tensor_dict
-from mindspeed_rl.utils.utils import get_current_dp_range_indexes, is_multimodal
+from mindspeed_rl.utils.utils import get_current_dp_range_indexes, is_multimodal, get_node_nums
 
 logger = Loggers("rule_reward")
 
@@ -15,13 +15,14 @@ logger = Loggers("rule_reward")
 @ray.remote
 class RuleReward(object):
 
-    def initialize(self, megatron_config, rl_config, tokenizer, trust_remote_code=False):
+    def initialize(self, megatron_config, rl_config, tokenizer, trust_remote_code=False, dp_rank=0):
         self.rl_config = rl_config
         self.megatron_config = megatron_config
         self.n_samples_per_prompt = rl_config.n_samples_per_prompt
         self.tokenizer = tokenizer
         self.hf_tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path,
                                                           trust_remote_code=trust_remote_code)
+        self.dp_rank = dp_rank
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
         self.td = td
@@ -33,9 +34,9 @@ class RuleReward(object):
         experience_consumer_stage = 'rule_reward'
         experience_columns = ['prompts', 'responses', 'response_length', *self.megatron_config.dataset_additional_keys]
         experience_count = self.rl_config.reward_dispatch_size
-        assign_batch_size = self.megatron_config.global_batch_size * self.rl_config.n_samples_per_prompt
+        assign_batch_size = self.megatron_config.global_batch_size * self.rl_config.n_samples_per_prompt // get_node_nums()
         sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
-                                                      assign_batch_size=assign_batch_size) if self.rl_config.guarantee_order else None
+                                                      assign_batch_size=assign_batch_size, current_dp_rank=self.dp_rank) if self.rl_config.guarantee_order else None
 
         pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eod
         cur_td = self.sampling_transfer_dock if self.sampling_transfer_dock else self.td

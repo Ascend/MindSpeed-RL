@@ -163,7 +163,7 @@ def train(config):
 
         for i in range(rule_reward_num_process):
             rule_reward = RuleReward.options(placement_group=pg, placement_group_bundle_index=i).remote()
-            rule_reward.initialize.remote(reward_config, rl_config, tokenizer)
+            rule_reward.initialize.remote(reward_config, rl_config, tokenizer, dp_rank=i)
             reward_list.append(rule_reward)
 
     train_ds, _, _ = build_train_valid_test_datasets(

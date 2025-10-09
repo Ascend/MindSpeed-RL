@@ -3,6 +3,7 @@ ray stop --force
 rm -rf /tmp/ray
 
 #设置运行环境变量
+export RAY_DEDUP_LOGS=0
 export HCCL_EXEC_TIMEOUT=7200
 export HCCL_CONNECT_TIMEOUT=7200
 export VLLM_USE_V1=1

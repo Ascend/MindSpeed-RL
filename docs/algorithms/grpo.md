@@ -163,19 +163,19 @@ rl_config:
 * e2e_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_all}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_all}
 $$
 
 * update_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_update}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_update}
 $$
 
 * vllm_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_rollout}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_rollout}
 $$
 ## 性能数据
 

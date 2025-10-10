@@ -73,7 +73,7 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: low_var_kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.05
+  init_kl_coef: 0.1
   mini_batch_size: 512
   max_prompt_length: 1024
   epochs: 1
@@ -102,9 +102,9 @@ generate_config:
   max_model_len: 3072
   max_num_batched_tokens: 1024
   dtype: "bfloat16"
-  gpu_memory_utilization: 0.75
-  enforce_eager: false
-  torchair_graph: true
+  gpu_memory_utilization: 0.7
+  enforce_eager: true
+  torchair_graph: false
   enable_expert_parallel: true
   ascend_scheduler_config_enabled: false
 

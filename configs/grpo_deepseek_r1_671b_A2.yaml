@@ -98,9 +98,9 @@ generate_config:
   max_model_len: 10240
   max_num_batched_tokens: 1024
   dtype: "bfloat16"
-  gpu_memory_utilization: 0.8
-  enforce_eager: false
-  torchair_graph: true
+  gpu_memory_utilization: 0.75
+  enforce_eager: true
+  torchair_graph: false
   enable_expert_parallel: true
 
   offload_train_optimizer: false

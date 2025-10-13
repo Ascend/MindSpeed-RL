@@ -21,7 +21,7 @@ megatron_training:
   global_batch_size: 512
   seq_length: 1024
   save_interval: 500
-  train_iters: 500
+  train_iters: 300
   stage: ray_grpo
   attention_dropout: 0.0
   hidden_dropout: 0.0
@@ -73,7 +73,7 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: low_var_kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.1
+  init_kl_coef: 0.2
   mini_batch_size: 512
   max_prompt_length: 1024
   epochs: 1

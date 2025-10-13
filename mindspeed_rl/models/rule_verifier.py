@@ -13,6 +13,7 @@ from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.utils.math_eval_toolkit.grader import math_equal
 from mindspeed_rl.utils.math_eval_toolkit.parser import extract_answer
 from mindspeed_rl.utils.utils import mstx_timer_decorator
+from mindspeed_rl.models.math_verify import compute_math_score
 
 logger = Loggers("Rule verify")
 
@@ -153,6 +154,7 @@ def verifier(responses, data, config, **kwargs):
         "strict_format": strict_format_reward,
         "base_acc": base_model_accuracy_reward,
         "math_17k_acc": math_17k_accuracy_reward,
+        "math_verify_reward": math_verify_accuracy_reward
     }
 
     labels = data["labels"]
@@ -209,6 +211,25 @@ def base_model_accuracy_reward(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
         box_match = new_format_and_acc(sequence, answer)
+        scores.append(box_match)
+
+    return scores
+
+
+def math_verify_reward(sequence, answer):
+    pattern = re.compile(r"<think>.*</think>.*<answer>.*\\boxed\{.*\}.*</answer>", re.DOTALL)
+    format_match = re.fullmatch(pattern, sequence)
+
+    if format_match:
+        return compute_math_score(sequence, answer)
+    else:
+        return 0.0
+
+
+def math_verify_accuracy_reward(sequences, answers, *args, **kwargs):
+    scores = []
+    for sequence, answer in zip(sequences, answers):
+        box_match = math_verify_reward(sequence, answer)
         scores.append(box_match)
 
     return scores

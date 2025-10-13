@@ -19,7 +19,7 @@ megatron_training:
   global_batch_size: 384
   seq_length: 1024
   save_interval: 100
-  train_iters: 1000
+  train_iters: 300
   stage: ray_grpo
   attention_dropout: 0.0
   init_method_std: 0.01
@@ -73,16 +73,16 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.001
+  init_kl_coef: 0.2
   mini_batch_size: 384
   use_remove_padding: true
   max_prompt_length: 1024
   epochs: 1
-  clip_ratio: 0.2
+  clip_ratio: 0.1
   entropy_coeff: 0
   n_samples_per_prompt: 32
   rule_reward: true
-  verifier_function: ["base_acc"]
+  verifier_function: ["math_verify_reward"]
   verifier_weight: [1.0]
   actor_resource:
     num_npus: 768

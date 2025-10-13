@@ -19,7 +19,7 @@ megatron_training:
   global_batch_size: 384
   seq_length: 8196
   save_interval: 100
-  train_iters: 1000
+  train_iters: 300
   stage: ray_grpo
   attention_dropout: 0.0
   init_method_std: 0.01
@@ -71,7 +71,7 @@ rl_config:
   adv_estimator: group_norm
   kl_penalty: kl
   kl_ctrl_type: fixed
-  init_kl_coef: 0.001
+  init_kl_coef: 0.2
   mini_batch_size: 384
   use_remove_padding: true
   max_prompt_length: 8196
@@ -98,9 +98,9 @@ generate_config:
   max_model_len: 10240
   max_num_batched_tokens: 1024
   dtype: "bfloat16"
-  gpu_memory_utilization: 0.8
-  enforce_eager: false
-  torchair_graph: true
+  gpu_memory_utilization: 0.75
+  enforce_eager: true
+  torchair_graph: false
   enable_expert_parallel: true
 
   offload_train_optimizer: false

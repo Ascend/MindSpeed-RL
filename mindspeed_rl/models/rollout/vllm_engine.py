@@ -264,6 +264,10 @@ class VLLMInferEngine(BaseInferEngine):
         if os.environ['VLLM_USE_V1'] == '1':
             worker = self.llm.llm_engine.model_executor.driver_worker.worker
 
+            for _, kv_caches_i in enumerate(worker.model_runner.kv_caches):
+                for _, kv_caches_i_j in enumerate(kv_caches_i):
+                    kv_caches_i_j.untyped_storage().resize_(0)
+
             # 清理缓存引擎
             worker.model_runner.kv_caches = []
         else:

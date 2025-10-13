@@ -21,4 +21,5 @@ pylatexenc==2.10
 numba==0.61.2
 torchvision==0.20.1
 cloudpickle==3.1.1
+click==8.2.1
 math_verify

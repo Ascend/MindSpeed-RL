@@ -1,4 +1,4 @@
-# 安装指南
+t# 安装指南
 
 ##  版本配套表
 
@@ -67,6 +67,8 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 
 ### 驱动固件安装
 
+下载参考：[Ascend资源下载中心](https://www.hiascend.com/developer/download/community)
+
 ```shell
 bash Ascend-hdk-*-npu-firmware_*.run --full
 bash Ascend-hdk-*-npu-driver_*.run --full
@@ -100,6 +102,12 @@ cd vllm-ascend
 git checkout 8c7bc45
 pip install -r requirements.txt
 pip install -e .
+```
+
+### ray安装
+
+```shell
+pip install ray==2.42.1
 ```
 
 ### PyTorch框架安装
@@ -191,3 +199,8 @@ python -c "import mindspeed; from mindspeed.op_builder import MoeTokenUnpermuteO
 python -c "import mindspeed; from mindspeed.op_builder import MatmulAddOpBuilder; MatmulAddOpBuilder().load()" &
 python -c "import mindspeed; from mindspeed.op_builder import GroupMatmulAddOpBuilder; GroupMatmulAddOpBuilder().load()"
 ```
+
+## FAQ
+Q：安装过程中出现的软件依赖冲突，是否会影响正常运行？
+
+A：建议软件安装顺序严格按照安装指南从上到下进行，此时遇到依赖冲突不会影响正常运行。

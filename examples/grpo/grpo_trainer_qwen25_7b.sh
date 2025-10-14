@@ -4,6 +4,7 @@ export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1 
 
 SOCKET_IFNAME="Your SOCKET IFNAME"
+#这里不要加.yaml扩展名，参考hydra规则
 DEFAULT_YAML="grpo_qwen25_7b_A3"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"

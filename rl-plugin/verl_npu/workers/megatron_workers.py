@@ -42,7 +42,8 @@ class ActorRolloutRefWorkerPatch(NPUPatchHelper[ActorRolloutRefWorker]):
     @GPUMemoryLogger(role="compute_log_prob", logger=logger)
     @DistProfiler.annotate(color="blue")
     def compute_log_prob(self, data: DataProto):
-        assert self._is_actor
+        if not self._is_actor:
+            raise ValueError("key error")
         if self._is_offload_param:
             load_megatron_model_to_gpu(self.actor_module, load_grad=False)
             log_gpu_memory_usage("After load actor params and grad during compute_log_prob", logger=logger)
@@ -68,7 +69,8 @@ class ActorRolloutRefWorkerPatch(NPUPatchHelper[ActorRolloutRefWorker]):
     @GPUMemoryLogger(role="update_actor", logger=logger)
     @DistProfiler.annotate(color="red")
     def update_actor(self, data: DataProto):
-        assert self._is_actor
+        if not self._is_actor:
+            raise ValueError("key error")
         if self._is_offload_param:
             load_megatron_model_to_gpu(self.actor_module)
             log_gpu_memory_usage("After load actor params and grad during update_actor", logger=logger)

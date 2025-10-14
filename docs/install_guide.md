@@ -6,7 +6,8 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 
 | MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------|-------------|---------| ---------- |
-| master（主线）   | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
+| master（主线）   | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.3.RC1 | Python3.10 |
+| 2.2.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.3.RC1 | Python3.10 |
 | 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
 | 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
@@ -23,13 +24,13 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>昇腾NPU驱动</td>
-    <td rowspan="2">25.2.0</td>
+    <td rowspan="2">25.3.0</td>
   <tr>
     <td>昇腾NPU固件</td>
   </tr>
   <tr>
     <td>Toolkit（开发套件）</td>
-      <td rowspan="3">8.2.RC1</td>
+      <td rowspan="3">8.3.RC1</td>
   </tr>
   <tr>
     <td>Kernels（算子包）</td>
@@ -76,10 +77,10 @@ bash Ascend-hdk-*-npu-driver_*.run --full
 ### CANN安装
 
 ```shell
-bash Ascend-cann-toolkit_8.2.RC1_linux-aarch64.run --install
-bash Atlas-A3-cann-kernels_8.2.RC1_linux-aarch64.run --install
+bash Ascend-cann-toolkit_*_linux-aarch64.run --install
+bash Atlas-A3-cann-kernels_*_linux-aarch64.run --install
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
-bash Ascend-cann-nnal_8.2.RC1_linux-aarch64.run --install
+bash Ascend-cann-nnal_*_linux-aarch64.run --install
 source /usr/local/Ascend/nnal/atb/set_env.sh
 ```
 

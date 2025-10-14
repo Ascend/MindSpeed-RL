@@ -47,17 +47,24 @@ bash examples/data/preprocess_data.sh deepscaler
 数据集处理配置可以根据需求自行配置，以下是数据集处理的yaml文件中基础参数的介绍：
 * `input`：数据集的路径，需指定具体文件，例如/datasets/deepscaler.json
 * `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
-* `tokenizer_name_or_path`：指定分词器的名称或路径;
+* `tokenizer_name_or_path`：指定分词器的名称或路径，路径具体到分词器所在目录即可;
 * `output_prefix`：输出结果的前缀路径，例如 /datasets/data;
 * `workers`：设置处理数据时使用的 worker 数;
 * `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt-type` 的可选项可以在 `configs/model/templates.json` 文件内查看;
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
 * `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
+* `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
+  - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
+  - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
+  - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
+  - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
 
 ## 模型权重转换
 
 根据 GRPO 算法要求，Actor 和 Reference 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。GRPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
+
+权重转换需要安装MindSpeed-LLM，具体安装方法参考[安装指南](https://gitee.com/ascend/MindSpeed-LLM/blob/master/docs/pytorch/install_guide.md)，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。
 
 接下来，以 Qwen25-7B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 

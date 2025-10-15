@@ -123,6 +123,7 @@ python3 -m recipe.dapo.main_dapo --config-path=../../verl/trainer/config --confi
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=${gen_tp} \
     +actor_rollout_ref.rollout.dp_model_parallel_size=${gen_dp} \
+    +actor_rollout_ref.rollout.enable_expert_parallel=True \
     actor_rollout_ref.rollout.load_format="safetensors" \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=${max_num_batched_tokens} \

@@ -223,7 +223,8 @@ def initialize_model_parallel_for_vllm(
     num_expert_tensor_parallel_groups: int = world_size // infer_expert_tensor_parallel_size
 
     global _EP
-    assert _EP is None, ("expert parallel group is already initialized")
+    if _EP is not None:
+        raise ValueError("expert parallel group is already initialized")
 
     if rebulid_EP_group:
         # 重新建组
@@ -284,7 +285,8 @@ def initialize_model_parallel_for_vllm(
                                        group_name="mc2")
     
     global _DP
-    assert _DP is None, ("data parallel group is already initialized")
+    if _DP is not None:
+        raise ValueError("data parallel group is already initialized")
     dp_group_ranks = torch.tensor(tp_group_ranks).transpose(0, 1).reshape(-1, data_parallel_size).unbind(0)
     group_ranks = [x.tolist() for x in dp_group_ranks]
     logger.info(f"DP rank: {group_ranks}")

@@ -36,6 +36,11 @@ bash examples/data/preprocess_data.sh orca_rlhf
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
 * `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
+* `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
+  - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
+  - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
+  - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
+  - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
 
 ## 模型权重转换
 
@@ -47,10 +52,10 @@ bash examples/data/preprocess_data.sh orca_rlhf
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen3-30B-A3B](https://huggingface.co/Qwen/Qwen3-30B-A3B)  为参考。
 ### hf 转 mcore
-在训练前，需要将 Hugging Face 权重转换成Mcore格式，具体权重转换方式可见安装指南中对应 commit id 的 MindSpeed-LLM 权重转换部分 。
+在训练前，需要将 Hugging Face 权重转换成Mcore格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ### mcore 转 hf（可选）
-训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，具体权重转换方式可见安装指南中对应 commit id 的 MindSpeed-LLM 权重转换部分 。
+训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ## 启动训练
 

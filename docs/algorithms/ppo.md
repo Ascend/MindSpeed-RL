@@ -42,6 +42,12 @@ bash examples/data/preprocess_data.sh deepscaler
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
 * `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
+* `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
+  - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
+  - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
+  - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
+  - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
+* `dataset_additional_keys: ["labels"]`：指定在数据处理后需要保留的原始数据集中的额外字段。
 
 ## 模型权重转换
 
@@ -59,7 +65,7 @@ bash examples/data/preprocess_data.sh deepscaler
 
 ### hf 转 mcore
 
-在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
+在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ***注意：***
 
@@ -71,7 +77,7 @@ bash examples/data/preprocess_data.sh deepscaler
 
 ### mcore 转 hf（可选）
 
-训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
+训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ## 单卡多进程
 ### 技术概述
@@ -150,7 +156,7 @@ rl_config:
 
 * 全共卡方案下总时间计算方式
 
-`timing/all` >= `timing/rollout` +`timing/old_log_p` + `timing/update`  +  `timing/reference` + `timing/reshard_to_train` + `timing/reshard_to_infer`  + `max(timing/non_overlap_rule_reward, timing/non_overlap_reference_model)`+`timing/critic_model` +`timing/update_critic`
+`timing/all` >= `timing/rollout` +`timing/old_log_p` + `timing/update`  +  `timing/reference_model` + `timing/reshard_to_train` + `timing/reshard_to_infer`  + `max(timing/non_overlap_rule_reward, timing/non_overlap_reference_model)`+`timing/critic_model` +`timing/update_critic`
 
 **其他指标**
 

@@ -49,7 +49,7 @@ MindSpeed RL依赖配套如下表：
   </tr>
   <tr>
     <td>Python</td>
-    <td><a href="https://gitcode.com/ascend/pytorch#pytorch%E4%B8%8Epython%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8">PT配套版本</a></td>
+    <td><a href="https://gitcode.com/ascend/pytorch#pytorch%E4%B8%8Epython%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8">PyTorch与Python版本配套表</a></td>
   </tr>
   <tr>
     <td>PyTorch</td>
@@ -64,7 +64,7 @@ MindSpeed RL依赖配套如下表：
   </tr>
 </table>
 
-更多详情请参考[版本配套表](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/install_guide.md#%E7%89%88%E6%9C%AC%E9%85%8D%E5%A5%97%E8%A1%A8)。
+更多详情请参考[版本配套表](https://gitcode.com/Ascend/MindSpeed-RL/blob/2.2.0/docs/install_guide.md)。
 
 注意：本版本为**预览非正式发布**版本。
 
@@ -115,11 +115,11 @@ MindSpeed RL具体的安装请参考[安装指南](https://gitcode.com/ascend/Mi
     <tr>
       <td><a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Doc</a></td>
       <td  rowspan="1">
-        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-3B</a> <br>
-        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-7B</a> <br>
-        <a href="https://gitcode.com/ascend/MindSpeed-MM/tree/master/examples/rl">Qwen2.5VL-32B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.2.0/examples/rl">Qwen2.5VL-3B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.2.0/examples/rl">Qwen2.5VL-7B</a> <br>
+        <a href="https://gitcode.com/Ascend/MindSpeed-MM/tree/2.2.0/examples/rl">Qwen2.5VL-32B</a> <br>
       </td>
-      <td> Released</td>
+      <td> Preview</td>
     </tr>
     <tr>
       <td><a href="docs/algorithms/grpo.md">Doc</a></td>
@@ -326,6 +326,7 @@ MindSpeed RL已发布版本维护策略：
 
 | **MindSpeed RL版本** | **对应标签** | **维护策略** | **当前状态** | **发布时间**  | **后续状态** | **EOL日期** |
 |--------------------| ------------ |----------|----------|-----------|----------|-----------|
+| 2.2.0              | \            | 正式版本     |  商用      |   \  | \        | 2026/03/30 |
 | 2.1.0              | \            | 正式版本     |  商用      |   \  | \        | 2025/12/30 |
 | 2.0.0              | \            | 预览版本     |  预览      |   \  | \        | 2025/9/30 |
 

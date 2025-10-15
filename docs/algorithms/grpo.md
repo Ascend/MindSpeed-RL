@@ -59,6 +59,7 @@ bash examples/data/preprocess_data.sh deepscaler
   - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
   - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
   - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
+* `dataset_additional_keys: ["labels"]`：指定在数据处理后需要保留的原始数据集中的额外字段。
 
 ## 模型权重转换
 
@@ -72,17 +73,17 @@ bash examples/data/preprocess_data.sh deepscaler
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B)  为参考。
 ### hf 转 mcore
-在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
+在训练前，需要将 Hugging Face 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ### mcore 转 hf（可选）
-训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的 [MindSpeed-LLM](https://gitcode.com/Ascend/MindSpeed-LLM) 权重转换部分 。
+训练结束后，如果需要将生成的 Mcore 格式权重转换回 Hugging Face 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ## 启动训练
 
 以 Qwen25 7B 模型为例,在启动训练之前，需要修改[ 启动脚本 ](../../examples/grpo/grpo_trainer_qwen25_7b.sh)的配置：
 1. 根据实际安装路径设置 jemalloc 环境变量，用于更好管理内存，避免长跑过程中内存 OOM ，例如：export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 
 2. 修改 DEFAULT_YAML 为指定的 yaml，目前已支持的配置文件放置在 configs / 文件夹下，同时需要对[ 环境变量配置文件 ](../../configs/envs/runtime_env.yaml) 中的 VLLM_DP_SIZE 及 HCCL_SOCKET_IFNAME 等参数进行配置，具体参数说明可见 [配置文件参数介绍](../features/grpo_yaml.md)；
-3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
+3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 、NPUS_PER_NODE 为8；
 4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP (需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost)；
 5. 启动脚本中的 SOCKET_IFNAME 需要设置为 CURRENT_IP 所对应的通信网卡名；
 ```bash
@@ -136,7 +137,7 @@ rl_config:
 
 * 全共卡方案下总时间分布
 
-`timing/all` >= `timing/rollout` +`timing/old_log_p` + `timing/update`  +  `timing/reference` + `timing/reshard_to_train` + `timing/reshard_to_infer`  + `max(timing/non_overlap_rule_reward, timing/non_overlap_reference_model)`
+`timing/all` >= `timing/rollout` +`timing/old_log_p` + `timing/update`  +  `timing/reference_model` + `timing/reshard_to_train` + `timing/reshard_to_infer`  + `max(timing/non_overlap_rule_reward, timing/non_overlap_reference_model)`
 
 
 **其他指标**

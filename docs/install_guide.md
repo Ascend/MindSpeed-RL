@@ -16,7 +16,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 ## 安装依赖的软件
 
 在安装MindSpeed RL之前，请参考[版本配套表](#版本配套表)，安装配套的昇腾软件栈，软件列表如下：
-
+（注：Ascend提供[满足商用标准的稳定版本](https://www.hiascend.com/developer/download/commercial)和[具有新特性的社区体验版本](https://www.hiascend.com/developer/download/community)供开发者选择）
 <table>
   <tr>
     <th>依赖软件</th>
@@ -67,7 +67,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 
 ### 驱动固件安装
 
-下载参考：[Ascend资源下载中心](https://www.hiascend.com/developer/download/community)
+（注：下载参考：[商用稳定版固件与驱动](https://www.hiascend.com/hardware/firmware-drivers/commercial)和[社区体验版固件与驱动](https://www.hiascend.com/hardware/firmware-drivers/community)）
 
 ```shell
 bash Ascend-hdk-*-npu-firmware_*.run --full
@@ -75,7 +75,7 @@ bash Ascend-hdk-*-npu-driver_*.run --full
 ```
 
 ### CANN安装
-
+（注：下载参考：[商用稳定版CANN](https://www.hiascend.com/developer/download/commercial/result?module=cann)和[8.3.RC1 社区体验版CANN](https://www.hiascend.com/developer/download/community/result?module=cann)）
 ```shell
 bash Ascend-cann-toolkit_*_linux-aarch64.run --install
 bash Atlas-A3-cann-kernels_*_linux-aarch64.run --install
@@ -111,7 +111,7 @@ pip install ray==2.42.1
 ```
 
 ### PyTorch框架安装
-（注：可从[PTA官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取对应版本torch和torch_npu的whl包）
+（（注：[PyTorch框架和torch_npu插件安装教程](https://www.hiascend.com/document/detail/zh/Pytorch/710/configandinstg/instg/insg_0004.html)；可从[PyTorch-Ascend官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取PyTorch各个版本对应的torch_npu的whl包）
 ```shell
 # 安装torch和torch_npu
 pip install torch-2.5.1-cp310-cp310-*.whl

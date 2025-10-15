@@ -82,7 +82,7 @@ MindSpeed RL具体的安装请参考[安装指南](https://gitcode.com/ascend/Mi
 
 
 
-  快速在昇腾训练设备上运行 MindSpeed RL可详见[快速入门](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/algorithms/grpo.md#grpo)。
+  快速在昇腾训练设备上运行 MindSpeed RL可详见[快速入门](https://gitcode.com/ascend/MindSpeed-RL/blob/2.2.0/docs/algorithms/grpo.md#grpo)。
 
 # 使用指南
 

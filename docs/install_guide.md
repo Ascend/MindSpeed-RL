@@ -87,6 +87,8 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 ### vllm及相关依赖安装：
 （注：环境中需要安装git，因为vllm的安装过程依赖git）
 ```shell
+# pydantic高版本包会产生冲突，指定版本安装
+pip install pydantic==2.12.0
 git clone -b releases/v0.9.1 https://github.com/vllm-project/vllm.git
 cd vllm
 git checkout b6553be1bc75f046b00046a4ad7576364d03c835

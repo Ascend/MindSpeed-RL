@@ -50,7 +50,7 @@ megatron_training:
   use_fused_rmsnorm: true
   swap_attention: false
   no_shuffle: true
-  cp_attention_mask_type: general
+  attention_mask_type: general
 
   # data_args:
   data_path: ./dataset/dpo

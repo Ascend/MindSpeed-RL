@@ -33,7 +33,7 @@ megatron_training:
   split: 100,0,0
   no_shuffle: true
   seed: 1234
-  use_deter_comp: false # 是否开启确定性计算
+  npu_deterministic: false # 是否开启确定性计算
 
 actor_config:
   model: qwen2.5vl_3b

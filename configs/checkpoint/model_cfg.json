@@ -61,7 +61,7 @@
           "num_layers": "num_hidden_layers",
           "norm_epsilon": "rms_norm_eps",
           "rotary_base": "rope_theta",
-          "moe_intermediate_size": "moe_intermediate_size",
+          "moe_ffn_hidden_size": "moe_ffn_hidden_size",
           "shared_expert_intermediate_size": "shared_expert_intermediate_size"
         },
         "model_hf_key_mapping": {

@@ -224,7 +224,8 @@ def initialize_megatron(
         if args.rank == 0:
             logger.info("> setting random seeds to {} ...".format(args.seed))
         _set_random_seed(args.seed, args.data_parallel_random_init)
-        if args.use_mc2:
+        if args.use_ascend_mc2:
+            from mindspeed.core.tensor_parallel.ascend_turbo.initialize import initialize_cfg_from_args
             initialize_cfg_from_args(args)
 
     if skip_mpu_initialization:

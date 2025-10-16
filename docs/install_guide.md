@@ -168,7 +168,7 @@ git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 
 git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
-git checkout ca70c1338f1b3d1ce46a0ea426e5779ae1312e2e  # 参考MindSpeed-LLM依赖版本
+git checkout 89f4632d2cbb1e583a69b2bf3a08d75222f1173d  # 参考MindSpeed-LLM依赖版本
 pip install -r requirements.txt 
 cp -r mindspeed ../MindSpeed-RL/
 cd ..
@@ -176,13 +176,13 @@ cd ..
 # Megatron从github下载，请确保网络能访问
 git clone https://github.com/NVIDIA/Megatron-LM.git
 cd Megatron-LM
-git checkout core_r0.8.0
+git checkout core_v0.12.1
 cp -r megatron ../MindSpeed-RL/
 cd ..
 
 git clone https://gitcode.com/Ascend/MindSpeed-LLM.git -b 2.1.0
 cd MindSpeed-LLM
-git checkout bf1e61f
+git checkout 887c2d8682021befd675bb03965dbdee4de24516
 cp -r mindspeed_llm ../MindSpeed-RL/
 cd ..
 

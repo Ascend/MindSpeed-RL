@@ -34,6 +34,8 @@ megatron_training:
   no_shuffle: true
   full_shuffle_instruction_dataset: false
   seed: 1234
+  use_rotary_position_embeddings: true
+  moe_alltoall_overlap_comm: true
 
 actor_config:
   model: qwen3_30b_a3b

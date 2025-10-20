@@ -75,7 +75,7 @@ actor_config:
 generate_config:
   infer_tensor_parallel_size: 4     # 推理态 TP 切分
   infer_pipeline_parallel_size: 1   # 推理态 PP 切分
-  infer_expert_parallel_size: 1     # 推理态 PP 切分
+  infer_expert_parallel_size: 1     # 推理态 EP 切分
 
   offload_train_optimizer: true     # 设置为 true 可以使能在推理时卸载训练态优化器
   offload_train_grad: true          # 设置为 true 可以使能在推理时卸载训练态梯度

@@ -31,7 +31,7 @@ profiler_config:
 ```
 
 针对MindSpeed-RL仓库支持的直接偏好对齐（DPO）算法，可以通过如下方式进行配置：
-> **注意**:其他未罗列的参数目前对应功能都未支持，且该场景下采集profiliing 数据会warmup 1步，即实际采集步数为 profile_step_end - profile_step_start + 1。
+> **注意**:其他未罗列的参数目前对应功能都未支持，且该场景下采集profiling 数据会warmup 1步，即实际采集步数为 profile_step_end - profile_step_start + 1。
 ```yaml
 profiler_config:
   integrated:

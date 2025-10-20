@@ -32,7 +32,7 @@ bash examples/data/preprocess_data.sh math_17k
 * `tokenizer_name_or_path`：指定分词器的名称或路径;
 * `output_prefix`：输出结果的前缀路径，例如 /datasets/data;
 * `workers`：设置处理数据时使用的 worker 数;
-* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt-type` 的可选项可以在 `configs/model/templates.json` 文件内查看;
+* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
 * `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
@@ -46,7 +46,7 @@ bash examples/data/preprocess_data.sh math_17k
 
 根据 DAPO 算法要求，Actor 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。DAPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
 
-接下来，以 Qwen25-32B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
+接下来，以 Qwen2.5-32B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
 ### 获取权重文件
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
@@ -72,7 +72,7 @@ bash examples/data/preprocess_data.sh math_17k
 
     #过长response惩罚措施
     overlong_buffer_enable: true                          <------- 默认关闭
-    rollout_max_tokens : 2048                             <------- response最大长度
+    rollout_max_tokens: 2048                             <------- response最大长度
     overlong_buffer: 512                                  <------- 超长惩罚缓冲区大小
     overlong_buffer_penalty_factor: 1.0                   <------- 超长惩罚系数
 

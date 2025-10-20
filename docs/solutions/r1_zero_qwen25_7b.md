@@ -1,5 +1,5 @@
 # DeepSeek-R1-Zero-Qwen25-7B
-R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，本篇工作使用Qwen25-7B模型复现DeepSeek-R1-Zero在Math领域的工作。
+R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，本篇工作使用Qwen25-7B模型复现DeepSeek-R1-Zero在Math领域的工作。
 
 ## 整体流程示意图
 

@@ -129,7 +129,7 @@ SERVERS = (
 
 ## Eplb_map Generate 使用说明
 
-本功能基于每一层的 **token 到 expert 的分配情况**，通过Deepseek开源的**EPLB策略**，生成 **冗余专家映射表**，实现更合理的专家分布。
+本功能基于每一层的 **token 到 expert 的分配情况**，通过DeepSeek开源的**EPLB策略**，生成 **冗余专家映射表**，实现更合理的专家分布。
 
 ---
 
@@ -215,7 +215,7 @@ python  mindspeed_rl/workers/eplb/eplb_generate_map_ds.py \
 
 1. 运行方式
     ```
-    bash examples\eplb\eplb.sh
+    bash examples/eplb/eplb.sh
     ```
 2. 生成JSON文件： `output_path` 
 3. 文件中保存了 **每个层上** expert在**每个rank上**的映射情况。
@@ -267,7 +267,7 @@ expert_map_path: /file/to/save
 
 运行脚本：
 ```bash
-bash examples\eplb\grpo_trainer_deepseek_r1_671b_eplb.sh
+bash examples/eplb/grpo_trainer_deepseek_r1_671b_eplb.sh
 ```
 ---
 

@@ -146,7 +146,7 @@ export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 yum install jemalloc
 ```
 如果上述方法无法正常安装，可以通过源码编译安装
-前往jamalloc官网下载最新稳定版本，官网地址:https://github.com/jemalloc/jemalloc/releases/
+前往jemalloc官网下载最新稳定版本，官网地址:https://github.com/jemalloc/jemalloc/releases/
 ```shell
 tar -xvf jemalloc-{version}.tar.bz2
 cd jemalloc-{version}

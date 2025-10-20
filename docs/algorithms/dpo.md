@@ -32,7 +32,7 @@ bash examples/data/preprocess_data.sh orca_rlhf
 * `tokenizer_name_or_path`：指定分词器的名称或路径;
 * `output_prefix`：输出结果的前缀路径，例如 ./datasets/data;
 * `workers`：设置处理数据时使用的 worker 数;
-* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt-type` 的可选项可以在 `configs/model/templates.json` 文件内查看;
+* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
 * `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;

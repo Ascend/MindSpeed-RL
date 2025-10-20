@@ -1,5 +1,5 @@
 # DeepSeek-R1-Zero-671B
-R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，本篇工作使用DeepSeek-671B Base模型复现DeepSeek-R1-Zero在Math领域的工作。
+R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，本篇工作使用DeepSeek-671B Base模型复现DeepSeek-R1-Zero在Math领域的工作。
 
 
 ## 复现效果

@@ -1,5 +1,5 @@
 # DeepSeek-R1-Zero-Qwen25-32B
-R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，本篇工作使用Qwen25-32B模型复现DeepSeek-R1-Zero在Math领域的工作。
+R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，本篇工作使用Qwen25-32B模型复现DeepSeek-R1-Zero在Math领域的工作。
 
 ## 整体流程示意图
 
@@ -9,7 +9,7 @@ R1-Zero模型是使用base模型，基于GPRO+规则奖励打分进行训练，�
 ## 复现效果
 ### 训练细节
 
-我们使用Qwen-2.5-32B模型在deepscaler数据集上使用准的格式奖励和准确性奖励训练。
+我们使用Qwen-2.5-32B模型在deepscaler数据集上使用标准的格式奖励和准确性奖励训练。
 
 **训练过程记录如下：**
 

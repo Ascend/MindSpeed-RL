@@ -62,7 +62,7 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 * `max_prompt_length`：GRPO 训练中最大 prompt 长度，默认为512;
 * `clip_ratio`：Actor 模型训练计算损失函数时的 clip 比例，默认为0.2 一般取值范围 [0.1，0.3] 最大取值范围[0，1] 该数值越大允许策略更新的幅度越大，反之不然；
 * `entropy_coeff`: entropy loss 所占权重;
-* `n_samples_per_prompt`：每条prompt的重用次数，一条 prompt 输入能输出 n 条 responese;
+* `n_samples_per_prompt`：每条prompt的重用次数，一条 prompt 输入能输出 n 条 response;
 * `guarantee_order`: 是否开启TransferDock保序，默认 False;
 * `shuffle_mini_batch`：Actor 训练时是否对 minibatch 进行 shuffle，默认为 False;
 * `log_max_throughput`: 配置tps计算时是否使用max值，默认为 true；

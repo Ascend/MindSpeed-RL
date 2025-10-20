@@ -451,12 +451,8 @@ class GRPOTransferDock(TransferDock):
                 return None, None
             experience = self._get(experience_columns, indexes)
         else:
-            with self.consumer_sampling_lock[consumer]:
-                if torch.all(self.experience_consumer_status[consumer][indexes] == 0):
-                    self.experience_consumer_status[consumer][indexes] = 1
-                    experience = self._get(experience_columns, indexes)
-                else:
-                    return None, None
+            self.experience_consumer_status[consumer][indexes] = 1
+            experience = self._get(experience_columns, indexes)
 
         if consumer == "actor_rollout" and self.enable_partial_rollout:
             experience_columns.append('age')

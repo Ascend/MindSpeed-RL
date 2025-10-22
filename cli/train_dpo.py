@@ -218,7 +218,7 @@ def initialize_megatron(
     def finish_mpu_init():
         args = get_args()
         # Pytorch distributed.
-        _initialize_distributed()
+        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
 
         # Random seeds for reproducibility.
         if args.rank == 0:

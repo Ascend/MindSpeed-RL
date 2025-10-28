@@ -1,3 +1,18 @@
+# Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import copy
 import heapq
 from itertools import chain
@@ -5,7 +20,7 @@ from typing import List
 
 import torch
 from torch import distributed as dist
-from verl_npu.patch_util import NPUPatchHelper
+from verl_npu.core import NPUPatchHelper
 from verl.utils import seqlen_balancing
 from verl.utils.device import get_device_name
 
@@ -125,8 +140,9 @@ def get_seqlen_balanced_partitions(seqlen_list: list[int], k_partitions: int, eq
 
     if dist.is_initialized() and max_token_len is not None:
         partitions = heapq_partition_with_max(seqlen_list=seqlen_list, k_partitions=k_partitions, max_token_len=max_token_len)
-        k_partitions = torch.tensor(len(partitions))
+        k_partitions = torch.tensor(len(partitions), device=get_device_name())
         dist.all_reduce(k_partitions, op=dist.ReduceOp.MAX, group=None)
+        k_partitions =  k_partitions.cpu().item()
     partitions = heapq_partition(seqlen_list=seqlen_list, k_partitions=k_partitions, equal_size=equal_size)
     return _check_and_sort_partitions(partitions)
     

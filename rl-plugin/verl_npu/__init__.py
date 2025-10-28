@@ -1,4 +1,4 @@
-from verl_npu.module_injection import bootstrap_default_aliases
+from verl_npu.core import bootstrap_default_aliases
 
 
 def _initialize_npu_plugin():

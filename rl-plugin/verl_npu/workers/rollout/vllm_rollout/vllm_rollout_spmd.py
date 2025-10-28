@@ -28,7 +28,7 @@ from verl.workers.rollout.base import BaseRollout
 from verl.workers.rollout.vllm_rollout.vllm_rollout_spmd import vLLMRollout
 from verl.workers.sharding_manager.hybrid_tp_config import HybridTPConfig
 
-from verl_npu.patch_util import NPUPatchHelper
+from verl_npu.core import NPUPatchHelper
 
 
 class vLLMRolloutPatch(NPUPatchHelper[vLLMRollout]):

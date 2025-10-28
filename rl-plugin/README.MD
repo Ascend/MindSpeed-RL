@@ -79,3 +79,34 @@ VERL_PATH=path_to_verl pip install -e .
 `configs` 目录提供具体模型及算法配置
 
 `dapo`及`grpo`目录提供与 `configs` 对应的执行脚本，运行时配置好该脚本中的 `DEFAULT_SH` 即可拉起
+
+
+# 插件开发
+
+## 插件框架特性
+
+本插件框架提供下述特性来实现无侵入式的NPU集成：
+
+1. **Module Patch 特性** - 动态扩展现有类和模块的功能
+
+2. **Variable Patch 特性** - 运行时修改外部模块中的字典和列表变量
+
+3. **Module Alias 特性** - 注入模块别名，实现透明的模块替换
+
+## 开发指南
+
+### 快速开始
+
+如果您需要为新的NPU硬件或新的verl版本开发插件，请参考：
+
+- **[快速开始指南](docs/quick_start.md)** - 快速了解框架概览
+
+- **[Module Patch特性](docs/module_patch_feature.md)** - 详细的模块扩展修改特性文档
+
+- **[Variable Patch特性](docs/variable_patch_feature.md)** - 详细的变量修改特性文档
+
+- **[Module Alias特性](docs/module_alias_feature.md)** - 详细的模块别名修改特性文档
+
+### 验证开发结果
+
+插件开发完成后，按照上述安装步骤重新安装插件.

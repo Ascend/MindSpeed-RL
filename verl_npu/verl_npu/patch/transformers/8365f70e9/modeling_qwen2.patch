@@ -1,0 +1,58 @@
+diff --git a/src/transformers/models/qwen2/modeling_qwen2.py b/src/transformers/models/qwen2/modeling_qwen2.py
+index c5b0ff67b4..9079c55f2b 100644
+--- a/src/transformers/models/qwen2/modeling_qwen2.py
++++ b/src/transformers/models/qwen2/modeling_qwen2.py
+@@ -29,6 +29,10 @@ from ...utils import TransformersKwargs, auto_docstring, can_return_tuple
+ from ...utils.deprecation import deprecate_kwarg
+ from ...utils.generic import check_model_inputs
+ from .configuration_qwen2 import Qwen2Config
++from ...utils import is_torch_npu_available
++
++if is_torch_npu_available():
++    import torch_npu
+ 
+ 
+ class Qwen2MLP(nn.Module):
+@@ -42,9 +46,10 @@ class Qwen2MLP(nn.Module):
+         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
+         self.act_fn = ACT2FN[config.hidden_act]
+ 
+-    def forward(self, x):
+-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+-        return down_proj
++    def forward(self, hidden_state):
++        return self.down_proj(
++            torch_npu.npu_swiglu(torch.cat((self.gate_proj(hidden_state), self.up_proj(hidden_state)), dim=-1), dim=-1)
++        )
+ 
+ 
+ def rotate_half(x):
+@@ -93,6 +98,14 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+ 
+ 
++def fused_apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueese_dim=1):
++    cos = cos.unsqueese(unsqueese_dim)
++    sin = sin.unsqueese(unsqueese_dim)
++    q_embed = torch_npu.npu_rotary_mul(q.contiguous(), cos, sin).to(q.dtype)
++    k_embed = torch_npu.npu_rotary_mul(k.contiguous(), cos, sin).to(k.dtype)
++    return q_embed, k_embed
++
++
+ def eager_attention_forward(
+     module: nn.Module,
+     query: torch.Tensor,
+@@ -194,11 +207,8 @@ class Qwen2RMSNorm(nn.Module):
+         self.variance_epsilon = eps
+ 
+     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+-        input_dtype = hidden_states.dtype
+-        hidden_states = hidden_states.to(torch.float32)
+-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+-        return self.weight * hidden_states.to(input_dtype)
++        return torch_npu.npu_rms_norm(hidden_states, self.weight, epsilon=self.variance_epsilon)[0]
++
+ 
+     def extra_repr(self):
+         return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"

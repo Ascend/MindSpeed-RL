@@ -1,0 +1,66 @@
+diff --git a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
+index 23eb3346..653703e3 100644
+--- a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
++++ b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
+@@ -55,6 +55,7 @@ from verl import DataProto
+ from verl.utils.profiler import GPUMemoryLogger
+ from verl.utils.torch_functional import get_response_mask, pad_2d_list_to_length
+ from verl.workers.rollout.base import BaseRollout
++from verl.workers.sharding_manager.hybrid_tp_config import HybridTPConfig
+ 
+ logger = logging.getLogger(__file__)
+ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
+@@ -89,6 +90,13 @@ class vLLMRollout(BaseRollout):
+         super().__init__()
+         self.config = config
+ 
++        # create HybridTPConfig
++        self.hybrid_tp_config = HybridTPConfig.from_dict_config(
++            self.config.get("hybrid_tp", {}),
++        )
++
++        print(f"[NPU Patch] hybrid_tp_config is : {self.hybrid_tp_config if self.hybrid_tp_config else '{}'}")
++
+         tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
+         assert tensor_parallel_size <= torch.distributed.get_world_size(), (
+             "tensor parallel size should be less than or equal to the world size"
+@@ -162,6 +170,26 @@ class vLLMRollout(BaseRollout):
+         engine_kwargs = {key: val for key, val in engine_kwargs.items() if val is not None}
+         if config.get("limit_images", None):  # support for multi-image data
+             engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
++        # patch this for npu
++        if hasattr(config, "dp_model_parallel_size") and config.dp_model_parallel_size > 1:
++            self._init_dp_env(config)
++
++        # Extract hybrid TP config for additional_config
++        additional_config = {}
++        if self.hybrid_tp_config.enabled:
++            # Extract tp_size values from hybrid_tp_config
++            if self.hybrid_tp_config.qkv_proj_tp_size is not None:
++                additional_config["qkvproj_tensor_parallel_size"] = self.hybrid_tp_config.qkv_proj_tp_size
++            if self.hybrid_tp_config.o_proj_tp_size is not None:
++                additional_config["oproj_tensor_parallel_size"] = self.hybrid_tp_config.o_proj_tp_size
++            if self.hybrid_tp_config.lm_head_tp_size is not None:
++                additional_config["lmhead_tensor_parallel_size"] = self.hybrid_tp_config.lm_head_tp_size
++
++        print(f"[NPU Patch] vLLM additional_config: {additional_config if additional_config else '{}'}")
++
++        # Add additional_config to engine_kwargs if not empty
++        if additional_config:
++            engine_kwargs["additional_config"] = additional_config
+ 
+         self.inference_engine = LLM(
+             model=model_path,
+@@ -178,8 +206,11 @@ class vLLMRollout(BaseRollout):
+             disable_log_stats=config.disable_log_stats,
+             max_num_batched_tokens=max_num_batched_tokens,
+             enable_chunked_prefill=config.enable_chunked_prefill,
+-            enable_prefix_caching=True,
++            enable_prefix_caching=config.get("enable_prefix_caching", True),
+             trust_remote_code=trust_remote_code,
++            enable_expert_parallel=config.get("enable_expert_parallel", False),
++            max_num_seqs=int(config.get("max_num_seqs", 256)),
++            compilation_config={"cudagraph_capture_sizes": [8, 16, 32, 64, 128, 192, 256, 384]},
+             seed=config.get("seed", 0),
+             **lora_kwargs,
+             **engine_kwargs,

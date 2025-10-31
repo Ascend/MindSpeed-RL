@@ -1,0 +1,20 @@
+diff --git a/verl/workers/megatron_workers.py b/verl/workers/megatron_workers.py
+index 7a9c303a..982eb843 100644
+--- a/verl/workers/megatron_workers.py
++++ b/verl/workers/megatron_workers.py
+@@ -582,7 +582,6 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
+         if self._is_offload_optimizer:
+             load_megatron_optimizer(self.actor_optimizer)
+             log_gpu_memory_usage("After load actor optimizer during update_actor", logger=logger)
+-        data.batch = data.batch.to(get_device_name())
+ 
+         micro_batch_size = self.config.actor.ppo_micro_batch_size_per_gpu
+         data.meta_info["micro_batch_size"] = micro_batch_size
+@@ -688,7 +687,6 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
+         data.meta_info["max_token_len"] = self.config.rollout.log_prob_max_token_len_per_gpu
+         data.meta_info["use_dynamic_bsz"] = self.config.rollout.log_prob_use_dynamic_bsz
+         data.meta_info["temperature"] = self.config.rollout.temperature
+-        data = data.to(get_device_id())
+         output, entropys = self.actor.compute_log_prob(data=data, calculate_entropy=True)
+         output = DataProto.from_dict(
+             tensors={"old_log_probs": output, "entropys": entropys},

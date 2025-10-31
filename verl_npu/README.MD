@@ -61,7 +61,7 @@ cd ..
 ```bash
 # 请确保 vllm 已正确安装并且之后不会做覆盖
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git
-cd MindSpeed-RL/rl-plugin
+cd MindSpeed-RL/verl_npu
 pip install -v -e .
 cd ../..
 ```
@@ -72,6 +72,26 @@ cd ../..
 VERL_PATH=path_to_verl pip install -e .
 ```
 
+## 5、内存管理优化（可选）
+
+安装 jemalloc 以优化内存管理
+
+可通过源码编译安装，前往官方仓库获取最新稳定版本
+
+安装步骤：
+``` python
+    tar -xvf jemalloc-{version}.tar.bz2
+    cd jemalloc-{version}
+    ./configure --prefix=/usr/local
+    make
+    make install
+```
+
+安装完成后设置环境变量(假设安装路径为 `/usr/local/lib/libjemalloc.so.2`): 
+``` python
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+```
+
 # 启动训练
 
 安装成功后，将 `MindSpeed-RL/tests/verl_examples` 下提供的参考配置脚本放入 verl 目录下，具体为：
@@ -80,18 +100,19 @@ VERL_PATH=path_to_verl pip install -e .
 
 `dapo`及`grpo`目录提供与 `configs` 对应的执行脚本，运行时配置好该脚本中的 `DEFAULT_SH` 即可拉起
 
+# verl_npu开发
 
-# 插件开发
+## verl_npu功能特性
 
-## 插件框架特性
+verl_npu提供下述功能特性来实现极简易用的NPU集成：
 
-本插件框架提供下述特性来实现无侵入式的NPU集成：
+1. **Patch 注入** - 使用git原生patch程序对Patch文件注入
 
-1. **Module Patch 特性** - 动态扩展现有类和模块的功能
+2. **Patch Summary** - 对Patch注入结果进行概述
 
-2. **Variable Patch 特性** - 运行时修改外部模块中的字典和列表变量
+3. **Patch 版本管理** - 对当前依赖库多个版本进行统一
 
-3. **Module Alias 特性** - 注入模块别名，实现透明的模块替换
+4. **Patch 结果探测** - 探测Patch注入结果
 
 ## 开发指南
 
@@ -101,12 +122,6 @@ VERL_PATH=path_to_verl pip install -e .
 
 - **[快速开始指南](docs/quick_start.md)** - 快速了解框架概览
 
-- **[Module Patch特性](docs/module_patch_feature.md)** - 详细的模块扩展修改特性文档
-
-- **[Variable Patch特性](docs/variable_patch_feature.md)** - 详细的变量修改特性文档
-
-- **[Module Alias特性](docs/module_alias_feature.md)** - 详细的模块别名修改特性文档
-
 ### 验证开发结果
 
-插件开发完成后，按照上述安装步骤重新安装插件.
+verl_npu开发完成后，按照上述安装步骤重新安装插件.

@@ -295,7 +295,7 @@ def main():
         version="0.0.1",
         license="Apache 2.0",
         description="verl npu backend plugin",
-        packages=find_packages(include=["verl_npu"]),
+        packages=find_packages(),
         classifiers=[
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",

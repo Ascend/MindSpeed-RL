@@ -62,7 +62,8 @@ cd ..
 # 请确保 vllm 已正确安装并且之后不会做覆盖
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git -b 2.2.0
 cd MindSpeed-RL/rl-plugin
-pip install -v -e .
+# 若要源码修改patch，安装时请增加- e，即pip install -v -e .
+pip install -v .
 cd ../..
 ```
 

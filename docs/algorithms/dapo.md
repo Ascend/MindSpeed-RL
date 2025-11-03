@@ -4,7 +4,7 @@
 MindSpeed RL 仓库复现 [Decoupled Clip and Dynamic sAmpling Policy Optimization (DAPO) ](https://arxiv.org/abs/2503.14476) 后训练方法。前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
-配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)
+配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)。
 
 ## 数据预处理
 配置好环境后，需要对数据集进行预处理。
@@ -30,21 +30,25 @@ bash examples/data/preprocess_data.sh math_17k
 * `input`：数据集的路径，需指定具体文件，例如/datasets/dapo-math-17k.parquet
 * `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
 * `tokenizer_name_or_path`：指定分词器的名称或路径;
-* `output_prefix`：输出结果的前缀路径，例如 /datasets/data;
+* `output_prefix`：输出结果的前缀路径，例如 /dataset/data;
 * `workers`：设置处理数据时使用的 worker 数;
 * `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
-* `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
 * `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
   - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
   - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
   - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
   - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
+  * `dataset_additional_keys: ["labels"]`：指定在数据处理后需要保留的原始数据集中的额外字段。
 
 ## 模型权重转换
 
 根据 DAPO 算法要求，Actor 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。DAPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
+
+### 环境要求
+**权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。**
+如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。
 
 接下来，以 Qwen2.5-32B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
@@ -83,7 +87,7 @@ bash examples/data/preprocess_data.sh math_17k
     filter_groups_max_batches: -1                         <------- 设置过滤的最大次数，-1 代表不限制最大次数
     filter_groups_train_batch_size: 32                    <------- 制定需要筛选出多少条数据才停止采样，建议与gbs值一致，或者是gbs值的二分之一
 
-3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
+3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 （双机 A3 可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 （双机 A2 可设置 NNODES 为2）、NPUS_PER_NODE 为8；
 4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP；
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练
@@ -119,3 +123,14 @@ rl_config:
 | Qwen3-32B     | Atlas 900 A3 SuperPoD | 32  |      8    | 2048              | 2048       | 140        |            |
 | Qwen2.5-32B   | Atlas 900 A2 PODc | 256 |      16   | 2048              | 20480      | 35         | 关闭动态采样| 
 
+## FAQ
+Q：math-17k数据预处理过程中如果出现报错：
+```shell
+RuntimeError: Failed to import transformers.data.data_collator because of the following error (look up to see its traceback):
+/usr/local/python3.10/lin/python3.10/site-packages/sklearn/utils/../../scikit_learn.libs/libgomp-947d5fa1.so.1.0.0: cannot allocate memory in static TLS block
+```
+
+A：这是由于在ARM架构或某些Linux环境中，当程序尝试加载libgomp库时，可能会遇到静态TLS (线程局部存储) 内存分配失败。libgomp库在初始化的时候会占用静态TLS空间，但如果库加载顺序不当（例如，其他库先于libgomp加载并占用了TLS空间），会导致内存分配失败，进而引发以来该库的模块（如sklearn）无法导入。解决方法（仅当前终端生效）：
+```shell
+export LD_PRELOAD=${LD_PRELOAD}:$(find /usr/ -name libgomp-947d5fa1.so.1.0.0 | grep scikit_learn)
+```

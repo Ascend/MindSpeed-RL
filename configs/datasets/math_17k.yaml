@@ -1,6 +1,6 @@
-input: "*/dapo-math-17k.parquet"
-tokenizer_name_or_path: */qwen25-7b/
-output_prefix: */data
+input: ./dataset/dapo-math-17k.parquet
+tokenizer_name_or_path: ./model_from_hf/qwen25-7b
+output_prefix: ./dataset/data
 handler_name: Math17kAlpacaStyleInstructionHandler
 tokenizer_type: HuggingFaceTokenizer
 workers: 8

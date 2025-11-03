@@ -4,7 +4,7 @@
 以 MindSpeed RL 仓库复现 [Group Relative Policy Optimization (GRPO) ](https://arxiv.org/pdf/2402.03300) 后训练方法为例来帮助用户快速入门，前期需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
-配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)
+配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)。
 
 ## 数据预处理
 配置好环境后，需要对数据集进行预处理。
@@ -48,12 +48,11 @@ bash examples/data/preprocess_data.sh deepscaler
 * `input`：数据集的路径，需指定具体文件，例如/datasets/deepscaler.json
 * `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
 * `tokenizer_name_or_path`：指定分词器的名称或路径，路径具体到分词器所在目录即可;
-* `output_prefix`：输出结果的前缀路径，例如 /datasets/data;
+* `output_prefix`：输出结果的前缀路径，例如 /dataset/data;
 * `workers`：设置处理数据时使用的 worker 数;
 * `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
 * `handler_name`：指定处理数据的处理器名称；
-* `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
 * `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
   - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
   - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
@@ -65,7 +64,9 @@ bash examples/data/preprocess_data.sh deepscaler
 
 根据 GRPO 算法要求，Actor 和 Reference 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。GRPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
 
-权重转换需要安装MindSpeed-LLM，具体安装方法参考[安装指南](https://gitee.com/ascend/MindSpeed-LLM/blob/master/docs/pytorch/install_guide.md)，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。
+### 环境要求
+**权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。**
+如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。
 
 接下来，以 Qwen2.5-7B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
@@ -83,7 +84,7 @@ bash examples/data/preprocess_data.sh deepscaler
 以 Qwen25 7B 模型为例,在启动训练之前，需要修改[ 启动脚本 ](../../examples/grpo/grpo_trainer_qwen25_7b.sh)的配置：
 1. 根据实际安装路径设置 jemalloc 环境变量，用于更好管理内存，避免长跑过程中内存 OOM ，例如：export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 
 2. 修改 DEFAULT_YAML 为指定的 yaml，目前已支持的配置文件放置在 configs / 文件夹下，同时需要对[ 环境变量配置文件 ](../../configs/envs/runtime_env.yaml) 中的 VLLM_DP_SIZE 及 HCCL_SOCKET_IFNAME 等参数进行配置，具体参数说明可见 [配置文件参数介绍](../features/grpo_yaml.md)；
-3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 、NPUS_PER_NODE 为8；
+3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 （双机 A3 可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 （双机 A2 可设置 NNODES 为2）、NPUS_PER_NODE 为8；
 4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP (需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost)；
 5. 启动脚本中的 SOCKET_IFNAME 需要设置为 CURRENT_IP 所对应的通信网卡名；
 ```bash
@@ -164,6 +165,9 @@ rl_config:
 | `prompt_length/mean`               | 平均输入长度，输入 prompt 的平均长度                         |
 | `prompt_length/max`                | 最长输入长度，当前 batch 中最长的 prompt长度                 |
 | `prompt_length/min`                | 最短输入长度，当前 batch 中最长的 prompt长度                 |
+| `global_batch_size`                | 每次训练迭代所处理的总prompt数量                             |
+| `n_samples_per_prompt`             | 每条prompt在rollout阶段生成的response数量                   |
+| `world_size`                       | 在分布式训练中集群中总的设备数量（并行训练的总进程数）         |
 | `e2e_tps`                          | 端到端的tokens/p/s指标                                       |
 | `update_tps`                       | 训练的tokens/p/s指标                                         |
 | `vllm_tps`                         | 推理的tokens/p/s指标                                         |
@@ -185,6 +189,9 @@ $$
 $$
 (\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_rollout}
 $$
+
+注： 以上计算公式中 ` time_all`、`time_update`、`time_rollout`、`response_length_mean` 和 `prompt_length_mean` 即分别对应于指标说明里的`timing/all`、`timing/update`、`timing/rollout`、`response_length/mean`和`prompt_length/mean`，此处名字修改是为了区别于公式里的`/`计算符号；
+
 ## 性能数据
 
 | 模型                  | 机器型号     | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
@@ -197,3 +204,15 @@ $$
 
 
 注：模型 token/p/s 性能数据会打印在日志中, 当前计算公式下，A3单卡性能需要将日志打印的token/p/s性能指数*2。
+
+## FAQ
+Q：math-17k数据预处理过程中如果出现报错：
+```shell
+RuntimeError: Failed to import transformers.data.data_collator because of the following error (look up to see its traceback):
+/usr/local/python3.10/lin/python3.10/site-packages/sklearn/utils/../../scikit_learn.libs/libgomp-947d5fa1.so.1.0.0: cannot allocate memory in static TLS block
+```
+
+A：这是由于在ARM架构或某些Linux环境中，当程序尝试加载libgomp库时，可能会遇到静态TLS (线程局部存储) 内存分配失败。libgomp库在初始化的时候会占用静态TLS空间，但如果库加载顺序不当（例如，其他库先于libgomp加载并占用了TLS空间），会导致内存分配失败，进而引发以来该库的模块（如sklearn）无法导入。解决方法（仅当前终端生效）：
+```shell
+export LD_PRELOAD=${LD_PRELOAD}:$(find /usr/ -name libgomp-947d5fa1.so.1.0.0 | grep scikit_learn)
+```

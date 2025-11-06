@@ -112,6 +112,13 @@ pip install -e .
 ```shell
 pip install ray==2.42.1
 ```
+```shell
+# ray 生成的日志文件夹权限修改
+# 此处针对 ray==2.42.1 实现
+RAY_PATH=$(python -c "import ray; print(ray.__file__)")
+UTILS_PATH=$(dirname "$RAY_PATH")"/_private/utils.py"
+sed -i 's/os.chmod(\(.*\), 0o0777)/os.chmod(\1, 0o0750)/g' "$UTILS_PATH"
+```
 
 ### PyTorch框架安装
 （注：[PyTorch框架和torch_npu插件安装教程](https://www.hiascend.com/document/detail/zh/Pytorch/710/configandinstg/instg/insg_0004.html)；可从[PyTorch-Ascend官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取PyTorch各个版本对应的torch_npu的whl包）

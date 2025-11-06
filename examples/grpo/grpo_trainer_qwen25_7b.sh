@@ -11,6 +11,8 @@ echo "Use $YAML"
 
 ulimit -n 32768
 mkdir logs
+# 保证用户基础环境umask设置，避免用户本身环境umask设置导致生成过高权限的文件夹
+umask 0027
 
 export TASK_QUEUE_ENABLE=2
 export HCCL_IF_BASE_PORT=24703

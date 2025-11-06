@@ -4,7 +4,7 @@
 MindSpeed RL 仓库现已支持 [ Direct Preference Optimization (DPO) ](https://arxiv.org/abs/2305.18290) 算法。训练开始前需要完成代码仓、环境、数据集以及权重等准备工作，再按照说明中的启动方式启动训练，以下为具体的操作说明。
 
 ## 环境配置
-配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)
+配置 MindSpeed RL 基础环境以及准备代码: 参考 [安装指南](../install_guide.md)。
 
 ## 数据预处理
 配置好环境后，需要对数据集进行预处理。
@@ -30,7 +30,7 @@ bash examples/data/preprocess_data.sh orca_rlhf
 * `input`：数据集的路径，需指定具体文件，例如 ./datasets/orca_rlhf.json;
 * `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
 * `tokenizer_name_or_path`：指定分词器的名称或路径;
-* `output_prefix`：输出结果的前缀路径，例如 ./datasets/data;
+* `output_prefix`：输出结果的前缀路径，例如 ./dataset/data;
 * `workers`：设置处理数据时使用的 worker 数;
 * `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
 * `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
@@ -46,6 +46,10 @@ bash examples/data/preprocess_data.sh orca_rlhf
 
 根据 DPO 算法原理，Actor 和 Reference 模型可以均为同一模型。DPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
 
+### 环境要求
+**权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。**
+如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。
+
 接下来，以 Qwen3-30B-A3B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
 ### 获取权重文件
@@ -60,7 +64,7 @@ bash examples/data/preprocess_data.sh orca_rlhf
 ## 启动训练
 
 以 Qwen3 30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_trainer_qwen3_30b_a3b.sh)的环境变量的配置：
-1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 、NPUS_PER_NODE 为16；
+1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 （双机 A3 可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 （双机 A2 可设置 NNODES 为2）、NPUS_PER_NODE 为8；
 2. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP；
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练

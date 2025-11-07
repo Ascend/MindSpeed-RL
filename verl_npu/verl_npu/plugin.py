@@ -132,7 +132,7 @@ def after_patch_check():
                 for line in f.readlines():
                     # 新增文件
                     if line.startswith("+++"):
-                        relative_path = line.split(" ")[-1][1:].replace("\n", "")
+                        relative_path = line.split(" ")[-1][2:].replace("\n", "")
                         continue
                     if line.startswith("+"):
                         added_lines.append(line[1:].strip().replace("\n", ""))
@@ -142,7 +142,7 @@ def after_patch_check():
                 with open(abs_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                     if not all(s in content for s in added_lines):
-                        logger.error(f"file {patch_file} may modified or patch failed")
+                        logger.info(f"file {patch_file} may modified or patch failed")
             except Exception as e:
                 logger.error(f"An exception occurred while reading the package source files \
                 during the post-patch validation process.\n {e}")

@@ -1,19 +1,20 @@
 diff --git a/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py b/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py
-index d8c216974e..180ece774d 100644
+index d8c216974e..0e7a1014f8 100644
 --- a/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py
 +++ b/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py
-@@ -45,6 +45,10 @@ from ...utils import TransformersKwargs, auto_docstring, can_return_tuple
- from ...utils.deprecation import deprecate_kwarg
+@@ -46,6 +46,11 @@ from ...utils.deprecation import deprecate_kwarg
  from ...utils.generic import OutputRecorder, check_model_inputs
  from .configuration_qwen3_moe import Qwen3MoeConfig
+ 
 +from ...utils import is_torch_npu_available
 +
 +if is_torch_npu_available():
 +    import torch_npu
- 
++
  
  def rotate_half(x):
-@@ -76,9 +80,9 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
+     """Rotates half the hidden dims of the input."""
+@@ -76,9 +81,9 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
      """
      cos = cos.unsqueeze(unsqueeze_dim)
      sin = sin.unsqueeze(unsqueeze_dim)
@@ -26,27 +27,46 @@ index d8c216974e..180ece774d 100644
  
  
  def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
-@@ -206,13 +210,14 @@ class Qwen3MoeMLP(nn.Module):
+@@ -206,8 +211,36 @@ class Qwen3MoeMLP(nn.Module):
          self.act_fn = ACT2FN[config.hidden_act]
  
      def forward(self, x):
 -        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 -        return down_proj
 +        return self.down_proj(
-+            torch_npu.npu_swiglu(torch.cat((self.gate_proj(x), self.up_proj(x)), dim=-1), dim=-1)
++            torch_npu.npu_swiglu(torch.cat((self.gate_proj(hidden_state), self.up_proj(hidden_state)), dim=-1), dim=-1)
 +        )
++
++
++class torch_npu_gmm(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, x, weight, group_list, split_size):
++        ctx.save_for_backward(x, weight)
++        ctx.group_list = group_list
++        ctx.split_size = split_size
++
++        outputs = torch_npu.npu_grouped_matmul([x], [weight], group_list=group_list, group_type=0, split_item=2)
++        return outputs[0]
++
++    @staticmethod
++    def backward(ctx, grad_outputs):
++        x, weight = ctx.saved_tensors
++        group_list = ctx.group_list
++        wt = weight.permute(0, 2, 1)
++        xt = x.permute(1, 0)
++        dx = torch_npu.npu_grouped_matmul([grad_outputs], [wt], group_list=group_list, group_type=0, split_item=2)
++        dw = torch.zeros_like(weight)
++        split_size = ctx.split_size
++        xt_list = torch.split(xt, split_size, dim=1)
++        grad_outputs_list = torch.split(grad_outputs, split_size, dim=0)
++        with torch.npu.amp.autocast(enabled=False):
++            dw = torch.stack([torch.matmul(xt_list[i], grad_outputs_list[i]) for i in range(len(xt_list))])
++
++        return dx[0], dw, None, None
  
  
--class Qwen3MoeSparseMoeBlock(nn.Module):
--    def __init__(self, config):
--        super().__init__()
-+class Qwen3MoeSparseMoeBlockPatch(nn.Module):
-+    def init(self, config):
-+        super().init()
-         self.num_experts = config.num_experts
-         self.top_k = config.num_experts_per_tok
-         self.norm_topk_prob = config.norm_topk_prob
-@@ -227,7 +232,6 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
+ class Qwen3MoeSparseMoeBlock(nn.Module):
+@@ -227,7 +260,6 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
          """ """
          batch_size, sequence_length, hidden_dim = hidden_states.shape
          hidden_states = hidden_states.view(-1, hidden_dim)
@@ -54,7 +74,7 @@ index d8c216974e..180ece774d 100644
          router_logits = self.gate(hidden_states)
  
          routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-@@ -246,21 +250,49 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
+@@ -246,21 +278,49 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
          expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
  
          # Loop over all available experts in the model and perform the computation on each expert
@@ -119,7 +139,7 @@ index d8c216974e..180ece774d 100644
          return final_hidden_states, router_logits
  
  
-@@ -275,11 +307,8 @@ class Qwen3MoeRMSNorm(nn.Module):
+@@ -275,11 +335,8 @@ class Qwen3MoeRMSNorm(nn.Module):
          self.variance_epsilon = eps
  
      def forward(self, hidden_states):

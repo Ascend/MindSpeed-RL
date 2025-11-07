@@ -154,8 +154,8 @@ def print_patch_summary() -> None:
 
     msg = "\n".join(lines)
     #log for visibility in various environments
-
-    logger.info(msg)
+    if _is_primary_rank():
+        logger.info(msg)
 
 
 # analyse_changes and analyse_class_changes reserved for extension

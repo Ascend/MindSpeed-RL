@@ -4,6 +4,7 @@ import time
 import dataclasses
 import copy
 import gc
+import uuid
 from enum import Enum
 from typing import Callable
 import logging as logger
@@ -31,6 +32,11 @@ from mindspeed_rl.utils.zmq_communication import (ZmqServer, ZmqClient, ZmqServe
                                                   ZMQ_ROLE_SERVER, ZMQ_ROLE_CLIENT)
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
+from mindspeed_rl.tools.tool_registry import initialize_tools_from_config
+from mindspeed_rl.tools.tool_utils import process_response
+from mindspeed_rl.tools.tool_parser import ToolParser
+from mindspeed_rl.trainer.utils.parallel_state import get_tensor_model_parallel_rank, \
+    get_tensor_model_parallel_src_rank, get_tensor_model_parallel_group
 
 
 class ActorState(Enum):
@@ -113,6 +119,18 @@ class ActorHybridWorkerBase(BaseWorker):
 
         if self.generate_config.offload_train_param:
             self.actor_offloader.onload_param()
+
+        if self.rl_config.multi_turn_enable:
+            tool_list = initialize_tools_from_config(self.rl_config.tool_config_path)
+            self.tool_map = {tool.name: tool for tool in tool_list}
+            self.tool_parser = ToolParser.get_tool_parser(self.rl_config.tool_parser_format, self.tokenizer.tokenizer)
+            self.tools_kwargs = {
+                'max_tool_calls': self.rl_config.max_tool_calls,
+                'max_parallel_calls': self.rl_config.max_parallel_calls,
+                'max_total_response_length': self.rl_config.max_total_response_length,
+                'max_tool_response_length': self.rl_config.max_tool_response_length,
+                'tool_response_truncate_side': self.rl_config.tool_response_truncate_side
+            }
 
         self.actor_hybrid = ActorRolloutHybrid(
             self.model,
@@ -214,6 +232,8 @@ class ActorHybridWorkerBase(BaseWorker):
             experience_columns = ['responses', 'advantages', 'old_log_prob', 'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
         if is_multimodal():
             experience_columns.extend(['attention_mask', 'position_ids'])
+        if self.rl_config.multi_turn_enable:
+            experience_columns.extend(['response_mask'])
 
         experience_count = self.rl_config.actor_update_dispatch_size
         
@@ -466,12 +486,14 @@ class ActorHybridWorkerBase(BaseWorker):
         self.collect_transfer_dock_data(outputs, index, use_vllm=True, is_generate=True, sync=is_multimodal())
         MsProbe.save_data({"responses": responses, "prompts": prompts})
 
-
     def async_generate_process(self, batch_data, index, pad_token_id):
         self.actor_hybrid.inference_actor.init_cache_engine()
         prompts_data = batch_data['prompts']
         prompt_length_data = batch_data['prompt_length']
         prompts = truncate_rows(prompts_data, prompt_length_data)
+        if self.rl_config.multi_turn_enable:
+            self.async_multi_turn_rollout(prompts, index)
+            return
         if self.enable_partial_rollout:
             responses = batch_data['responses']
             responses_length_partial = batch_data['response_length']
@@ -546,6 +568,115 @@ class ActorHybridWorkerBase(BaseWorker):
             self.collect_transfer_dock_data(outputs, idx_output, use_vllm=True, is_generate=True, sync=is_multimodal())
             MsProbe.save_data({"responses": responses, "prompts": prompts})
         self.actor_hybrid.inference_actor.free_cache_engine()
+
+    @torch.no_grad()
+    def async_multi_turn_rollout(self, prompts, indexes):
+        vocab_size = self.tokenizer.vocab_size
+        use_vllm = True
+        rank_flg = get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0
+        prompts_list = [prompt.numpy().tolist() for prompt in prompts]
+        response_mask_list = [[] for _ in prompts]
+        tool_call_num_list = [torch.tensor([0]) for _ in prompts]
+
+        sampling_params = self.inference_model.sampling_params
+        sampling_params.n = 1
+        for i, prompt_ids in enumerate(prompts_list):
+            request_id = f"req_{indexes[i]}_{uuid.uuid4().hex[:6]}"
+            sampling_params.max_tokens = min((self.generate_config.max_model_len - len(prompt_ids)),
+                                             self.rl_config.max_total_response_length)
+            self.inference_model.engine.add_request(
+                request_id=request_id,
+                prompt={"prompt_token_ids": prompt_ids},
+                params=sampling_params
+            )
+
+        while self.inference_model.engine.has_unfinished_requests():
+            step_outputs = self.inference_model.engine.step()
+            for step_output in step_outputs:
+                if step_output.finished:
+                    request_id = step_output.request_id
+                    idx_output = int(request_id.split("_")[1])
+                    index = indexes.index(idx_output)
+                    outputs = step_output.outputs
+                    response_ids = []
+                    for output in outputs:  # List[CompletionOutput], usually len == 1
+                        response_ids += output.token_ids
+                        break
+                    for idx, response_id in enumerate(response_ids):
+                        if response_id >= vocab_size:
+                            response_ids[idx] = 0
+                    response_mask_list[index] += [1.0] * len(response_ids)
+                    prompts_list[index] += response_ids
+                    data_map = {
+                        'response_ids': response_ids,
+                        'response_mask': response_mask_list[index],
+                        'tool_call_num': tool_call_num_list[index],
+                    }
+
+                    tool_response_ids = self.get_tool_response(rank_flg, data_map)
+                    if tool_response_ids:
+                        response_mask_list[index] += [0.0] * len(tool_response_ids)
+                        prompts_list[index] += tool_response_ids
+                        tool_call_num_list[index] += 1
+                        if len(prompts_list[index]) < self.generate_config.max_model_len:
+                            sampling_params.max_tokens = min((self.generate_config.max_model_len - len(prompts_list[index])),
+                                                             self.rl_config.max_total_response_length)
+                            self.inference_model.engine.add_request(
+                                request_id=request_id,
+                                prompt={"prompt_token_ids": prompts_list[index]},
+                                params=sampling_params
+                            )
+                            continue
+
+                    prompts = prompts_list[index]
+                    response_mask = response_mask_list[index]
+                    response_ids = prompts[-len(response_mask):]
+                    prompt_ids = prompts[: len(prompts) - len(response_mask)]
+
+                    prompts = [torch.tensor(prompt_ids)]
+                    responses = [torch.tensor(response_ids[:self.rl_config.max_total_response_length])]
+                    response_mask = [torch.tensor(response_mask[:self.rl_config.max_total_response_length])]
+                    tool_call_num = [tool_call_num_list[index]]
+                    responses_length = [torch.tensor([len(response)]) for response in responses]
+                    input_ids_list = []
+                    for prompt, response in zip(prompts, responses):
+                        input_ids_list.append(torch.cat((prompt, response), dim=0))
+
+                    outputs = {
+                        'responses': responses,
+                        'input_ids': input_ids_list,
+                        'response_length': responses_length,
+                        'response_mask': response_mask,
+                        'tool_call_num': tool_call_num,
+                    }
+                    self.collect_transfer_dock_data(outputs, [idx_output], use_vllm=True, is_generate=True,
+                                                    sync=is_multimodal())
+                    MsProbe.save_data({"responses": responses, "prompts": prompts})
+
+        self.actor_hybrid.inference_actor.free_cache_engine()
+
+    def get_tool_response(self, rank_flg, data_map, use_vllm=True):
+        tool_response_ids_length = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
+        if rank_flg:
+            tool_response_ids = process_response(self.tool_map, self.tool_parser, self.tokenizer.tokenizer,
+                                                 data_map, self.tools_kwargs)
+            tool_response_ids_length = torch.tensor([len(tool_response_ids)], device=torch.cuda.current_device(),
+                                                    dtype=torch.int64)
+
+        torch.distributed.broadcast(
+            tool_response_ids_length, get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
+            group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
+        )
+
+        if not rank_flg:
+            tool_response_ids = torch.empty(tool_response_ids_length[0], device=torch.cuda.current_device(),
+                                            dtype=torch.int32)
+
+        torch.distributed.broadcast(
+            tool_response_ids.cuda(), get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
+            group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)
+        )
+        return tool_response_ids.cpu().tolist()
 
     @mstx_timer_decorator
     def compute_log_prob(self):

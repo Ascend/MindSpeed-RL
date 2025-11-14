@@ -33,6 +33,8 @@ class RuleReward(object):
     def compute_rm_score(self):
         experience_consumer_stage = 'rule_reward'
         experience_columns = ['prompts', 'responses', 'response_length', *self.megatron_config.dataset_additional_keys]
+        if self.rl_config.multi_turn_enable:
+            experience_columns.extend(['tool_call_num'])
         experience_count = self.rl_config.reward_dispatch_size
         assign_batch_size = self.megatron_config.global_batch_size * self.rl_config.n_samples_per_prompt // get_node_nums()
         sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,

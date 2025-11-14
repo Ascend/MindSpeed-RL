@@ -35,6 +35,14 @@ def clip_by_value(x, tensor_min, tensor_max):
     return clipped
 
 
+def masked_sum(values, mask, axis=None):
+    """Compute mean of tensor with a masked values."""
+    # If NaNs exist out of mask, replace NaNs in values with a value that
+    # won't affect the sum (e.g., 0 for masked regions)
+    valid_values = torch.where(mask.bool(), values, 0.0)
+    return (valid_values * mask).sum(axis=axis)
+
+
 def masked_mean(values, mask, axis=None, epsilon=1e-8):
     """
     Compute mean of tensor with a masked values.
@@ -47,8 +55,8 @@ def masked_mean(values, mask, axis=None, epsilon=1e-8):
     Returns:
         The mean of the data after applying the mask
     """
-
-    return (values * mask).sum(axis=axis) / (mask.sum(axis=axis) + epsilon)
+    s = masked_sum(values, mask, axis)
+    return s / (mask.sum(axis=axis) + epsilon)
 
 
 def masked_var(values, mask, unbiased=True):

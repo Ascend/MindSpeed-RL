@@ -39,7 +39,7 @@ class DAPOActorLossFunc(BaseLossFunc):
     def _get_policy_loss_input(batch: Dict[str, torch.Tensor]):
         if 'responses' not in batch:
             raise ValueError("The responses is None")
-        response_mask = generate_mask(batch['responses'], batch['response_length']).npu()
+        response_mask = batch['response_mask'] if 'response_mask' in batch else generate_mask(batch['responses'], batch['response_length']).npu()
         old_log_prob = batch['old_log_prob'] if 'old_log_prob' in batch else None
         advantages = batch['advantages'] if 'advantages' in batch else None
         return response_mask, old_log_prob, advantages

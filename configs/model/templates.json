@@ -77,6 +77,34 @@
     "replace_eos": true
   },
   {
+    "name": "qwen_retool",
+    "format_user": {
+      "slots": [
+        "<|im_start|>user\n{{content}}<|im_end|>\nThe answer format must be: \\boxed{'The final answer goes here.'}\n<|im_start|>assistant\n"
+      ]
+    },
+    "format_system": {
+      "slots": [
+        "<|im_start|>system\n{{content}}<|im_end|>\n"
+      ]
+    },
+    "format_observation": {
+      "slots": [
+        "<|im_start|>tool\n{{content}}<|im_end|>\n<|im_start|>assistant\n"
+      ]
+    },
+    "format_separator": {
+      "slots": [
+        "\n"
+      ]
+    },
+    "default_system": "You are a helpful assistant.\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"code_interpreter\", \"description\": \"A tool for executing code.\", \"parameters\": {\"type\": \"object\", \"properties\": {\"code\": {\"type\": \"string\", \"description\": \"The code to execute.\"}}, \"required\": [\"code\"]}}}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>",
+    "stop_words": [
+      "<|im_end|>"
+    ],
+    "replace_eos": true
+  },
+  {
     "name": "qwen_r1",
     "format_user": {
       "slots": [

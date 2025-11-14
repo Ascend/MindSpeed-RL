@@ -92,9 +92,9 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.mm_sampling_transfer_dock = None
         self.metrics = Metric()
         self.kwargs = kwargs
-        self.should_filter = self.kwargs['filter_groups_enable']
-        self.max_num_prompt_in_batch = self.kwargs['filter_groups_train_batch_size']
-        self.max_num_gen_batches = self.kwargs['filter_groups_max_batches']
+        self.should_filter = kwargs['filter_groups_enable']
+        self.max_num_prompt_in_batch = kwargs['filter_groups_train_batch_size']
+        self.max_num_gen_batches = kwargs['filter_groups_max_batches']
         self.num_prompt_in_batch = 0
         self.num_gen_batches = 0
         self.dynamic_sampling_list = dynamic_sampling_list
@@ -102,6 +102,9 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.addition_consumers = ["dynamic_sampling", "dapo_metrics"]
         if self.dataset_additional_keys:
             self.addition_columns.extend(self.dataset_additional_keys)
+        self.multi_turn_enable = kwargs['multi_turn_enable']
+        if self.multi_turn_enable:
+            self.addition_columns.extend(['response_mask', 'tool_call_num'])
         self.enable_partial_rollout = self.partial_rollout_max_split > 1
         if self.enable_partial_rollout:
             self.td_max_len = self.global_batch_size * 2
@@ -274,7 +277,8 @@ class RayDAPOTrainer(RayBaseTrainer):
                                                           data_num,
                                                           self.tokenizer,
                                                           data_num,
-                                                          self.guarantee_order)
+                                                          self.guarantee_order,
+                                                          self.multi_turn_enable)
             metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
             end_time = time.time()
             all_time += end_time - start_time
@@ -335,7 +339,8 @@ class RayDAPOTrainer(RayBaseTrainer):
             tokenizer=self.tokenizer,
             global_batch_size=data_num,
             guarantee_order=guarantee_order,
-            n_sample_per_prompt=self.n_samples_per_prompt
+            n_sample_per_prompt=self.n_samples_per_prompt,
+            multi_turn_enable=self.multi_turn_enable
         )
         if blocking:
             ray.get(compute_advantage_ref)

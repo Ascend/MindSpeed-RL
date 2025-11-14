@@ -171,6 +171,15 @@ class RLConfig(BaseConfig):
         self.partial_rollout_max_split = 1
         self.require_max_age_all_finished = True
 
+        # multi turn
+        self.multi_turn_enable = False
+        self.tool_config_path = None
+        self.max_tool_calls = 0
+        self.max_parallel_calls = 0
+        self.max_total_response_length = 0
+        self.max_tool_response_length = 0
+        self.tool_response_truncate_side = None
+        self.tool_parser_format = None
 
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():

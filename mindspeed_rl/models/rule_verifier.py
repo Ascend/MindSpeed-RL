@@ -116,6 +116,19 @@ def compute_verifier_score(batch, megatron_config, rl_config, tokenizer, ignore_
         overlong_reward = [min(-length / overlong_buffer_len * overlong_penalty_factor, 0) for length in exceed_len]
         scores = [score + reward for score, reward in zip(scores, overlong_reward)]
 
+    if rl_config.multi_turn_enable:
+        new_scores = []
+        tool_call_nums = [num.item() for num in batch['tool_call_num']]
+        for score, tool_call_num in zip(scores, tool_call_nums):
+            if score < 0:
+                tool_call_reward = tool_call_num * 0.1
+                new_score = min(0, score + tool_call_reward)
+                new_scores.append(new_score)
+            else:
+                new_scores.append(score)
+
+        scores = new_scores
+
     scores = torch.tensor(
         scores,
         dtype=torch.float32,
@@ -171,7 +184,8 @@ def verifier(responses, data, config, **kwargs):
     for idx, fun_verifier in enumerate(verifier_function):
         if fun_verifier not in rule_verifier_function:
             continue
-        scores = rule_verifier_function[fun_verifier](sequences=responses, answers=labels)
+        scores = rule_verifier_function[fun_verifier](sequences=responses, answers=labels,
+                                                      strict_box_verify=config.multi_turn_enable)
 
         metrics[f'{fun_verifier}_rewards/mean'] = scores
         rewards = [all_score + tmp_score * verifier_weight[idx]
@@ -242,7 +256,7 @@ def math_verify_accuracy_reward(sequences, answers, *args, **kwargs):
 def accuracy_reward_for_dapo(sequences, answers, *args, **kwargs):
     scores = []
     for sequence, answer in zip(sequences, answers):
-        box_match = compute_score(sequence, answer)
+        box_match = compute_score(sequence, answer, strict_box_verify=kwargs.get('strict_box_verify', False))
         scores.append(box_match)
 
     return scores

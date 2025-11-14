@@ -193,7 +193,8 @@ def compute_group_norm_advantage_return(
 
 @ray.remote
 @mstx_timer_decorator
-def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order, n_sample_per_prompt, use_kl_in_reward=False):
+def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer, global_batch_size, guarantee_order,
+                      n_sample_per_prompt, use_kl_in_reward=False, multi_turn_enable=False):
     """
     Compute the advantage function based on different adv_estimator
 
@@ -217,6 +218,8 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
             experience_columns = ["values", "responses", "rm_scores", "response_length"]
     else:
         experience_columns = ["responses", "rm_scores", "response_length"]
+    if multi_turn_enable:
+        experience_columns.extend(['response_mask'])
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
                                                   assign_batch_size=global_batch_size) if guarantee_order else None
@@ -230,7 +233,8 @@ def compute_advantage(td, gamma, lam, adv_estimator, experience_count, tokenizer
         batch_data = remove_padding_tensor_dict_to_dict(batch_data)
         if batch_data and index:
             batch_data = pad_experience(batch_data, pad_token_id) # multiple, tp_size
-            response_mask = generate_mask(batch_data["responses"], batch_data["response_length"])
+            response_mask = batch_data['response_mask'] if 'response_mask' in batch_data else generate_mask(
+                batch_data["responses"], batch_data["response_length"])
             response_length = batch_data["response_length"]
             if adv_estimator == "gae":
                 if use_kl_in_reward:
@@ -345,7 +349,7 @@ def compute_grpo_data_metrics(
 
 
 def compute_dapo_data_metrics(
-        td, experience_count, tokenizer, global_batch_size, guarantee_order
+        td, experience_count, tokenizer, global_batch_size, guarantee_order, multi_turn_enable
 ):
     """
     Calculate various metrics for DAPO data
@@ -363,12 +367,11 @@ def compute_dapo_data_metrics(
     experience_consumer_stage = "dapo_metrics"
     experience_columns = [
         "rm_scores",
-        "responses",
-        "advantages",
-        "returns",
         "prompt_length",
         "response_length",
     ]
+    if multi_turn_enable:
+        experience_columns.extend(['tool_call_num'])
     pad_token_id = tokenizer.pad if tokenizer.pad is not None else tokenizer.eod
     sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
                                                   assign_batch_size=global_batch_size) if guarantee_order else None
@@ -398,6 +401,15 @@ def compute_dapo_data_metrics(
                 "prompt_length/max": torch.max(prompt_length).detach().item(),
                 "prompt_length/min": torch.min(prompt_length).detach().item(),
             }
+
+            if multi_turn_enable:
+                tool_call_num = batch["tool_call_num"]
+                metrics = {
+                    **metrics,
+                    "tool_call_num/mean": torch.mean(tool_call_num, dtype=torch.float32).detach().item(),
+                    "tool_call_num/max": torch.max(tool_call_num).detach().item(),
+                    "tool_call_num/min": torch.min(tool_call_num).detach().item(),
+                }
             return metrics
 
 

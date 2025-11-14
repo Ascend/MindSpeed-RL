@@ -423,6 +423,17 @@ def validate_rl_args(
         raise ValueError(
             f"guarantee_order must be false when partial_rollout_max_split > 1")
 
+    # multi_turn 校验
+    if rl_config.multi_turn_enable:
+        max_tokens = generate_config.sampling_config["max_tokens"]
+        if rl_config.max_total_response_length < max_tokens:
+            raise ValueError(
+                f"max_total_response_length must greater than max_tokens:"
+                f"{rl_config.max_total_response_length} vs {max_tokens}")
+        if not rl_config.async_engine:
+            raise ValueError(
+                f"async_engine must be True when multi_turn_enable is True")
+
 
 def validate_data_handler_config(config):
     support_prompt_type_handler = [

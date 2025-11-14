@@ -28,6 +28,8 @@ class DynamicSampling(object):
         experience_consumer_stage = 'dynamic_sampling'
         experience_columns = ['prompts', 'prompt_length', 'responses', 'response_length', 'input_ids', 'rm_scores',
                               'metric_for_dapo', *self.megatron_config.dataset_additional_keys]
+        if self.rl_config.multi_turn_enable:
+            experience_columns.extend(['response_mask', 'tool_call_num'])
         experience_count = self.rl_config.dynamic_sampling_dispatch_size
         assign_batch_size = self.global_batch_size * self.n_samples_per_prompt
         sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,

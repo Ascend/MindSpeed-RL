@@ -821,6 +821,10 @@ class ActorHybridWorkerBase(BaseWorker):
         self.actor_model_config = AutoConfig.from_pretrained(
             self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
 
+        self.actor_model_config.lora_r = self.megatron_config.lora_r
+        self.actor_model_config.lora_alpha = self.megatron_config.lora_alpha
+        self.actor_model_config.lora_target_modules = self.megatron_config.lora_target_modules
+
         sampling_config = {"num_completions": self.rl_config.n_samples_per_prompt,
                            **self.generate_config.sampling_config}
 
@@ -900,6 +904,7 @@ class ActorHybridWorkerBase(BaseWorker):
             optimizer_offload=self.generate_config.offload_train_optimizer,
             grad_offload=self.generate_config.offload_train_grad,
             train_param_offload=self.generate_config.offload_train_param,
+            share_backbone=self.rl_config.share_backbone,
             megatron_offloader=self.actor_offloader,
             noop_layers=self.megatron_config.noop_layers
         )

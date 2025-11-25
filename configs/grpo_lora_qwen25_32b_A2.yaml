@@ -1,0 +1,120 @@
+defaults:
+  - model:
+      - qwen25_32b
+
+megatron_training:
+  model: qwen25_32b
+  use_fused_rmsnorm: true
+  use_mcore_models: true
+  sequence_parallel: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  no_gradient_accumulation_fusion: true
+  use_fused_swiglu: true
+  use_fused_rotary_pos_emb: true
+  bf16: true
+  use_distributed_optimizer: true
+  lora_ckpt_filter: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: ./
+  global_batch_size: 32
+  seq_length: 2048
+  save_interval: 200
+  train_iters: 1000
+  stage: ray_grpo
+  attention_dropout: 0.0
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  dataset_additional_keys: ['labels']
+  data_path: ./
+  split: 100,0,0
+  no_shuffle: false
+  full_shuffle_instruction_dataset: false
+  seed: 1
+  reset_position_ids: true
+  lora_r: 128
+  lora_alpha: 128
+  lora_fusion: true
+  lora_target_modules: ["linear_qkv", "linear_proj", "linear_fc1", "linear_fc2"]
+
+actor_config:
+  model: qwen25_32b
+  micro_batch_size: 1
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 4
+  num_layer_list: 16,16,16,16
+  lr: 3e-5
+  lr_decay_style: constant
+  min_lr: 0.0
+  weight_decay: 0.01
+  lr_warmup_fraction: 0.0
+  clip_grad: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  finetune: true
+  load: ./
+  save: ./
+  no_load_optim: true
+  no_load_rng: true
+
+rl_config:
+  guarantee_order: true
+  blocking: true
+  use_remove_padding: true
+  share_backbone: true
+  ref_forward_micro_batch_size: 16
+  reward_dispatch_size: 256
+  adv_dispatch_size: 256
+  actor_update_dispatch_size: 256
+  use_integrated_worker: true
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: low_var_kl
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.001
+  mini_batch_size: 32
+  max_prompt_length: 2048
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0
+  shuffle_mini_batch: false
+  n_samples_per_prompt: 8
+  rule_reward: true
+  log_max_throughput: false
+  verifier_function: ["base_acc"]
+  verifier_weight: [1.0]
+  actor_resource:
+    num_npus: 16
+
+generate_config:
+  trust_remote_code: true
+  offload_train_optimizer: true
+  offload_train_grad: true
+  offload_train_param: true
+
+  # 推理时的并行配置
+  infer_tensor_parallel_size: 4
+  infer_pipeline_parallel_size: 1
+  infer_expert_parallel_size: 1
+
+  # vllm 模型相关设置
+  max_num_seqs: 64
+  max_model_len: 4096
+  max_num_batched_tokens: 8192
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.8
+
+  # 采样配置
+  sampling_config:
+    seed: 1
+    logprobs: 1
+    max_tokens: 2048
+    top_p: 1.0
+    top_k: -1
+    min_p: 0
+    temperature: 1.0
+    detokenize: false

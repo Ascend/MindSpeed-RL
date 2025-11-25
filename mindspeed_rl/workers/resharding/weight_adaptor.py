@@ -85,6 +85,14 @@ class MegatronVLLMWeightAdaptor(BaseWeightAdaptor):
                     if weight_or_bias in ['weight', 'bias']:
                         param_name_list.append(weight_or_bias)
                     param_name = ".".join(param_name_list)
+                lora_target_modules = (
+                    self.model_config.lora_target_modules
+                    if isinstance(self.model_config.lora_target_modules, list)
+                    else []
+                )
+                for lora_target_module in lora_target_modules:
+                    if lora_target_module in param_name:
+                        param_name = param_name.replace(lora_target_module, lora_target_module + ".base_layer")
                 return param_name
             else:
                 param_name = inference_name.replace(v_name, m_name)

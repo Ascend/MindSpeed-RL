@@ -40,6 +40,7 @@ class MegatronShardingManager:
             optimizer_offload=False,
             grad_offload=False,
             train_param_offload=False,
+            share_backbone=False,
             megatron_model=None,
             model_config=None,
             infer_tensor_parallel_size=None,
@@ -93,6 +94,7 @@ class MegatronShardingManager:
         self.optimizer_offload = optimizer_offload
         self.grad_offload = grad_offload
         self.train_param_offload = train_param_offload
+        self.share_backbone = share_backbone
         self.inference_engine.offload_model_weights()
         self.megatron_offloader = megatron_offloader
 
@@ -160,7 +162,7 @@ class MegatronShardingManager:
         Process:
             1. onload training param
         """
-        if self.train_param_offload:
+        if self.train_param_offload and not self.share_backbone:
             self.megatron_offloader.onload_param()
 
     @mstx_timer_decorator
@@ -175,7 +177,7 @@ class MegatronShardingManager:
         Process:
             1. onload training param
         """
-        if self.train_param_offload:
+        if self.train_param_offload and not self.share_backbone:
             self.megatron_offloader.offload_param()
 
     @mstx_timer_decorator
@@ -191,7 +193,7 @@ class MegatronShardingManager:
             1. onload training optimizer
             2. onload training grad
         """
-        if self.train_param_offload:
+        if self.train_param_offload and not self.share_backbone:
             self.megatron_offloader.onload_param()
         if self.optimizer_offload:
             self.megatron_offloader.onload_optimizer()

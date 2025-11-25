@@ -85,14 +85,17 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         ActorHybridWorkerBase.initialize(self)
 
         # Add Reference
-        self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
-        ref_model_load_path = getattr(
-            self.rl_config.integrated_mode_config, "ref_model_load_path", None
-        ) if self.rl_config.integrated_mode_config is not None else None
-        self.load_checkpoint_with_path(self.ref_model, ref_model_load_path, ckpt_only=True)
-        self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
-        self.ref_manager.offload_param()
-        
+        if not self.rl_config.share_backbone:
+            self.ref_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
+            ref_model_load_path = getattr(
+                self.rl_config.integrated_mode_config, "ref_model_load_path", None
+            ) if self.rl_config.integrated_mode_config is not None else None
+            self.load_checkpoint_with_path(self.ref_model, ref_model_load_path, ckpt_only=True)
+            self.ref_manager = MegatronOffLoader(self.ref_model, wrap_with_ddp=False)
+            self.ref_manager.offload_param()
+        else:
+            self.ref_model = self.model
+            self.ref_manager = self.actor_offloader
         self.reference = Reference(
             self.ref_model,
             megatron_config=self.megatron_config,
@@ -105,7 +108,7 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             forward_backward_func=self.forward_backward_func,
             micro_batch_size=self.megatron_config.micro_batch_size,
             temperature=self.generate_config.sampling_config["temperature"],
-            
+
             use_remove_padding=self.rl_config.use_remove_padding,
             use_dynamic_bsz=self.rl_config.use_dynamic_bsz,
             ref_max_packing_token_size=self.rl_config.ref_max_packing_token_size,
@@ -138,13 +141,22 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
                     args=self.get_args(),
                     new_mbs=self.ref_forward_micro_batch_size
             ):
-                ReferenceWorkerBase.compute_ref_log_prob(self)
+                if not self.rl_config.share_backbone:
+                    ReferenceWorkerBase.compute_ref_log_prob(self)
+                else:
+                    with self.ref_model[0].module.module.disable_adapter():
+                        ReferenceWorkerBase.compute_ref_log_prob(self)
         else:
-            ReferenceWorkerBase.compute_ref_log_prob(self)
+            if not self.rl_config.share_backbone:
+                ReferenceWorkerBase.compute_ref_log_prob(self)
+            else:
+                with self.ref_model[0].module.module.disable_adapter():
+                    ReferenceWorkerBase.compute_ref_log_prob(self)
         profiler_step(compute_log_prob_profiler)
         MsProbe.debugger_stop("reference_compute_log_prob")
         start_offload_time = time.time()
-        self.ref_manager.offload_param()
+        if not self.rl_config.share_backbone:
+            self.ref_manager.offload_param()
         torch.cuda.empty_cache()
         end_offload_time = time.time()
         ray.get(

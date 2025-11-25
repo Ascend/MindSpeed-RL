@@ -309,6 +309,9 @@ class MegatronStyleVllmWeightContainer:
             while first_key.startswith("module."):
                 model_chunk = model_chunk.module
                 first_key = first_key[len("module."):]
+            if isinstance(self.model_config.lora_target_modules, list) and \
+                    len(self.model_config.lora_target_modules) > 0:
+                model_chunk = model_chunk.base_model.model
             unwraped_model.append(model_chunk)
         return unwraped_model
 
@@ -464,6 +467,23 @@ class MegatronStyleVllmWeightContainer:
                 param = _transfer_from_megatron_division(megatron_param, megatron_name)
                 weight_buffer.copy_by_name(hf_name, param)
 
+                if self.model_config.lora_target_modules and ".base_layer.weight" in megatron_name:
+                    lora_A_name = megatron_name.replace(".base_layer", ".lora_A.default")
+                    lora_B_name = megatron_name.replace(".base_layer", ".lora_B.default")
+                    A_raw = megatron_params_dict[vpp_rank][lora_A_name]
+                    B_raw = megatron_params_dict[vpp_rank][lora_B_name]
+                    with torch.no_grad():
+                        # Step1: 先在原始切分上计算 ΔW
+                        delta_W = torch.nn.Parameter((self.model_config.lora_alpha / self.model_config.lora_r)
+                                                     * torch.matmul(B_raw, A_raw))
+                        delta_W.tensor_model_parallel = megatron_param.tensor_model_parallel
+                        delta_W.partition_dim = megatron_param.partition_dim
+                        # Step2: 调用 _transfer_from_megatron_division 做推理 TP 对齐
+                        delta_W_tp = _transfer_from_megatron_division(delta_W, megatron_name)
+
+                        # Step3: 加到主干
+                        W = weight_buffer[hf_name]
+                        weight_buffer.copy_by_name(hf_name, W + delta_W_tp)
 
     def _update_weight_buffers_ep(self):
         # 构造临时的experts_memory_buffers

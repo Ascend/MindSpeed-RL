@@ -181,6 +181,9 @@ class RLConfig(BaseConfig):
         self.tool_response_truncate_side = None
         self.tool_parser_format = None
 
+        # add LoRA共主干参数
+        self.share_backbone = False
+
         if config_dict.get("actor_resource") is not None:
             for key, _ in config_dict["actor_resource"].items():
                 if key not in self.actor_resource:

@@ -396,6 +396,13 @@ class MegatronConfig(BaseConfig):
         self.moe_aux_loss_coeff = 0.001
         self.gemm_gradient_accumulation_fusion = False
 
+        # used for lora
+        self.lora_ckpt_filter = False
+        self.lora_r = 8
+        self.lora_alpha = 16
+        self.lora_fusion = False
+        self.lora_target_modules = None
+
         self.update(training_config, model_config)
 
         self.pad_to_multiple_of = self.tensor_model_parallel_size * self.context_parallel_size

@@ -200,6 +200,9 @@ class RayGRPOTrainer(RayBaseTrainer):
                 # compute reference log_prob
                 self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
 
+                if self.ref_worker.megatron_config.lora_target_modules:
+                    self.ref_worker.wait_all_ref_objs_run_over()
+                    
                 # compute old log_prob
                 if not self.skip_actor_log_prob:
                     self.actor_worker.compute_log_prob(blocking=self.blocking)

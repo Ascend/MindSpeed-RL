@@ -288,6 +288,17 @@ def validate_rl_args(
                 f"Reward dispatch size configuration error!"
                 f"global_batch_size {reward_config.global_batch_size} must be divisible by the number of nodes in the ray cluster")
 
+    # 检查共主干配置的有效性
+    if rl_config.share_backbone:
+        if not actor_config.lora_target_modules:
+            raise ValueError(
+                "The shared backbone can only be used with LoRA."
+            )
+        if actor_config.stage == "ray_dapo":
+            raise ValueError(
+                "'share_backbone' cannot be True when 'stage' is set to 'ray_dapo'."
+            )
+
     if rl_config.critic_resource:
         rl_config.critic_update_dispatch_size = (
             rl_config.critic_update_dispatch_size or

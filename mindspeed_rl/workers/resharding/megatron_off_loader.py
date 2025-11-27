@@ -162,6 +162,8 @@ class MegatronOffLoader:
             else:
                 for param_group in self.optimizer[index].optimizer.param_groups:
                     for param in param_group['params']:
+                        if param.data.storage().size() == 0:
+                            continue
                         param.data = param.data.to("cpu", non_blocking=False)
 
             self.optimizer[index].optimizer.state = self._move_to_device(self.optimizer[index].optimizer.state, "cpu")
@@ -199,6 +201,8 @@ class MegatronOffLoader:
         elif isinstance(data, dict):
             return {key: self._move_to_device(value, device) for key, value in data.items()}
         elif isinstance(data, torch.Tensor):
+            if data.storage().size() == 0 and device == 'cpu':
+                return data
             return data.to(device, non_blocking=False)
         else:
             return data

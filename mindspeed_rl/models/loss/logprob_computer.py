@@ -135,6 +135,10 @@ class StandardLogProbComputer(LogProbComputer):
             log_probs = self._get_log_probs_remove_prompt_pad(log_probs_allgather, batch)
             if not skip_entropy:
                 entropy = vocab_parallel_entropy(output)
+                entropy_allgather = get_tensor_allgather_cp_without_pack(
+                    entropy, cp_size, index
+                )
+                entropy = self._get_log_probs_remove_prompt_pad(entropy_allgather, batch)
             else:
                 entropy = torch.zeros_like(log_probs)
 

@@ -45,6 +45,7 @@ def compute_log_probs(
         Log probabilities.
     """
     vocab_parallel_cross_entropy = get_vocab_parallel()
+    logits = logits.clone()
     labels = labels.clone()
     log_probs = -vocab_parallel_cross_entropy(vocab_parallel_logits=logits, target=labels)
     return log_probs

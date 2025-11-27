@@ -1,0 +1,30 @@
+diff --git a/verl/trainer/config/ppo_trainer.yaml b/verl/trainer/config/ppo_trainer.yaml
+index bd28dd3c..ce04934d 100644
+--- a/verl/trainer/config/ppo_trainer.yaml
++++ b/verl/trainer/config/ppo_trainer.yaml
+@@ -112,6 +112,15 @@ actor_rollout_ref:
+     # for huge model, layered summon can save memory (prevent OOM) but make it slower
+     layered_summon: False
+ 
++    # max rounds of rollout before the prompt is forced finished, 1 means no partial rollout
++    partial_rollout_max_split: ${algorithm.partial_rollout_max_split}
++
++    partial_rollout_mode : async # 同步 split默认2 异步
++
++    rollout_threshold_rate : 0.8
++
++    aggregator: null
++
+   # profiler configs
+   profiler:
+ 
+@@ -161,6 +170,9 @@ algorithm:
+   # How to estimate KL divergence: "kl", "abs", "mse", "low_var_kl", or "full"
+   kl_penalty: kl
+ 
++  # max rounds of rollout before the prompt is forced finished, -1 means no partial rollout
++  partial_rollout_max_split: -1
++  
+   # KL control configuration
+   kl_ctrl:
+ 

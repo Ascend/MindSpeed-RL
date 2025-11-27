@@ -1,22 +1,191 @@
 diff --git a/recipe/dapo/dapo_ray_trainer.py b/recipe/dapo/dapo_ray_trainer.py
-index 4ee64294..53ef5745 100644
+index 4ee64294..b3258cd8 100644
 --- a/recipe/dapo/dapo_ray_trainer.py
 +++ b/recipe/dapo/dapo_ray_trainer.py
-@@ -131,7 +131,7 @@ class RayDAPOTrainer(RayPPOTrainer):
-                         batch_keys=["input_ids", "attention_mask", "position_ids"],
-                         non_tensor_batch_keys=["raw_prompt_ids"],
+@@ -20,6 +20,7 @@ import uuid
+ from collections import defaultdict
+ from copy import deepcopy
+ from pprint import pprint
++from typing import Optional
+
+ import numpy as np
+ import torch
+@@ -94,6 +95,8 @@ class RayDAPOTrainer(RayPPOTrainer):
+         self.global_steps += 1
+         self.gen_steps += 1
+         last_val_metrics = None
++        partial_batch: Optional[DataProto] = None  # samples whose rollout is not finished yet
++        staged_batch: Optional[DataProto] = None  # samples whose rollout has been finished but not yet trained on
+
+         prev_step_profile = False
+         curr_step_profile = (
+@@ -119,29 +122,120 @@ class RayDAPOTrainer(RayPPOTrainer):
                      )
+
+                 new_batch: DataProto = DataProto.from_single_dict(batch_dict)
++
++                new_batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(new_batch.batch))],
++                                                            dtype=object)
++                # repeat to align with repeated responses in rollout
++                new_batch = new_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n,
++                                            interleave=False )  # gen_prompt_bsz * n
++                new_batch.non_tensor_batch["age"] = np.ones(len(new_batch.batch), dtype=int)
++                new_batch.non_tensor_batch["raw_response_ids"] = np.fromiter(([] for _ in range(len(new_batch.batch))),
++                                                                            dtype=object)
++                new_batch = DataProto.concat([partial_batch, new_batch]) if partial_batch is not None else new_batch
+                 num_gen_batches += 1
+                 # pop those keys for generation
+-                if "multi_modal_data" in new_batch.non_tensor_batch.keys():
+-                    gen_batch = new_batch.pop(
+-                        batch_keys=["input_ids", "attention_mask", "position_ids"],
+-                        non_tensor_batch_keys=["raw_prompt_ids", "multi_modal_data"],
+-                    )
+-                else:
+-                    gen_batch = new_batch.pop(
+-                        batch_keys=["input_ids", "attention_mask", "position_ids"],
+-                        non_tensor_batch_keys=["raw_prompt_ids"],
+-                    )
 -                gen_batch = gen_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
-+                gen_batch = gen_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=False)
- 
++                batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
++                non_tensor_batch_keys_to_pop = ["raw_prompt_ids", "raw_response_ids"]
++                if "multi_modal_data" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("multi_modal_data")
++                if "raw_prompt" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("raw_prompt")
++                if "tools_kwargs" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("tools_kwargs")
++                if "interaction_kwargs" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("interaction_kwargs")
++                if "index" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("index")
++                if "agent_name" in new_batch.non_tensor_batch:
++                    non_tensor_batch_keys_to_pop.append("agent_name")
++
++                gen_batch = new_batch.pop(
++                    batch_keys=batch_keys_to_pop,
++                    non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
++                )
++                gen_batch.non_tensor_batch["age"] = new_batch.non_tensor_batch["age"]
++
+
                  is_last_step = self.gen_steps >= self.total_training_steps
- 
-@@ -162,7 +162,7 @@ class RayDAPOTrainer(RayPPOTrainer):
-                         [str(uuid.uuid4()) for _ in range(len(new_batch.batch))], dtype=object
-                     )
-                     # repeat to align with repeated responses in rollout
+
+                 with marked_timer("step", timing_raw):
+                     # generate a batch
+                     with marked_timer("gen", timing_raw, "red"):
++                        if self.aggregator:
++                            self.aggregator.set_sample_num.remote(len(gen_batch))
++                            self.aggregator.clear.remote()
++
+                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
+                         timing_raw.update(gen_batch_output.meta_info["timing"])
+                         gen_batch_output.meta_info.pop("timing", None)
++                    with marked_timer("filter", timing_raw):
++
++                        new_batch = new_batch.union(gen_batch_output)
++
++                        finished_mask = new_batch.non_tensor_batch.pop("finished")
++
++                        if self.config.actor_rollout_ref.rollout.partial_rollout_mode == "sync":
++                            finished_mask = (new_batch.non_tensor_batch[
++                                                 "age"] == self.config.algorithm.partial_rollout_max_split) | finished_mask
++                        if self.config.actor_rollout_ref.rollout.partial_rollout_mode == "async":
++                            finished_mask = ([len(response) >= self.config.actor_rollout_ref.rollout.response_length
++                                              for response in
++                                              gen_batch_output.non_tensor_batch['raw_response_ids']]) | finished_mask
++
++                        staged_out, partial_batch = DataProto.split_data(new_batch,
++                                                                         finished_mask)
++
++                        staged_out.non_tensor_batch.pop("raw_prompt_ids")
++                        staged_out.non_tensor_batch.pop("raw_response_ids")
++
++                        if len(partial_batch.batch) > 0:
++                            for key in ("input_ids", "attention_mask", "position_ids"):
++                                tmp = partial_batch.batch.pop(key, None)
++                                partial_batch.batch[key] = tmp[:,
++                                                           : self.config.data.max_prompt_length]
++
++                            for key in ("prompts", "responses", "rollout_log_probs"):
++                                # we don't support rollout_log_probs in this feature branch yet
++                                if key in partial_batch.batch:
++                                    partial_batch.batch.pop(key)
++                        else:
++                            partial_batch = None
++
++                        # note that we no longer ensure the order of samples in staged_batch
+
++                        staged_batch = DataProto.concat(
++                            [staged_batch, staged_out]) if staged_batch is not None else staged_out
++
++                        # prompts whose number of finished rollout is enough can be trained on
++                        # while filtering, we ensure sample number is divisible by n_gpus_per_node and as large as possible
++                        can_train_mask = np.zeros(len(staged_batch.batch), dtype=bool)
++                        id2count = defaultdict(int)
++                        required_rollouts = self.config.actor_rollout_ref.rollout.n
++                        divisor = self.config.actor_rollout_ref.actor.ppo_mini_batch_size * required_rollouts
++
++                        for uid in staged_batch.non_tensor_batch["uid"]:
++                            id2count[uid] += 1
++                        assert not id2count or max(
++                            id2count.values()) <= required_rollouts, "max number of responses exceeds rollout n"
++
++                        complete_uids = [uid for uid, count in id2count.items() if
++                                         count == required_rollouts]
++
++                        total_complete_samples = len(complete_uids) * required_rollouts
++                        max_usable_groups = (total_complete_samples // divisor) * divisor // required_rollouts
++                        can_train_count = max_usable_groups * required_rollouts
++
++                        if can_train_count == 0:
++                            print(f"{total_complete_samples=}, no complete uid groups available. Keep generating...")
++                            continue
++
++                        selected_uids = set(complete_uids[:max_usable_groups])
++
++                        for i, uid in enumerate(staged_batch.non_tensor_batch["uid"]):
++                            if uid in selected_uids:
++                                can_train_mask[i] = True
++
++                        new_batch, staged_batch = DataProto.split_data(staged_batch, can_train_mask)
+                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
+                         with marked_timer("gen_max", timing_raw, "red"):
+                             gen_baseline_batch = deepcopy(gen_batch)
+@@ -158,12 +252,7 @@ class RayDAPOTrainer(RayPPOTrainer):
+
+                             del gen_baseline_batch, gen_baseline_output
+
+-                    new_batch.non_tensor_batch["uid"] = np.array(
+-                        [str(uuid.uuid4()) for _ in range(len(new_batch.batch))], dtype=object
+-                    )
+-                    # repeat to align with repeated responses in rollout
 -                    new_batch = new_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
-+                    new_batch = new_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=False)
-                     new_batch = new_batch.union(gen_batch_output)
- 
+-                    new_batch = new_batch.union(gen_batch_output)
++
+
                      with marked_timer("reward", timing_raw, "yellow"):
+                         # compute scores. Support both model and function-based.
+@@ -263,6 +352,8 @@ class RayDAPOTrainer(RayPPOTrainer):
+                             # Align the batch
+                             traj_bsz = self.config.data.train_batch_size * self.config.actor_rollout_ref.rollout.n
+                             batch = batch[:traj_bsz]
++                            if partial_batch:
++                                partial_batch.non_tensor_batch["age"] += 1
+
+                     # === Updating ===
+
+@@ -361,7 +452,13 @@ class RayDAPOTrainer(RayPPOTrainer):
+                     )
+                     prev_step_profile = curr_step_profile
+                     curr_step_profile = next_step_profile
+-
++                if self.enable_partial_rollout:
++                    metrics.update(
++                        {
++                            "training/can_train_count": can_train_count,
++                            "training/total_complete_samples": total_complete_samples,
++                        }
++                    )
+                 # collect metrics
+                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
+                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))

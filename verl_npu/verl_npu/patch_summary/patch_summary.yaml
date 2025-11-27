@@ -65,6 +65,34 @@ patches:
               class_changes: # [action, kind, name]
               - action: updated # [added, replaced, deleted, updated]
                 name: RayDAPOTrainer
+        - name: main_dapo
+          diff:
+              class_changes:
+                  - action: added
+                    name: TaskRunner
+        - name: main_ppo
+          diff:
+              class_changes:
+                  - action: added
+                    name: TaskRunner
+        - name: ppo_trainer
+          diff:
+              module_changes:
+                - action: added
+                  name : ppo_trainer.yaml
+        - name: protocol
+          diff:
+            class_changes:
+                - action: added
+                  name: DataProto
+        - name: ray_trainer
+          diff:
+            class_changes:
+              - action: added
+                name: AggregatorActor
+
+
+
   - repo: transformers
     current_rev: 8365f70e9259c21058bf18f876006f945d2a99de
     versions:

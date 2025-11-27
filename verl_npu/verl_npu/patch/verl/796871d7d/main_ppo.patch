@@ -1,0 +1,15 @@
+diff --git a/verl/trainer/main_ppo.py b/verl/trainer/main_ppo.py
+index 42393414..122684a2 100644
+--- a/verl/trainer/main_ppo.py
++++ b/verl/trainer/main_ppo.py
+@@ -211,6 +211,10 @@ class TaskRunner:
+         reward_fn = load_reward_manager(
+             config, tokenizer, num_examine=0, **config.reward_model.get("reward_kwargs", {})
+         )
++        if config.actor_rollout_ref.rollout.partial_rollout_mode == "async" and config.actor_rollout_ref.rollout.partial_rollout_max_split > 0:
++            from verl.trainer.ppo.ray_trainer import AggregatorActor
++            role_worker_mapping[Role.Aggregator] = ray.remote(AggregatorActor)
++            
+         val_reward_fn = load_reward_manager(
+             config, tokenizer, num_examine=1, **config.reward_model.get("reward_kwargs", {})
+         )

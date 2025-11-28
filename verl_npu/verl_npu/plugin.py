@@ -42,7 +42,7 @@ def get_target_path(repo):
         for line in repo_meta.split("\n"):
             line = line.strip()
             if line.startswith("Location: "):
-                target_path = str(Path(line.split(": ")[1]) / repo)
+                target_path = str(Path(line.split(": ")[1]))
 
     return target_path
 

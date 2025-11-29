@@ -16,6 +16,10 @@ umask 0027
 
 export TASK_QUEUE_ENABLE=2
 export HCCL_IF_BASE_PORT=24703
+# 请确认该文件存在(可通过 find /usr -name libjemalloc.so.2 确认)
+export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
+export MALLOC_MMAP_THRESHOLD_=512768
+export LCAL_COMM_ID=127.0.0.1:27001
 
 NNODES=1
 NPUS_PER_NODE=16

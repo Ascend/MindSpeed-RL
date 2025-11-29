@@ -1,4 +1,3 @@
-# Copyright (c) 2022; NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import time
 

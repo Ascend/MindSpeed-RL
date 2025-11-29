@@ -1,5 +1,4 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 """
 Note that we don't combine the main with trainer as trainer is used by other main.
 """

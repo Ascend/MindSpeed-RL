@@ -1,5 +1,4 @@
 # coding=utf-8
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 
 import os
 import sys

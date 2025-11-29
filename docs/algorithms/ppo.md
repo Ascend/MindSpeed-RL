@@ -204,23 +204,22 @@ rl_config:
 | `e2e_tps`                          | 端到端的tokens/p/s指标                                       |
 | `update_tps`                       | 训练的tokens/p/s指标                                         |
 | `vllm_tps`                         | 推理的tokens/p/s指标                                         |
-
 * e2e_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_all}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_all}
 $$
 
 * update_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_update}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_update}
 $$
 
 * vllm_tps计算方式
 
 $$
-(\text{response_length_mean} + \text{prompt_length_mean}) \times \text{global_batch_size} \times \text{n_samples_per_prompt} / \text{world_size} \ / \text{time_rollout}
+(\text{response\_length\_mean} + \text{prompt\_length\_mean}) \times \text{global\_batch\_size} \times \text{n\_samples\_per\_prompt} / \text{world\_size} \ / \text{time\_rollout}
 $$
 
 注： 以上计算公式中 ` time_all`、`time_update`、`time_rollout`、`response_length_mean` 和 `prompt_length_mean` 即分别对应于指标说明里的`timing/all`、`timing/update`、`timing/rollout`、`response_length/mean`和`prompt_length/mean`，此处名字修改是为了区别于公式里的`/`计算符号；

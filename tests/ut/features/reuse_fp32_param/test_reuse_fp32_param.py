@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 
 from functools import partial
 import copy

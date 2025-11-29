@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd.2023-2025. All rights reserved.
-# Copyright (c) 2025, NVIDIA CORPORATION. All rights reversed.
 import sys
 from unittest.mock import MagicMock
 from datetime import timedelta

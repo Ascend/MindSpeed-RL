@@ -1,0 +1,28 @@
+diff --git a/verl/trainer/config/ppo_megatron_trainer.yaml b/verl/trainer/config/ppo_megatron_trainer.yaml
+index c5d7e986..b0013fd9 100644
+--- a/verl/trainer/config/ppo_megatron_trainer.yaml
++++ b/verl/trainer/config/ppo_megatron_trainer.yaml
+@@ -53,6 +53,15 @@ actor_rollout_ref:
+
+     tensor_model_parallel_size: 1
+
++    # max rounds of rollout before the prompt is forced finished, 1 means no partial rollout
++    partial_rollout_max_split: ${algorithm.partial_rollout_max_split}
++
++    partial_rollout_mode: async
++
++    rollout_threshold_rate: 0.8
++
++    aggregator: null
++
+     layer_name_map:
+       qkv_layer_name: qkv
+       gate_proj_layer_name: gate_up
+@@ -76,6 +85,7 @@ algorithm:
+   norm_adv_by_std_in_grpo: True
+   use_kl_in_reward: False
+   kl_penalty: kl  # how to estimate kl divergence
++  partial_rollout_max_split: -1
+   kl_ctrl:
+     # Required when using verl.utils.omega_conf_to_dataclass to instantiate dataclass configs
+     _target_: verl.trainer.config.KLControlConfig

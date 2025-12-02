@@ -9,7 +9,7 @@ index bd28dd3c..ce04934d 100644
 +    # max rounds of rollout before the prompt is forced finished, 1 means no partial rollout
 +    partial_rollout_max_split: ${algorithm.partial_rollout_max_split}
 +
-+    partial_rollout_mode : async # 同步 split默认2 异步
++    partial_rollout_mode : async
 +
 +    rollout_threshold_rate : 0.8
 +

@@ -603,6 +603,10 @@ def main(config):
         rl_config = RLConfig(config.get("rl_config"))
         with open(os.path.join(cur_file_dir, rl_config.runtime_env_path)) as file:
             runtime_env = yaml.safe_load(file)
+        generate_config = GenerateConfig(config.get("generate_config"))
+        enable_expert_parallel = getattr(generate_config, "enable_expert_parallel", None)
+        if enable_expert_parallel:
+            runtime_env["env_vars"]["VLLM_DP_SIZE"] = str(generate_config.infer_expert_parallel_size)
         logger.info(f"ray init with runtime_env: {runtime_env}")
         ray.init(runtime_env=runtime_env)
 

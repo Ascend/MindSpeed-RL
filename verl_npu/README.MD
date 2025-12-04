@@ -7,7 +7,7 @@
 ## 
 | MindSpeed RL版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------| ---------- | ---------- |
-| master（主线）   | 2.7.1     | 2.7.1       | 8.2.RC1 | Python3.10 |
+| master（主线）   | 2.7.1     | 2.7.1       | 8.3.RC1 | Python3.10 |
 
 ## 1、安装 vllm 和 vllm-ascend
 ```bash

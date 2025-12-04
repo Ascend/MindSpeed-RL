@@ -1,8 +1,19 @@
 diff --git a/recipe/dapo/dapo_ray_trainer.py b/recipe/dapo/dapo_ray_trainer.py
-index 4ee64294..53ef5745 100644
+index 4ee64294..1a11f02a 100644
 --- a/recipe/dapo/dapo_ray_trainer.py
 +++ b/recipe/dapo/dapo_ray_trainer.py
-@@ -131,7 +131,7 @@ class RayDAPOTrainer(RayPPOTrainer):
+@@ -43,6 +43,10 @@ from verl.trainer.ppo.ray_trainer import (
+ from verl.utils.profiler import marked_timer
+ from verl.utils.rollout_skip import RolloutSkip
+ 
++# use_expandable_segments: 是否支持动态开启虚拟内存的方案来优化训练阶段的内存(推理阶段关闭虚拟内存,训练阶段使能虚拟内存)
++import os
++use_expandable_segments = os.getenv("EXPANDABLE_SEGMENTS", "false").lower() == "true"
++print("use_expandable_segments:", use_expandable_segments)
+ 
+ class RayDAPOTrainer(RayPPOTrainer):
+     """
+@@ -131,16 +135,20 @@ class RayDAPOTrainer(RayPPOTrainer):
                          batch_keys=["input_ids", "attention_mask", "position_ids"],
                          non_tensor_batch_keys=["raw_prompt_ids"],
                      )
@@ -11,7 +22,20 @@ index 4ee64294..53ef5745 100644
  
                  is_last_step = self.gen_steps >= self.total_training_steps
  
-@@ -162,7 +162,7 @@ class RayDAPOTrainer(RayPPOTrainer):
+                 with marked_timer("step", timing_raw):
+                     # generate a batch
++                    if use_expandable_segments:
++                        torch.npu.memory._set_allocator_settings("expandable_segments:False")
+                     with marked_timer("gen", timing_raw, "red"):
+                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
+                         timing_raw.update(gen_batch_output.meta_info["timing"])
+                         gen_batch_output.meta_info.pop("timing", None)
++                    if use_expandable_segments:
++                        torch.npu.memory._set_allocator_settings("expandable_segments:True")
+ 
+                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
+                         with marked_timer("gen_max", timing_raw, "red"):
+@@ -162,7 +170,7 @@ class RayDAPOTrainer(RayPPOTrainer):
                          [str(uuid.uuid4()) for _ in range(len(new_batch.batch))], dtype=object
                      )
                      # repeat to align with repeated responses in rollout

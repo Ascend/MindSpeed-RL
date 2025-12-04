@@ -12,7 +12,7 @@ MindSpeed RL：基于昇腾生态的强化学习加速框架，旨在为华为 [
 
 ---
 
-🚀🚀🚀 2025.10 MindSpeed RL 已支持[VeRL昇腾训练](./rl-plugin/README.MD) ！！！🚀🚀🚀
+🚀🚀🚀 2025.10 MindSpeed RL 已支持[VeRL昇腾训练](./verl_npu/README.MD) ！！！🚀🚀🚀
 
 # 版本说明
 

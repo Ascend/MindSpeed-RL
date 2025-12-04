@@ -72,6 +72,89 @@ cd ../..
 VERL_PATH=path_to_verl pip install -e .
 ```
 
+**注意**：请在安装完插件后做如下检查，确保插件安装成功
+
+~~~bash
+# 使用verl拉起训练时检查是否有如下输出：
+================================ NPU Patch Summary ==================================
+
+================ verl Patch Summary ================
+
+Patch File1: verl.workers.sharding_manager.hybrid_tp_config.py
+  (1) Patch class: verl.workers.sharding_manager.hybrid_tp_config.hybrid_tp_config
+       Class Changes:
+          - added         module_attr         Dict
+          - added         module_attr         DictConfig
+          - added         module_attr         HybridTPConfig
+          - added         module_attr         List
+          - added         module_attr         Optional
+          - added         module_attr         dataclass
+
+Patch File2: verl.workers.megatron_workers.py
+  (1) Patch class: verl.workers.megatron_workers.ActorRolloutRefWorker
+       Class Changes:
+          - replaced         method         compute_log_prob
+          - replaced         method         update_actor
+
+Patch File3: verl.utils.seqlen_balancing.py
+
+Patch File4: verl.workers.rollout.vllm_rollout.vllm_rollout_spmd.py
+  (1) Patch class: verl.workers.rollout.vllm_rollout.vllm_rollout_spmd.vLLMRollout
+       Class Changes:
+          - replaced         method         __init__
+          - replaced         method         _init_dp_env
+
+Patch File5: recipe.dapo.dapo_ray_trainer.py
+  (1) Patch class: recipe.dapo.dapo_ray_trainer.RayDAPOTrainer
+
+============ verl Patch Summary End ==============
+
+================ transformers Patch Summary ================
+
+Patch File1: src.transformers.models.qwen2.modeling_qwen2.py
+   Module Changes:
+          - added         method         fused_apply_rotary_pos_emb
+  (1) Patch class: src.transformers.models.qwen2.modeling_qwen2.Qwen2RMSNorm
+       Class Changes:
+          - replaced         method         forward
+  (2) Patch class: src.transformers.models.qwen2.modeling_qwen2.Qwen2MLP
+       Class Changes:
+          - replaced         method         forward
+
+Patch File2: src.transformers.models.qwen3_moe.modeling_qwen3_moe.py
+   Module Changes:
+          - added         method         apply_rotary_pos_emb
+  (1) Patch class: src.transformers.models.qwen3_moe.modeling_qwen3_moe.Qwen3MoeSparseMoeBlock
+       Class Changes:
+          - replaced         method         __init__
+  (2) Patch class: src.transformers.models.qwen3_moe.modeling_qwen3_moe.Qwen3MoeRMSNorm
+       Class Changes:
+          - replaced         method         forward
+  (3) Patch class: src.transformers.models.qwen3_moe.modeling_qwen3_moe.Qwen3MoeMLP
+       Class Changes:
+          - replaced         method         forward
+
+Patch File3: src.transformers.integrations.npu_flash_attention.py
+   Module Changes:
+          - added         method         unpad_input
+          - added         method         _prepare_from_posids
+  (1) Patch class: src.transformers.integrations.npu_flash_attention.IndexFirstAxis
+  (2) Patch class: src.transformers.integrations.npu_flash_attention.IndexPutFirstAxis
+  (3) Patch class: src.transformers.integrations.npu_flash_attention.pad_input
+
+============ transformers Patch Summary End ==============
+
+============================= NPU Patch Summary End==================================
+~~~
+
+若没有，则执行下面的操作：
+
+~~~bash
+# 打开verl/__init__.py 找到`if is_npu_available:`，做如下添加
+if is_npu_available:
+	import verl_npu  # 添加上这一行
+~~~
+
 ## 5、内存管理优化（可选）
 
 安装 jemalloc 以优化内存管理

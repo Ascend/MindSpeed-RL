@@ -60,7 +60,7 @@ cd ..
 ## 4、安装插件
 ```bash
 # 请确保 vllm 已正确安装并且之后不会做覆盖
-git clone https://gitcode.com/Ascend/MindSpeed-RL.git
+git clone -b 2.3.0 https://gitcode.com/Ascend/MindSpeed-RL.git
 cd MindSpeed-RL/verl_npu
 pip install -v -e .
 cd ../..

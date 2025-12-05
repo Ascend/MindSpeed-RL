@@ -1,5 +1,5 @@
 diff --git a/recipe/dapo/dapo_ray_trainer.py b/recipe/dapo/dapo_ray_trainer.py
-index 4ee64294..b3258cd8 100644
+index 4ee64294..40b87085 100644
 --- a/recipe/dapo/dapo_ray_trainer.py
 +++ b/recipe/dapo/dapo_ray_trainer.py
 @@ -20,6 +20,7 @@ import uuid
@@ -7,21 +7,33 @@ index 4ee64294..b3258cd8 100644
  from copy import deepcopy
  from pprint import pprint
 +from typing import Optional
-
+ 
  import numpy as np
  import torch
-@@ -94,6 +95,8 @@ class RayDAPOTrainer(RayPPOTrainer):
+@@ -42,7 +43,10 @@ from verl.trainer.ppo.ray_trainer import (
+ )
+ from verl.utils.profiler import marked_timer
+ from verl.utils.rollout_skip import RolloutSkip
+-
++# use_expandable_segments: 是否支持动态开启虚拟内存的方案来优化训练阶段的内存(推理阶段关闭虚拟内存,训练阶段使能虚拟内存)
++import os
++use_expandable_segments = os.getenv("EXPANDABLE_SEGMENTS", "false").lower() == "true"
++print("use_expandable_segments:", use_expandable_segments)
+ 
+ class RayDAPOTrainer(RayPPOTrainer):
+     """
+@@ -94,6 +98,8 @@ class RayDAPOTrainer(RayPPOTrainer):
          self.global_steps += 1
          self.gen_steps += 1
          last_val_metrics = None
 +        partial_batch: Optional[DataProto] = None  # samples whose rollout is not finished yet
 +        staged_batch: Optional[DataProto] = None  # samples whose rollout has been finished but not yet trained on
-
+ 
          prev_step_profile = False
          curr_step_profile = (
-@@ -119,29 +122,120 @@ class RayDAPOTrainer(RayPPOTrainer):
+@@ -119,29 +125,124 @@ class RayDAPOTrainer(RayPPOTrainer):
                      )
-
+ 
                  new_batch: DataProto = DataProto.from_single_dict(batch_dict)
 +
 +                new_batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(new_batch.batch))],
@@ -67,11 +79,13 @@ index 4ee64294..b3258cd8 100644
 +                )
 +                gen_batch.non_tensor_batch["age"] = new_batch.non_tensor_batch["age"]
 +
-
+ 
                  is_last_step = self.gen_steps >= self.total_training_steps
-
+ 
                  with marked_timer("step", timing_raw):
                      # generate a batch
++                    if use_expandable_segments:
++                        torch.npu.memory._set_allocator_settings("expandable_segments:False")
                      with marked_timer("gen", timing_raw, "red"):
 +                        if self.aggregator:
 +                            self.aggregator.set_sample_num.remote(len(gen_batch))
@@ -80,6 +94,8 @@ index 4ee64294..b3258cd8 100644
                          gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
                          timing_raw.update(gen_batch_output.meta_info["timing"])
                          gen_batch_output.meta_info.pop("timing", None)
++                    if use_expandable_segments:
++                        torch.npu.memory._set_allocator_settings("expandable_segments:True")
 +                    with marked_timer("filter", timing_raw):
 +
 +                        new_batch = new_batch.union(gen_batch_output)
@@ -114,7 +130,7 @@ index 4ee64294..b3258cd8 100644
 +                            partial_batch = None
 +
 +                        # note that we no longer ensure the order of samples in staged_batch
-
++
 +                        staged_batch = DataProto.concat(
 +                            [staged_batch, staged_out]) if staged_batch is not None else staged_out
 +
@@ -124,7 +140,7 @@ index 4ee64294..b3258cd8 100644
 +                        id2count = defaultdict(int)
 +                        required_rollouts = self.config.actor_rollout_ref.rollout.n
 +                        divisor = self.config.actor_rollout_ref.actor.ppo_mini_batch_size * required_rollouts
-+
+ 
 +                        for uid in staged_batch.non_tensor_batch["uid"]:
 +                            id2count[uid] += 1
 +                        assert not id2count or max(
@@ -151,30 +167,30 @@ index 4ee64294..b3258cd8 100644
                      if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                          with marked_timer("gen_max", timing_raw, "red"):
                              gen_baseline_batch = deepcopy(gen_batch)
-@@ -158,12 +252,7 @@ class RayDAPOTrainer(RayPPOTrainer):
-
+@@ -158,13 +259,6 @@ class RayDAPOTrainer(RayPPOTrainer):
+ 
                              del gen_baseline_batch, gen_baseline_output
-
+ 
 -                    new_batch.non_tensor_batch["uid"] = np.array(
 -                        [str(uuid.uuid4()) for _ in range(len(new_batch.batch))], dtype=object
 -                    )
 -                    # repeat to align with repeated responses in rollout
 -                    new_batch = new_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
 -                    new_batch = new_batch.union(gen_batch_output)
-+
-
+-
                      with marked_timer("reward", timing_raw, "yellow"):
                          # compute scores. Support both model and function-based.
-@@ -263,6 +352,8 @@ class RayDAPOTrainer(RayPPOTrainer):
+                         # We first compute the scores using reward model. Then, we call reward_fn to combine
+@@ -263,6 +357,8 @@ class RayDAPOTrainer(RayPPOTrainer):
                              # Align the batch
                              traj_bsz = self.config.data.train_batch_size * self.config.actor_rollout_ref.rollout.n
                              batch = batch[:traj_bsz]
 +                            if partial_batch:
 +                                partial_batch.non_tensor_batch["age"] += 1
-
+ 
                      # === Updating ===
-
-@@ -361,7 +452,13 @@ class RayDAPOTrainer(RayPPOTrainer):
+ 
+@@ -361,7 +457,13 @@ class RayDAPOTrainer(RayPPOTrainer):
                      )
                      prev_step_profile = curr_step_profile
                      curr_step_profile = next_step_profile

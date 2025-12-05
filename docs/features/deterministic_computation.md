@@ -10,24 +10,26 @@
 
 ### 1. 数据输入一致
   - 1.1 设置shuffle参数
+      
       > **注意**：在训练前删除数据集目录下后缀为.npy的缓存文件
       
       两次计算的数据输入需要保持一致，可以在训练脚本的yaml文件megatron_training参数中加入控制数据集输入
       MindSpeed RL 提供两个参数进行控制
+      
       ```
       no_shuffle # 是否按epoch对数据进行shuffle, 默认为False, 对每个epoch进行shuffle，可用seed控制shuffle随机性
       full_shuffle_instruction_dataset # 是否在处理完所有epoch之后对完整的数据再进行shuffle，默认为False，不进行全局shuffle
       ```
       所以当前仓上保证两次数据一致可设置以下参数
 
-      不开shuffle：
-
+      不开shuffle（即保证数据读取的一致性，不进行任何数据重排）：
+      
       ```
       no_shuffle: true
       full_shuffle_instruction_dataset: false
       ```
-
-      开启shuffle并保证跑两次数据一致：
+      
+      开启shuffle并保证跑两次数据一致（即对数据进行随机洗牌，但是通过固定种子保证每次运行的数据顺序一致）：
       ```
       no_shuffle: false
       seed: 1234  # 如果有就不用再加

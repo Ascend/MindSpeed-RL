@@ -14,7 +14,7 @@ def is_examples(file):
 
 
 def is_markdown(file):
-    return file.endswith(".md")
+    return file.endswith(".md") or file.endswith(".MD")
 
 
 def is_image(file):

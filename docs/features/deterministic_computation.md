@@ -20,14 +20,14 @@
       ```
       所以当前仓上保证两次数据一致可设置以下参数
 
-      不开shuffle：
+      不开shuffle（即保证数据读取的一致性，不进行任何数据重排）：
 
       ```
       no_shuffle: true
       full_shuffle_instruction_dataset: false
       ```
 
-      开启shuffle并保证跑两次数据一致：
+      开启shuffle并保证跑两次数据一致（即对数据进行随机洗牌，但是通过固定种子保证每次运行的数据顺序一致）：
       ```
       no_shuffle: false
       seed: 1234  # 如果有就不用再加

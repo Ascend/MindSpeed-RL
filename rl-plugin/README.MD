@@ -7,7 +7,7 @@
 ## 
 | MindSpeed RL版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------| ---------- | ---------- |
-| master（主线）   | 2.7.1     | 2.7.1       | 8.2.RC1 | Python3.10 |
+| master（主线）   | 2.7.1     | 2.7.1       | 8.3.RC1 | Python3.10 |
 
 ## 1、安装 vllm 和 vllm-ascend
 ```bash
@@ -81,6 +81,11 @@ VERL_PATH=path_to_verl pip install -e .
 
 `dapo`及`grpo`目录提供与 `configs` 对应的执行脚本，运行时配置好该脚本中的 `DEFAULT_SH` 即可拉起
 
+
+# 镜像使用
+目前，昇腾社区的[昇腾镜像仓库](https://www.hiascend.com/developer/ascendhub/detail/2a71f71cb92643baa95e527b39088e0e)已正式上线镜像资源，为广大开发者提供便捷可用的镜像服务支持。
+
+镜像使用指南详见[verl_docker](./docs/verl_docker.md)
 
 # 插件开发
 

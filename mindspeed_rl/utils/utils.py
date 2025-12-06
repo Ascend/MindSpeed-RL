@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import random
+import logging as logger
 from contextlib import contextmanager
 from functools import wraps
 from typing import Dict, List
@@ -21,7 +22,6 @@ import torch
 import torch_npu
 import torch.distributed as dist
 from torch import Tensor
-
 
 cur_file_dir = Path(__file__).absolute().parent
 base_dir = os.path.realpath(os.path.join(cur_file_dir, "..", ".."))
@@ -610,10 +610,24 @@ def profiler_start(profiler_config, role="profiler_data", profiler_iteration=Non
             profiler_iteration < profiler_config.profile_step_start or
             profiler_iteration >= profiler_config.profile_step_end):
         return None
+    if profiler_config.stage != "all":
+        if isinstance(profiler_config.stage, str):
+            if role != profiler_config.stage:
+                return None
+        else:
+            try:
+                stages = list(profiler_config.stage)
+            except TypeError:
+                logger.warning(f"profiler stage is not iterable, set stages to empty list")
+                stages = []
+            except Exception as e:
+                logger.warning(f"unexpected exception while profiling stage: {e}, set stages to empty list")
+                stages = []
+            if role not in stages:
+                return None
     if profiler_config.stage == "all" and role != profiler_config.role:
         return None
-    if profiler_config.stage != "all" and role != profiler_config.stage:
-        return None
+
     profiler = get_grpo_profiler(profiler_config, role)
     if not profiler:
         return None

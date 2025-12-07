@@ -43,3 +43,6 @@ rl_config:
 ## 验证情况
 ![img_4.png](../../sources/images/partial_rollout/sync_partial_compare_result.png)
 图5 同步引擎验证结果
+
+### 注意事项
+目前此特性暂不支持和VPP特性同时启用。

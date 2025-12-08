@@ -171,7 +171,7 @@ export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 
 ## 准备源码
 ```shell
-git clone https://gitcode.com/Ascend/MindSpeed-RL.git
+git clone -b 2.3.0 https://gitcode.com/Ascend/MindSpeed-RL.git
 
 git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed

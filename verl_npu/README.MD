@@ -1,7 +1,3 @@
-
-
-
-
 # 环境依赖
 
 ## 
@@ -9,9 +5,16 @@
 | ---------------- | ------------ |-----------| ---------- | ---------- |
 | master（主线）   | 2.7.1     | 2.7.1       | 8.3.RC1 | Python3.10 |
 
+## 激活cann
+```bash
+# 修改为自己的cann路径
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/nnal/atb/set_env.sh
+```
+
 ## 1、安装 vllm 和 vllm-ascend
 ```bash
-# vllm
+# vllm     0.10.1
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
 git checkout 38217877aa70041c0115ee367b75197af9cbc5ad
@@ -19,13 +22,15 @@ pip install -r requirements/build.txt
 VLLM_TARGET_DEVICE=empty pip install -v -e .
 cd ..
 
-# vllm-ascend
+# vllm-ascend   0.10.0 
+# 安装vllm_ascend时，注释requirements.txt和pyproject.toml中torch、torchvision和torch_npu的安装
 git clone https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
 git checkout 1de16ead8eecfec8903ec1b330b27a4fa2593c35
 pip install -r requirements.txt
 export COMPILE_CUSTOM_KERNELS=1
 python setup.py install
+pip install torchvision==0.22.1 --extra-index https://download.pytorch.org/whl/cpu/
 cd ..
 
 # 源码安装transformers
@@ -173,6 +178,13 @@ if is_npu_available:
 安装完成后设置环境变量(假设安装路径为 `/usr/local/lib/libjemalloc.so.2`): 
 ``` python
 export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+```
+
+## 6、虚拟内存动态开启关闭
+在强化学习训练场景中，训练过程易产生大量内存碎片；同时推理阶段启用的 sleepmode 机制与虚拟内存存在兼容性冲突。为此，本特性支持虚拟内存的动态开启与关闭，可有效减少强化学习训练场景下的内存碎片问题，降低训练过程中发生 **内存溢出（OOM）** 的风险。
+插件安装完成后，可通过以下方式启用该特性：
+```bash
+export EXPANDABLE_SEGMENTS=True
 ```
 
 # 启动训练

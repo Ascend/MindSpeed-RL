@@ -225,7 +225,7 @@ huggingface-cli download --resume-download Qwen/Qwen3-32B --local-dir /path/to/l
 - DEFAULT_SH：修改为训练所用配置sh路径
 - NNODES和NPUS_PER_NODE：修改为使用节点和每个节点NPU数量
 - MASTER_ADDR：修改为对应主节点 IP。即所有节点的MASTER_ADDR 应该相同。
-- SOCKET_IFNAME, HCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME：修改为对应通信网卡，通信网卡可以通过以下命令获取。
+- SOCKET_IFNAME, HCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME：修改为对应通信网卡（也可指定特定网卡），通信网卡可以通过以下命令获取。
 
 ```shell
 ifconfig |grep "$(hostname -I |awk '{print $1}'|awk -F '.' '{print $0}')" -B 1|awk -F ':' '{print$1}' | head -1 | tail -1
@@ -256,6 +256,7 @@ export GLOO_SOCKET_IFNAME="SOCKET IFNAME FOR CURRENT NODE"
 - N_GPUS_PER_NODE：修改为每个节点NPU数量，与启动脚本保持一致
 - MODEL_PATH：修改为训练Qwen3-32b权重路径，需要下载
 - CKPTS_DIR：修改为保存权重路径
+- TRAIN_FILE、TEST_FILE：修改为训练所需的数据集路径
 
 ```shell
 #!/usr/bin/env bash
@@ -266,6 +267,8 @@ N_GPUS_PER_NODE=16
 # Paths
 MODEL_PATH=# 修改为训练Qwen3-32b权重路径，需要下载
 CKPTS_DIR=./ckpt/Qwen3-32B-save # 保存权重的路径
+TRAIN_FILE=/examples/datasets/dapo-math-17k.parquet # 修改为训练数据集路径
+TEST_FILE=/examples/datasets/dapo-math-17k.parquet  # 修改为测试数据集路径
 # ……
 ```
 

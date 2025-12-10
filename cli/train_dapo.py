@@ -438,6 +438,7 @@ def initialize_megatron(
     # torch.distributed initialization
     def finish_mpu_init():
         args = get_args()
+        from mindspeed_rl.utils import coc_config
         # Pytorch distributed.
         _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
 
@@ -453,6 +454,7 @@ def initialize_megatron(
         return None
 
     args = get_args()
+    from mindspeed_rl.utils import coc_config
     if args.lazy_mpu_init:
         args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff

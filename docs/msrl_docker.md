@@ -459,17 +459,18 @@ cp vocab.json tokenizer_config.json tokenizer.json ./mg2hf
 
 #### 2.5.3. 服务端拉起vllm
 
+**单机评测**
+
 通过以下命令拉起NPU服务端，需要修改的参数：model和tensor-parallel-size。
 
-- model：保存训练后权重转换完的huggingface模型地址；
+- /path/to/Qwen3-32B/mg2hf/：保存训练后权重转换完的huggingface模型地址；
 - tensor-parallel-size：张量并行副本数，TP建议和训练时infer的配置保持一致；
 - data-parallel-size：数据并行副本数，DP建议和训练时infer的配置保持一致，默认为1；
 - port：可任意设置空闲端口；
 
 ```python
 cd /env/vllm
-python -m vllm.entrypoints.openai.api_server \
-       --model="/env/MindSpeed-RL/model_from_hf/Qwen3-32B/mg2hf/" \
+vllm serve /path/to/Qwen3-32B/mg2hf/ \
        --served-model-name auto \
        --gpu-memory-utilization 0.9 \
        --max-num-seqs 24 \
@@ -483,6 +484,93 @@ python -m vllm.entrypoints.openai.api_server \
        --generation-config vllm \
        --port 6380
 ```
+
+**多机评测**
+
+如果是Qwen3-235b之类的大模型，需要多机环境评测。给出双机评测的主节点和从节点脚本示例如下，**其中的所有参数均可按需修改**：
+
+- 如果还有集群规模，可继续增加从节点脚本，脚本里需要给定主节点IP;
+- data-parallel-size-local：当前节点上要启动的本地数据并行进程数，即当前机器内属于数据并行的进程数量，需要 ≤ 全局 --data-parallel-size，且所有节点的 size-local 之和 = 全局 data-parallel-size
+- data-parallel-start-rank：数据并行起始rank（多节点分布式），需保证不同节点的 Rank 范围不重叠，比如示例脚本里主节点的data-parallel-start-rank为0，data-parallel-size-local为2，负责 Rank 0、1，所以从节点的data-parallel-start-rank为2。
+
+主节点脚本：
+```python
+# 多级环境要设置以下的IP和网卡信息
+# 环境IP
+export HCCL_IF_IP=xx.xx.xx.xx
+
+# 下面三条是网卡的名称，需要通过ifconfig查询出来
+export GLOO_SOCKET_IFNAME="enp189s0f0"
+export TP_SOCKET_IFNAME="enp189s0f0"
+export HCCL_SOCKET_IFNAME="enp189s0f0"
+#####--------------------------##########
+# export OMP_PROC_BIND=false
+# export OMP_NUM_THREADS=10
+export ASCEND_LAUNCH_BLOCKING=1
+export VLLM_USE_V1=1
+# export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+# export LD_PRELOAD=/home/vllm_auto/libjemalloc.so:$LD_PRELOAD
+#图模式--torchair
+
+vllm serve /path/to/Qwen3-235B-A22B \
+    --host 0.0.0.0 \
+    --port 20002 \
+    --data-parallel-size 4 \
+    --data-parallel-rpc-port 13399 \
+    --data-parallel-size-local 2 \
+    --data-parallel-start-rank 0 \
+    --data-parallel-address xx.xx.xx.xx \
+    --no-enable-prefix-caching \
+    --max-num-seqs 16 \
+    --tensor-parallel-size 4 \
+    --served-model-name dsv3 \
+    --max-model-len 8192 \
+    --max-num-batched-tokens 8192 \
+    --enable-expert-parallel \
+    --trust-remote-code \
+    --gpu-memory-utilization 0.6 \
+    --enforce-eager
+```
+
+从节点脚本：
+
+```python
+#下面的三条是网卡的名称，需要通过ifconfig查询出来
+export GLOO_SOCKET_IFNAME="enp189s0f0"
+export TP_SOCKET_IFNAME="enp189s0f0"
+export HCCL_SOCKET_IFNAME="enp189s0f0"
+
+#####--------------------------##########
+# export OMP_PROC_BIND=false
+# export OMP_NUM_THREADS=10
+export ASCEND_LAUNCH_BLOCKING=1
+export VLLM_USE_V1=1
+# export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+# export LD_PRELOAD=/home/vllm_auto/libjemalloc.so:$LD_PRELOAD
+#图模式--torchair
+
+vllm serve /path/to/Qwen3-235B-A22B \
+    --host 0.0.0.0 \
+    --port 20002 \
+    --headless \
+    --data-parallel-size 4 \
+    --data-parallel-rpc-port 13399 \
+    --data-parallel-size-local 2 \
+    --data-parallel-start-rank 2 \
+    --data-parallel-address xx.xx.xx.xx \
+    --no-enable-prefix-caching \
+    --max-num-seqs 16 \
+    --tensor-parallel-size 4 \
+    --served-model-name dsv3 \
+    --max-model-len 8192 \
+    --max-num-batched-tokens 8192 \
+    --enable-expert-parallel \
+    --trust-remote-code \
+    --gpu-memory-utilization 0.6 \
+    --enforce-eager
+```
+
+**启动成功**
 
 如果启动成功，则会话中显示如下：
 
@@ -550,7 +638,7 @@ ais_bench --models vllm_api_general --datasets aime2024_gen
 ```
 | dataset | version | metric | mode | vllm-api-general |
 |----- | ----- | ----- | ----- | -----|
-| aime2024 | 187240 | accuracy | gen | 34.33 |
+| aime2024 | 187240 | accuracy | gen | 33.33 |
 ```
 
 **可以在/env/benchmark/outputs/default/目录下查看更完整的推理结果和评估结果。**

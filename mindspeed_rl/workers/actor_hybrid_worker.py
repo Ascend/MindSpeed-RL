@@ -690,8 +690,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
         sorted_indexes = self.get_dp_range_indexes(
             experience_count,
-            use_vllm=False,
-            assign_batch_size=experience_count
+            use_vllm=False
         ) if self.rl_config.guarantee_order else None
 
         actor_compute_log_prob_profiler = profiler_start(

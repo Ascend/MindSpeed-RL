@@ -1,10 +1,10 @@
 # 描述patch信息
 patches:
   - repo: verl
-    current_rev: 796871d7d092f7cbc6a64e7f4a3796f7a2217f5e # 描述当前repo使用的commit id
+    current_rev: d62da4950573d7a4b7ef2362337952e7ab59e78d # 描述当前repo使用的commit id
     versions:
-    - rev: 796871d7d092f7cbc6a64e7f4a3796f7a2217f5e
-      dir: 796871d7d # 对应的文件夹名称
+    - rev: d62da4950573d7a4b7ef2362337952e7ab59e78d
+      dir: d62da4950 # 对应的文件夹名称
       files:
         - name: hybrid_tp_config
           diff:
@@ -30,24 +30,6 @@ patches:
                   - action: added # [added, replaced, deleted]
                     kind: module_attr # [method, attribute, module_attr]
                     name: dataclass
-        - name: megatron_workers
-          diff:
-              class_changes:
-              - action: updated # [added, replaced, deleted, updated]
-                name: ActorRolloutRefWorker
-                changes:
-                  - action: replaced # [added, replaced, deleted]
-                    kind: method # [method, attribute]
-                    name: compute_log_prob
-                  - action: replaced # [added, replaced, deleted]
-                    kind: method # [method, attribute]
-                    name: update_actor
-        - name: seqlen_balancing
-          diff:
-            changes: # [action, kind, name]
-              - action: replaced # [added, replaced, deleted]
-                kind: method # [class, method, attribute]
-                name: rearrange_micro_batches
         - name: vllm_rollout_spmd
           diff:
               class_changes: # [action, kind, name]
@@ -65,98 +47,3 @@ patches:
               class_changes: # [action, kind, name]
               - action: updated # [added, replaced, deleted, updated]
                 name: RayDAPOTrainer
-        - name: main_dapo
-          diff:
-              class_changes:
-                  - action: added
-                    name: TaskRunner
-        - name: main_ppo
-          diff:
-              class_changes:
-                  - action: added
-                    name: TaskRunner
-        - name: ppo_trainer
-          diff:
-              module_changes:
-                - action: added
-                  name : ppo_trainer.yaml
-        - name: protocol
-          diff:
-            class_changes:
-                - action: added
-                  name: DataProto
-        - name: ray_trainer
-          diff:
-            class_changes:
-              - action: added
-                name: AggregatorActor
-
-
-
-  - repo: transformers
-    current_rev: 8365f70e9259c21058bf18f876006f945d2a99de
-    versions:
-      - rev: 8365f70e9259c21058bf18f876006f945d2a99de
-        dir: 8365f70e9
-        files:
-          - name: modeling_qwen2
-            diff:
-              class_changes:
-                - action: updated # [added, replaced, deleted, updated]
-                  name: Qwen2RMSNorm
-                  changes:
-                    - action: replaced # [added, replaced, deleted]
-                      kind: method # [method, attribute]
-                      name: forward
-                - action: updated # [added, replaced, deleted, updated]
-                  name: Qwen2MLP
-                  changes:
-                    - action: replaced # [added, replaced, deleted]
-                      kind: method # [method, attribute]
-                      name: forward
-              module_changes: # [action, kind, name]
-                - action: added # [added, replaced, deleted]
-                  kind: method # [class, method, attribute]
-                  name: fused_apply_rotary_pos_emb
-          - name: modeling_qwen3_moe
-            diff:
-              class_changes:
-                - action: updated # [added, replaced, deleted, updated]
-                  name: Qwen3MoeSparseMoeBlock
-                  changes:
-                    - action: replaced # [added, replaced, deleted]
-                      kind: method # [method, attribute]
-                      name: __init__
-                - action: updated # [added, replaced, deleted, updated]
-                  name: Qwen3MoeRMSNorm
-                  changes:
-                    - action: replaced # [added, replaced, deleted]
-                      kind: method # [method, attribute]
-                      name: forward
-                - action: updated # [added, replaced, deleted, updated]
-                  name: Qwen3MoeMLP
-                  changes:
-                    - action: replaced # [added, replaced, deleted]
-                      kind: method # [method, attribute]
-                      name: forward
-              module_changes: # [action, kind, name]
-                - action: added # [added, replaced, deleted]
-                  kind: method # [class, method, attribute]
-                  name: apply_rotary_pos_emb
-          - name: npu_flash_attention
-            diff:
-              class_changes:
-                - action: added # [added, replaced, deleted, updated]
-                  name: IndexFirstAxis
-                - action: added # [added, replaced, deleted, updated]
-                  name: IndexPutFirstAxis
-                - action: added # [added, replaced, deleted]
-                  kind: method # [class, method, attribute]
-                  name: pad_input
-              module_changes: # [action, kind, name]
-                - action: added # [added, replaced, deleted]
-                  kind: method # [class, method, attribute]
-                  name: unpad_input
-                - action: added # [added, replaced, deleted]
-                  kind: method # [class, method, attribute]
-                  name: _prepare_from_posids

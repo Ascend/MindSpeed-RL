@@ -1,0 +1,116 @@
+diff --git a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
+index 63af4f79..adf8e18c 100644
+--- a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
++++ b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
+@@ -49,6 +49,7 @@ from omegaconf import ListConfig
+ from tensordict import TensorDict
+ from torch.distributed.device_mesh import DeviceMesh
+ from vllm import LLM, SamplingParams
++import vllm.envs as envs
+ from vllm.config import CompilationConfig, LoRAConfig
+ from vllm.lora.request import LoRARequest
+ 
+@@ -81,6 +82,7 @@ from verl.utils.torch_functional import get_response_mask, pad_2d_list_to_length
+ from verl.utils.vllm import TensorLoRARequest, VLLMHijack, is_version_ge
+ from verl.workers.config import HFModelConfig, RolloutConfig
+ from verl.workers.rollout.base import BaseRollout
++from verl.workers.sharding_manager.hybrid_tp_config import HybridTPConfig
+ from verl.workers.rollout.utils import get_free_port, is_valid_ipv6_address
+ from verl.workers.rollout.vllm_rollout.utils import (
+     VLLM_LORA_INT_ID,
+@@ -152,7 +154,14 @@ class vLLMRollout(BaseRollout):
+             if model_config.lora_rank > 0
+             else {}
+         )
++        
++        # create HybridTPConfig
++        self.hybrid_tp_config = HybridTPConfig.from_dict_config(
++            self.config.get("hybrid_tp", {}),
++        )
+ 
++        print(f"[NPU Patch] hybrid_tp_config is : {self.hybrid_tp_config if self.hybrid_tp_config else '{}'}")
++        
+         tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
+         assert tensor_parallel_size <= torch.distributed.get_world_size(), (
+             "tensor parallel size should be less than or equal to the world size"
+@@ -212,6 +221,27 @@ class vLLMRollout(BaseRollout):
+         engine_kwargs = {key: val for key, val in engine_kwargs.items() if val is not None}
+         if config.get("limit_images", None):  # support for multi-image data
+             engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
++        
++        # patch this for npu
++        if hasattr(config, "dp_model_parallel_size") and config.dp_model_parallel_size > 1:
++            self._init_dp_env(config)
++
++        # Extract hybrid TP config for additional_config
++        additional_config = {}
++        if self.hybrid_tp_config.enabled:
++            # Extract tp_size values from hybrid_tp_config
++            if self.hybrid_tp_config.qkv_proj_tp_size is not None:
++                additional_config["qkvproj_tensor_parallel_size"] = self.hybrid_tp_config.qkv_proj_tp_size
++            if self.hybrid_tp_config.o_proj_tp_size is not None:
++                additional_config["oproj_tensor_parallel_size"] = self.hybrid_tp_config.o_proj_tp_size
++            if self.hybrid_tp_config.lm_head_tp_size is not None:
++                additional_config["lmhead_tensor_parallel_size"] = self.hybrid_tp_config.lm_head_tp_size
++
++        print(f"[NPU Patch] vLLM additional_config: {additional_config if additional_config else '{}'}")
++
++        # Add additional_config to engine_kwargs if not empty
++        if additional_config:
++            engine_kwargs["additional_config"] = additional_config        
+ 
+         compilation_config = {}
+ 
+@@ -243,6 +273,7 @@ class vLLMRollout(BaseRollout):
+             load_format=load_format,
+             disable_log_stats=config.disable_log_stats,
+             max_num_batched_tokens=max_num_batched_tokens,
++            enable_expert_parallel=config.get("enable_expert_parallel", False),
+             enable_chunked_prefill=config.enable_chunked_prefill,
+             enable_prefix_caching=config.enable_prefix_caching,
+             trust_remote_code=trust_remote_code,
+@@ -270,6 +301,35 @@ class vLLMRollout(BaseRollout):
+         self.sampling_params = SamplingParams(**kwargs)
+ 
+         self.pad_token_id = tokenizer.pad_token_id
++        
++    def _init_dp_env(self, config):
++        rank = torch.distributed.get_rank()
++        world_size = torch.distributed.get_world_size()
++        tp_size = int(config.get("tensor_model_parallel_size", 1))
++        dp_size = int(config.get("dp_model_parallel_size", 1))
++
++        all_ranks = torch.arange(world_size).reshape(-1, dp_size, 1, tp_size)  # noqa
++        group_ranks = all_ranks.transpose(1, 3).reshape(-1, dp_size).unbind(0)
++        group_ranks = [x.tolist() for x in group_ranks]
++
++        # all gather ip
++        ip_addr = ray.util.get_node_ip_address()
++        ip_list = [None] * world_size
++        torch.distributed.all_gather_object(ip_list, ip_addr)
++
++        for index, group_rank in enumerate(group_ranks):
++            if torch.distributed.get_rank() in group_rank:
++                os.environ["VLLM_DP_MASTER_PORT"] = str(int(os.environ.get("MASTER_PORT")) + 1 + index)
++                os.environ["VLLM_DP_MASTER_IP"] = ip_list[group_rank[0]]
++        local_dp_rank = rank // tp_size % dp_size
++        os.environ["VLLM_DP_RANK"] = str(local_dp_rank)
++        os.environ["VLLM_DP_SIZE"] = str(dp_size)
++        os.environ["VLLM_PORT"] = os.environ["VLLM_DP_MASTER_PORT"]
++        envs.VLLM_DP_RANK = int(os.environ["VLLM_DP_RANK"])
++        envs.VLLM_DP_MASTER_IP = os.environ["VLLM_DP_MASTER_IP"]
++        envs.VLLM_DP_MASTER_PORT = int(os.environ["VLLM_DP_MASTER_PORT"])
++
++        print(f"[VLLM] using TP={tp_size}, DP={dp_size}", flush=True)
+ 
+     @contextmanager
+     def update_sampling_params(self, **kwargs):
+@@ -384,7 +444,7 @@ class vLLMRollout(BaseRollout):
+                 prompts=vllm_inputs,  # because we have already convert it to prompt token id
+                 sampling_params=self.sampling_params,
+                 lora_request=lora_requests,
+-                use_tqdm=False,
++                use_tqdm=True,
+             )
+ 
+             # TODO(sgm): disable logprob when recompute_log_prob is enable

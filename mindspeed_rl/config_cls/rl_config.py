@@ -67,6 +67,7 @@ class RLConfig(BaseConfig):
 
     def __init__(self, config_dict):
         self.runtime_env_path = 'configs/envs/runtime_env.yaml'
+        self.hccl_buffersize = 256
         self.rule_reward = True
         self.beta = 0.1
         self.actor_resource = {"num_npus": None}

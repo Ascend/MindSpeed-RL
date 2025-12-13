@@ -61,7 +61,12 @@ def check_grpo_msprobe_output(msprobe_dir: str) -> bool:
         logger.error(f'Configurations directory not found: {os.path.join(msprobe_dir, "configurations.json")}')
         return False
     
-    if not os.path.isfile(os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")):
+    responses_path = os.path.join(msprobe_dir, "data", "responses")
+    exists = any(
+        "responses.json" in files
+        for _, _, files in os.walk(responses_path)
+    )
+    if not exists:
         logger.error(f'Msprobe key data response not found: '
                      f'{os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")}')
         return False
@@ -95,7 +100,12 @@ def check_dapo_msprobe_output(msprobe_dir: str) -> bool:
         logger.error(f'Configurations directory not found: {os.path.join(msprobe_dir, "configurations.json")}')
         return False
     
-    if not os.path.isfile(os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")):
+    responses_path = os.path.join(msprobe_dir, "data", "responses")
+    exists = any(
+        "responses.json" in files
+        for _, _, files in os.walk(responses_path)
+    )
+    if not exists:
         logger.error(f'Msprobe key data response not found: '
                      f'{os.path.join(msprobe_dir, "data", "responses", "step0", "rank0", "responses.json")}')
         return False
@@ -121,7 +131,12 @@ def check_ppo_msprobe_output(msprobe_dir: str) -> bool:
         logger.error(f'Configurations directory not found: {os.path.join(msprobe_dir, "configurations.json")}')
         return False
     
-    if not os.path.isfile(os.path.join(msprobe_dir, "data", "values", "step0", "rank0", "values.json")):
+    responses_path = os.path.join(msprobe_dir, "data", "values")
+    exists = any(
+        "values.json" in files
+        for _, _, files in os.walk(responses_path)
+    )
+    if not exists:
         logger.error(f'Msprobe key data response not found: '
                      f'{os.path.join(msprobe_dir, "data", "values", "step0", "rank0", "values.json")}')
         return False

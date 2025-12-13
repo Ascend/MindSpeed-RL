@@ -26,7 +26,6 @@ from mindspeed_rl.models.rollout.vllm_adapter.megatron_weight_loaders import (
 )
 from mindspeed_rl.utils import get_tokenizer, is_multimodal
 
-
 logger = Loggers("vllm_engine")
 
 
@@ -185,7 +184,6 @@ class VLLMInferEngine(BaseInferEngine):
             load_format='dummy' if load_format == 'megatron' else load_format,
             distributed_executor_backend="external_launcher",
             enable_prefix_caching=enable_prefix_caching,
-            num_scheduler_steps=num_scheduler_steps,
             dtype=dtype,
             enforce_eager=enforce_eager,
             skip_tokenizer_init=False,
@@ -295,7 +293,7 @@ class VLLMInferEngine(BaseInferEngine):
             params.data = self.cpu_model[name]
         if hasattr(self.model, 'model') and hasattr(self.model.model.layers[-1].self_attn, "mla_attn"):
             for i in range(self.model.model.start_layer, self.model.model.end_layer):
-                mla = self.model.model.layers[i].self_attn.mla_attn.impl
+                mla = self.model.model.layers[i].self_attn.mla_attn.mla_attn.impl
                 if hasattr(mla, "w_kc"):
                     mla.w_kc = None
                     mla.w_vc = None
@@ -315,7 +313,7 @@ class VLLMInferEngine(BaseInferEngine):
 
     def _process_mla(self):
         for i in range(self.model.model.start_layer, self.model.model.end_layer):
-            mla = self.model.model.layers[i].self_attn.mla_attn.impl
+            mla = self.model.model.layers[i].self_attn.mla_attn.mla_attn.impl
             if hasattr(mla, "w_kc"):
                 mla.w_kc = None
                 mla.w_vc = None
@@ -362,12 +360,11 @@ class VLLMInferEngine(BaseInferEngine):
                         prompts.append(prompt)
             idx_list = None
         else:
-            prompts = None
+            prompts = [self.tokenizer.tokenizer.decode(p, skip_special_tokens=True) for p in idx_list]
         with self.update_sampling_params(**kwargs):
             response = self.llm.generate(
                 prompts=prompts,
                 sampling_params=self.sampling_params,
-                prompt_token_ids=idx_list,
                 use_tqdm=False
             )
             outs = self._post_process_outputs(response)

@@ -603,6 +603,7 @@ def main(config):
         rl_config = RLConfig(config.get("rl_config"))
         with open(os.path.join(cur_file_dir, rl_config.runtime_env_path)) as file:
             runtime_env = yaml.safe_load(file)
+        runtime_env["env_vars"]["HCCL_BUFFSIZE"] = str(rl_config.hccl_buffersize)
         generate_config = GenerateConfig(config.get("generate_config"))
         enable_expert_parallel = getattr(generate_config, "enable_expert_parallel", None)
         if enable_expert_parallel:

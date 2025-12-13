@@ -10,7 +10,7 @@ msprobe模块为强化学习训练流程提供了配置采集、关键过程数�
 
 ### 前置条件
 
-安装msprobe三方库，[安装指南](https://gitcode.com/Ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/01.installation.md)。
+安装msprobe三方库，[安装指南](https://gitcode.com/Ascend/mstt/blob/master/debug/accuracy_tools/msprobe/docs/zh/msprobe_install_guide.md)。
 
 ### 配置选项
 

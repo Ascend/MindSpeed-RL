@@ -6,7 +6,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
 
 | MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------|-------------|---------| ---------- |
-| master（主线）   | Core 0.12.0   | 2.5.1     | 2.5.1       | 8.3.RC1 | Python3.10 |
+| master（主线）   | Core 0.12.0   | 2.7.1     | 2.7.1       | 8.3.RC1 | Python3.10 |
 | 2.2.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.3.RC1 | Python3.10 |
 | 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
 | 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
@@ -90,9 +90,9 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 ```shell
 # pydantic高版本包会产生冲突，指定版本安装
 pip install pydantic==2.12.0
-git clone -b releases/v0.9.1 https://github.com/vllm-project/vllm.git
+git clone -b releases/v0.11.0 https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout b6553be1bc75f046b00046a4ad7576364d03c835
+git checkout b8b302c
 VLLM_TARGET_DEVICE=empty pip install .
 cd ..
 ```
@@ -100,9 +100,9 @@ cd ..
 ### vllm_ascend安装
 （注：若机器为x86架构，需要先进行[PyTorch框架安装](#PyTorch框架安装)中的torch和torch_npu安装，安装vllm_ascend时，注释requirements.txt和pyproject.toml中torch和torch_npu的安装）
 ```shell
-git clone -b v0.9.1-dev https://github.com/vllm-project/vllm-ascend.git
+git clone -b v0.11.0-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout 8c7bc45
+git checkout 1b16c01
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -121,11 +121,12 @@ sed -i 's/os.chmod(\(.*\), 0o0777)/os.chmod(\1, 0o0750)/g' "$UTILS_PATH"
 ```
 
 ### PyTorch框架安装
-（注：[PyTorch框架和torch_npu插件安装教程](https://www.hiascend.com/document/detail/zh/Pytorch/710/configandinstg/instg/insg_0004.html)；可从[PyTorch-Ascend官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取PyTorch各个版本对应的torch_npu的whl包）
+（注：[PyTorch框架和torch_npu插件安装教程](https://www.hiascend.com/document/detail/zh/Pytorch/710/configandinstg/instg/insg_0004.html)）
+可从[PyTorch-Ascend官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取PyTorch各个版本对应的torch_npu的whl包，也可以通过本仓库对应版本的[vllm-ascend官方代码仓的requirements](https://github.com/vllm-project/vllm-ascend/blob/v0.11.0-dev/requirements.txt)中的安装方式安装torch和torch_npu。
 ```shell
 # 安装torch和torch_npu
-pip install torch-2.5.1-cp310-cp310-*.whl
-pip install torch_npu-2.5.1.*.manylinux2014_*.whl
+pip install torch-2.7.1-cp310-cp310-*.whl
+pip install torch_npu-2.7.1.*.manylinux2014_*.whl
 
 # apex for Ascend 构建参考 https://gitcode.com/Ascend/apex
 pip install apex-0.1.dev*.whl

@@ -35,11 +35,10 @@ class TestMaskedVar(DistributedTest):
     
     def test_masked_var_unbiased_true(self):
         from mindspeed_rl.utils.torch_functional import masked_var
-        import numpy as np
-        values = np.array([1, 2, 3, 4, 5])
-        mask = np.array([1, 1, 1, 1, 1])
+        values = torch.tensor([1, 2, 3, 4, 5])
+        mask = torch.tensor([1, 1, 1, 1, 1])
         result = masked_var(values, mask, unbiased=True)
-        assert np.isclose(result, 2.5, atol=1e-5)
+        assert torch.isclose(result, torch.tensor(2.5), atol=1e-5)
 
 
 class TestMaskedWhiten(DistributedTest):

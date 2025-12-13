@@ -68,13 +68,13 @@ def qwen_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
                 hf_config.num_experts // infer_paralle_config.infer_expert_parallel_size,
                 hf_config.hidden_size,
                 -1
-            ).transpose(2, 1).contiguous())
+            ).contiguous())
         if "mlp.experts.w2_weight" in name:
             loaded_weight.copy_(loaded_weight.view(
                 hf_config.num_experts // infer_paralle_config.infer_expert_parallel_size,
                 -1,
                 hf_config.hidden_size
-            ).transpose(2, 1).contiguous())
+            ).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
     return vllm_model
 
@@ -117,23 +117,26 @@ def deepseek_megatron_weight_loader(actor_weights: Dict, vllm_model: nn.Module,
     params_dict = dict(vllm_model.named_parameters())
     for name, loaded_weight in actor_weights.items():
         if "qkv" in name:
-            split_dim = hf_config.q_lora_rank if hf_config.q_lora_rank else \
-                (hf_config.qk_head_dim + hf_config.qk_pos_emb_head_dim) * hf_config.num_attention_heads
-            q_name = name.replace("qkv_proj", "q_a_proj" if hf_config.q_lora_rank else "q_proj")
-            kv_name = name.replace("qkv_proj", "kv_a_proj_with_mqa")
-            load_single_weight(params_dict, q_name, loaded_weight[:split_dim])
-            load_single_weight(params_dict, kv_name, loaded_weight[split_dim:])
+            if hf_config.q_lora_rank:
+                qkv_name = name.replace("qkv_proj", "fused_qkv_a_proj")
+                load_single_weight(params_dict, qkv_name, loaded_weight)
+            else:
+                split_dim = (hf_config.qk_head_dim + hf_config.qk_pos_emb_head_dim) * hf_config.num_attention_heads
+                q_name = name.replace("qkv_proj", "q_proj")
+                kv_name = name.replace("qkv_proj", "kv_a_proj_with_mqa")
+                load_single_weight(params_dict, q_name, loaded_weight[:split_dim])
+                load_single_weight(params_dict, kv_name, loaded_weight[split_dim:])
             continue
         if name not in params_dict.keys():
             raise ValueError(f"unexpected key {name} in deepseek_megatron_weight_loader")
         if "mlp.experts.w13_weight" in name:
             if infer_paralle_config.infer_local_num_experts == -1:
-                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
+                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, hf_config.hidden_size, -1).contiguous())
             else:
                 loaded_weight.copy_(loaded_weight.view(infer_paralle_config.infer_local_num_experts, hf_config.hidden_size, -1).transpose(2, 1).contiguous())
         if "mlp.experts.w2_weight" in name:
             if infer_paralle_config.infer_local_num_experts == -1:
-                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
+                loaded_weight.copy_(loaded_weight.view(hf_config.n_routed_experts // infer_paralle_config.infer_expert_parallel_size, -1, hf_config.hidden_size).contiguous())
             else:
                 loaded_weight.copy_(loaded_weight.view(infer_paralle_config.infer_local_num_experts, -1, hf_config.hidden_size).transpose(2, 1).contiguous())
         load_single_weight(params_dict, name, loaded_weight)
@@ -242,6 +245,7 @@ MODEL_MEGATRON_WEIGHT_LOADER_REGISTRY = {
     "Qwen3ForCausalLM": qwen_megatron_weight_loader,
     "CustomQwen3ForCausalLM": qwen_megatron_weight_loader,
     "CustomQwen3MoeForCausalLM": qwen_megatron_weight_loader,
+    "Qwen3MoeForCausalLM": qwen_megatron_weight_loader,
     "DeepseekV3ForCausalLM": deepseek_megatron_weight_loader,
     "DeepseekV2ForCausalLM": deepseek_megatron_weight_loader,
     "CustomDeepseekV2ForCausalLM": deepseek_megatron_weight_loader,

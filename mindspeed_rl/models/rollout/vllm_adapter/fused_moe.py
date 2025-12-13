@@ -20,15 +20,17 @@ from vllm.config import get_current_vllm_config
 from vllm.distributed import GroupCoordinator
 from vllm.distributed.parallel_state import (get_ep_group, get_tp_group)
 from vllm.forward_context import get_forward_context
-from vllm.model_executor.layers.fused_moe.layer import (FusedMoE, MoEConfig, UnquantizedFusedMoEMethod)
+from vllm.model_executor.layers.fused_moe.layer import (FusedMoE, UnquantizedFusedMoEMethod)
 
 import vllm_ascend.envs as envs_ascend
 from vllm_ascend.ascend_config import get_ascend_config
 from vllm_ascend.ascend_forward_context import FusedMoEState
 from vllm_ascend.distributed.parallel_state import get_mc2_group
 from vllm_ascend.ops.expert_load_balancer import ExpertLoadBalancer
-from vllm_ascend.ops.fused_moe import fused_experts, fused_experts_with_all2allv, select_experts, fused_experts_with_all2all_buffer, AscendFusedMoE
-from vllm_ascend.utils import (AscendSocVersion, dispose_tensor, get_ascend_soc_version, npu_stream_switch, npu_wait_tensor, super_kernel)
+from vllm_ascend.ops.moe.experts_selector import select_experts
+from vllm_ascend.ops.common_fused_moe import AscendFusedMoE
+from vllm_ascend.utils import (AscendSocVersion, dispose_tensor, get_ascend_soc_version, npu_stream_switch)
+from vllm_ascend.torchair.utils import npu_wait_tensor, super_kernel
 import vllm_ascend
 
 
@@ -47,9 +49,6 @@ def set_EPLB_args(eplb_token_collects, eplb_token_save_path):
 
 def get_EPLB_args():
     return _EPLB_TOKEN_COLLECTS, _EPLB_TOEKN_SAVE_PATH
-
-
-VLLM_ASCEND_MOE_ALL2ALL_BUFFER: bool = envs_ascend.VLLM_ASCEND_MOE_ALL2ALL_BUFFER
 
 
 # EPLB add args: log2phy, global_redundant_expert_num
@@ -376,7 +375,7 @@ def fused_experts_with_all2all(
 
 class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
 
-    def __init__(self, moe: MoEConfig = None):
+    def __init__(self, moe=None):
 
         super().__init__(moe=moe)
         vllm_config = get_current_vllm_config()
@@ -490,74 +489,18 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
         if enable_force_load_balance and not self.use_aclgraph:
             topk_ids = torch.randint_like(topk_ids, 0, global_num_experts)
 
-        fused_moe_state = get_forward_context().fused_moe_state
-        if fused_moe_state == FusedMoEState.MC2:
-            mc2_mask = kwargs.get("mc2_mask", None)
-            # EPLB add args: log2phy, global_redundant_expert_num
-            return fused_experts_with_mc2(
-                hidden_states=x,
-                w1=layer.w13_weight,
-                w2=layer.w2_weight,
-                topk_weights=topk_weights,
-                topk_ids=topk_ids,
-                top_k=top_k,
-                expert_map=expert_map,
-                moe_all_to_all_group_name=self.moe_all_to_all_group_name,
-                log2phy=log2phy,
-                global_redundant_expert_num=global_redundant_expert_num,
-                shared_experts=shared_experts,
-                is_torchair=self.torchair_graph_enabled,
-                hidden_states_for_share=hidden_states_for_share,
-                mc2_mask=mc2_mask,
-            )
-        elif fused_moe_state == FusedMoEState.AllGather:
-            max_num_tokens = self.max_num_batched_tokens if self.use_aclgraph else None
-            return fused_experts(hidden_states=x,
-                                 w1=layer.w13_weight,
-                                 w2=layer.w2_weight,
-                                 topk_weights=topk_weights,
-                                 topk_ids=topk_ids,
-                                 top_k=top_k,
-                                 expert_map=expert_map,
-                                 max_num_tokens=max_num_tokens)
-        elif VLLM_ASCEND_MOE_ALL2ALL_BUFFER:
-            max_num_tokens = self.max_num_batched_tokens if self.use_aclgraph else None
-            return fused_experts_with_all2all_buffer(
-                hidden_states=x,
-                w1=layer.w13_weight,
-                w2=layer.w2_weight,
-                topk_weights=topk_weights,
-                topk_ids=topk_ids,
-                top_k=top_k,
-                max_model_len=self.max_model_len,
-                global_batch_size=self.global_batch_size,
-                expert_map=expert_map,
-                ep_group=get_ep_group(),
-                max_num_tokens=max_num_tokens)
-        elif fused_moe_state == FusedMoEState.All2AllSeq:
-            token_dispatcher = kwargs.get("token_dispatcher")
-            return fused_experts_with_all2allv(
-                token_dispatcher=token_dispatcher,
-                probs=topk_weights,
-                routing_map=topk_ids,
-                hidden_states=x,
-                w1=layer.w13_weight,
-                w2=layer.w2_weight,
-            )
-        else:
-            max_num_tokens = self.max_num_batched_tokens if self.use_aclgraph else None
-            # EPLB add args: log2phy, global_redundant_expert_num
-            return fused_experts_with_all2all(hidden_states=x,
-                                              w1=layer.w13_weight,
-                                              w2=layer.w2_weight,
-                                              topk_weights=topk_weights,
-                                              topk_ids=topk_ids,
-                                              top_k=top_k,
-                                              expert_map=expert_map,
-                                              ep_group=get_ep_group(),
-                                              log2phy=log2phy,
-                                              global_redundant_expert_num=global_redundant_expert_num,
-                                              max_num_tokens=max_num_tokens)
+        moe_comm_method = get_forward_context().moe_comm_method
+        return moe_comm_method.fused_experts(
+            hidden_states=x,
+            w1=layer.w13_weight,
+            w2=layer.w2_weight,
+            topk_weights=topk_weights,
+            topk_ids=topk_ids,
+            global_num_experts=global_num_experts,
+            expert_map=expert_map,
+            shared_experts=shared_experts,
+            apply_router_weight_on_input=apply_router_weight_on_input,
+            dynamic_eplb=self.dynamic_eplb)
 
 
 def AscendFusedMoE_wrapper(init_fn):
@@ -581,9 +524,3 @@ def AscendFusedMoE_wrapper(init_fn):
             self.global_redundant_expert_num = (
                 self.expert_load_balancer.get_global_redundant_expert_num())
     return wrapper
-
-
-vllm_ascend.ops.fused_moe.fused_experts_with_mc2 = fused_experts_with_mc2
-vllm_ascend.ops.fused_moe.fused_experts_with_all2all = fused_experts_with_all2all
-vllm_ascend.ops.fused_moe.AscendUnquantizedFusedMoEMethod = AscendUnquantizedFusedMoEMethod
-vllm_ascend.ops.fused_moe.AscendFusedMoE.__init__ = AscendFusedMoE_wrapper(AscendFusedMoE.__init__)

@@ -580,6 +580,7 @@ def main(config):
         if enable_expert_parallel:
             runtime_env["env_vars"]["VLLM_DP_SIZE"] = str(generate_config.infer_expert_parallel_size)
         runtime_env["env_vars"]["IS_MULTIMODAL"] = str(rl_config.is_multimodal)
+        runtime_env["env_vars"]["HCCL_BUFFSIZE"] = str(rl_config.hccl_buffersize)
         logger.info(f"ray init with runtime_env: {runtime_env}")
         ray.init(runtime_env=runtime_env)
 

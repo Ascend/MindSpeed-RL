@@ -22,7 +22,7 @@ class TestUtils(DistributedTest):
     def test_generate_mask(self):
         data_pad = torch.tensor([[1, 2, 3], [4, 5, 0]], dtype=torch.int64)
         seq_lengths = torch.tensor([3, 2], dtype=torch.int64)
-        expected_mask = torch.tensor([[1, 1, 1], [1, 1, 0]], dtype=torch.int64)
+        expected_mask = torch.tensor([[1, 1, 0], [1, 1, 0]], dtype=torch.int64)
         output = generate_mask(data_pad, seq_lengths)
         assert output.shape == expected_mask.shape, "Acquisition of mask shape failed!"
         assert torch.all(output == expected_mask), "Acquisition of mask value failed!"

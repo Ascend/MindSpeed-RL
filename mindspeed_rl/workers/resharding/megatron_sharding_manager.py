@@ -73,7 +73,6 @@ class MegatronShardingManager:
         self.train_model = megatron_model
         weight_adaptor = get_weight_adaptor(self.inference_engine.model.__class__.__name__)
         self.weight_adaptor = weight_adaptor(model_config)
-
         self.vllm_weight_container = MegatronStyleVllmWeightContainer(
             megatron_model=megatron_model,
             vllm_model=self.inference_engine.model,

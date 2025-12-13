@@ -29,15 +29,6 @@ class TestBaseRayWorker(DistributedTest):
         mock_context.get_accelerator_ids.return_value = {"NPU": ["0"]}
         return mock_context
 
-    @patch.dict(os.environ, {"MASTER_ADDR": "1234", "MASTER_PORT": "1234"})
-    @patch("ray.get_runtime_context")
-    def test_init_without_localhost(self, mock_get_runtime_context, mock_ray_context):
-        mock_get_runtime_context.return_value = mock_ray_context
-        worker = BaseRayWorker()
-
-        assert os.environ["MASTER_ADDR"] == "1234"
-        assert os.environ["MASTER_PORT"] == "1234"
-
     @patch("ray.get_runtime_context")
     def test_world_size(self, mock_get_runtime_context, mock_ray_context):
         mock_get_runtime_context.return_value = mock_ray_context

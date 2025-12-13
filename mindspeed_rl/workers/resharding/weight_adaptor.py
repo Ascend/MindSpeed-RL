@@ -247,7 +247,7 @@ class DeepSeekMVWeightAdaptor(MegatronVLLMWeightAdaptor):
     """
     def __init__(self, model_config):
         super(DeepSeekMVWeightAdaptor, self).__init__(model_config)
-        self.meta_info = {'replace': {'kv_a_proj_with_mqa': 'qkv_proj'},
+        self.meta_info = {'replace': {'fused_qkv_a_proj': 'qkv_proj'},
                           'delete': ['q_a_proj']}
         self.params_mapping = [
             # (megatron core gpt model name, vllm model name)
@@ -282,6 +282,10 @@ class DeepSeekMVWeightAdaptor(MegatronVLLMWeightAdaptor):
                 q_param = dict(model.named_parameters()).get(name.replace('kv_a_proj_with_mqa', 'q_a_proj' if self.model_config.q_lora_rank else "q_proj"))
                 qkv_param_shape = torch.cat([q_param, param], dim=0).shape
                 qkv_name = name.replace('kv_a_proj_with_mqa', 'qkv_proj')
+                weight_buffer_meta[qkv_name] = {'shape': qkv_param_shape, 'dtype': param.dtype}
+            elif 'fused_qkv_a_proj' in name:
+                qkv_param_shape = param.shape
+                qkv_name = name.replace('fused_qkv_a_proj', 'qkv_proj')
                 weight_buffer_meta[qkv_name] = {'shape': qkv_param_shape, 'dtype': param.dtype}
             elif 'q_a_proj' in name or 'q_proj' in name:
                 continue
@@ -715,6 +719,7 @@ WEIGHT_ADAPTOR_REGISTRY = {
     "CustomDeepseekV3ForCausalLM": DeepSeekMVWeightAdaptor,
     "Qwen2_5_VLForConditionalGeneration": Qwen2_5_VLWeightAdaptor,
     "CustomQwen3MoeForCausalLM": Qwen3MoeMVWeightAdaptor,
+    "Qwen3MoeForCausalLM": Qwen3MoeMVWeightAdaptor,
     "AscendQwen2_5_VLForConditionalGeneration_Without_Padding": Qwen2_5_VLWeightAdaptor,
 }
 

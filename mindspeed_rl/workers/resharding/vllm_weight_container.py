@@ -451,7 +451,6 @@ class MegatronStyleVllmWeightContainer:
                 if megatron_param_fc1.shape[0] * megatron_param_fc1.shape[1] != megatron_param_fc2.shape[0] * \
                         megatron_param_fc2.shape[1] * 2:
                     raise ValueError("Only implemented for Llama model which linear_fc1 contains gate and up params.")
-
         weight_buffer = self.weight_buffers[pp_rank]
         megatron_params_dict = {}
         for vpp_rank in range(self._vpp_size):

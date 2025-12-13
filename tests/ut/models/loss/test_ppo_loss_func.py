@@ -28,7 +28,7 @@ class TestPPOActorLossFunc(DistributedTest):
         log_probs = torch.randn(10, 5)
         output = torch.randn(10, 5)
         ppo_loss_func = PPOActorLossFunc()
-        with patch.object(BaseLossFunc, "compute_log_probs", return_value=log_probs):
+        with patch.object(BaseLossFunc, "compute_log_probs", return_value=(log_probs, None)):
             result = ppo_loss_func.compute_loss(output, batch, forward_only=True)
             assert torch.equal(result, log_probs)
             ppo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch)
@@ -54,5 +54,5 @@ class TestPPOActorLossFunc(DistributedTest):
                 assert ppo_loss_func.kl_ctrl() == kl_ctrl_value
                 result = ppo_loss_func.compute_loss(output, batch, forward_only=False)
                 assert result[0] is not None
-                ppo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch, update=True)
+                ppo_loss_func.compute_log_probs.assert_called_once_with(output=output, batch=batch, skip_entropy=True)
                 ppo_loss_func._get_policy_loss_input.assert_called_once_with(batch=batch)

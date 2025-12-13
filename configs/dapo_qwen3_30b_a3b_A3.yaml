@@ -65,6 +65,7 @@ rl_config:
   guarantee_order: true
   use_integrated_worker: true
   blocking: true
+  hccl_buffersize: 640
   actor_forward_micro_batch_size: 1
   ref_forward_micro_batch_size: 1
   gamma: 1.0
@@ -123,7 +124,7 @@ generate_config:
   infer_expert_parallel_size: 8   # 同步修改runtime_env.yaml中VLLM_DP_SIZE的值，建议保持一致
 
   # vllm 模型相关设置
-  max_num_seqs: 1024
+  max_num_seqs: 512
   max_model_len: 4096
   max_num_batched_tokens: 8192
   dtype: "bfloat16"

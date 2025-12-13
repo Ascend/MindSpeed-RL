@@ -8,7 +8,6 @@ from vllm.inputs import PromptType
 from vllm.lora.request import LoRARequest
 from vllm.multimodal import MultiModalKwargs
 from vllm.pooling_params import PoolingParams
-from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
 from vllm.v1.engine.parallel_sampling import ParentRequest
 from vllm.v1.engine import EngineCoreRequest
@@ -134,7 +133,7 @@ def add_request(
         lora_request: Optional[LoRARequest] = None,
         tokenization_kwargs: Optional[dict[str, Any]] = None,
         trace_headers: Optional[Mapping[str, str]] = None,
-        prompt_adapter_request: Optional[PromptAdapterRequest] = None,
+        prompt_adapter_request=None,
         priority: int = 0,
     ) -> None:
     # Check if input is preprocessed format

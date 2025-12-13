@@ -45,7 +45,10 @@ bash examples/data/preprocess_data.sh math_17k
 ## 模型权重转换
 
 根据 DAPO 算法要求，Actor 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。DAPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
-
+```bash
+#注意，MSRL里跑MoE模型默认设置moe_tp_extend_ep为true，转换权重时要加上下面的配置（不加会导致推理乱码）
+--moe-tp-extend-ep
+```
 ### 环境要求
 **权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。**
 如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。

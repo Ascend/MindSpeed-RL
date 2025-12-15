@@ -53,7 +53,7 @@ class PPOActorLossFunc(BaseLossFunc):
         if forward_only:
             log_probs, _ = super().compute_log_probs(output=output, batch=batch, **kwargs)
             return log_probs
-        log_probs, entropy = super().compute_log_probs(output=output, batch=batch, skip_entropy=(self.entropy_coeff == 0), **kwargs)
+        log_probs, entropy = super().compute_log_probs(output=output, batch=batch, skip_entropy=False, **kwargs)
 
         response_mask, old_log_prob, advantages, ref_log_prob = self._get_policy_loss_input(batch=batch)
 

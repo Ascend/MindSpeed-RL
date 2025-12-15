@@ -8,11 +8,11 @@
 | 特性名称 | 简介 | 发布状态 | 文档链接 |
 | :--- | :--- | :--- |:--- |
 | **optimizer/grad offload** | 支持将优化器状态和梯度卸载至 CPU，降低训练显存占用。| preview | / |
-| **Swap optimizer** | 支持优化器状态在设备与主机内存间交换，进一步优化显存峰值。| preview | / |
+| **Swap optimizer** | 支持优化器状态在设备与主机内存间交换，进一步优化显存峰值。| preview | [doc](./swap_optimizer.md) |
 | **Ulysses CP** | Ulysses Context Parallel，针对长序列训练的上下文并行优化方案。| preview | [doc](./context_parallel.md) |
-| **BF16参数副本复用** | 复用 BF16 参数副本，减少内存冗余占用。| preview | / |
+| **BF16参数副本复用** | 复用 BF16 参数副本，减少内存冗余占用。| preview | [doc](./reuse_fp32_param.md) |
 | **重计算** | 通用重计算策略，通过以计算换显存的方式支持更大模型训练。| preview | / |
-| **激活函数重计算** | 针对 GeLU/SwiGLU 等激活函数的特定重计算优化。| preview | / |
+| **激活函数重计算** | 针对 GeLU/SwiGLU 等激活函数的特定重计算优化。| preview | [doc](./activation_function_recompute.md) |
 | **Norm 重计算** | 针对 LayerNorm/RMSNorm 的重计算优化。| preview | / |
 
 ## 2. 推理加速特性
@@ -26,7 +26,7 @@
 | **chunked prefill** | 支持分块预填充（Chunked Prefill），优化长 Prompt 下的首字延迟和吞吐平衡。| preview | / |
 | **dynamic batch size** | 支持动态 Batch Size 调度，提高推理时的计算资源利用率。| preview | / |
 | **remove padding** | 移除输入序列中的 Padding，减少无效计算。| preview | [doc](./remove_padding.md) |
-| **swap attention** | 支持 Attention KV Cache 的 Swap 机制，处理超长上下文显存不足的情况。| preview | / |
+| **swap attention** | 支持 Attention KV Cache 的 Swap 机制，处理超长上下文显存不足的情况。| preview | [doc](./swap_attention.md) |
 | **推理大EP** | 支持推理阶段的大规模专家并行（Expert Parallel），适配 MoE 模型推理。| preview | / |
 
 ## 3. 强化学习框架调度特性

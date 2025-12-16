@@ -42,8 +42,3 @@ patches:
                   - action: replaced # [added, replaced, deleted]
                     kind: method # [class, method, attribute]
                     name: _init_dp_env
-        - name: dapo_ray_trainer
-          diff:
-              class_changes: # [action, kind, name]
-              - action: updated # [added, replaced, deleted, updated]
-                name: RayDAPOTrainer

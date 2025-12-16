@@ -84,6 +84,7 @@ rl_config:
   n_samples_per_prompt: 16
   rule_reward: true
   verifier_function: ["math_verify_reward"]
+  zmq_communication: false
   verifier_weight: [1.0]
   actor_resource:
     num_npus: 256

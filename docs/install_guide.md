@@ -104,7 +104,8 @@ git clone -b v0.11.0-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
 git checkout 1b16c01
 pip install -r requirements.txt
-pip install -e .
+export COMPILE_CUSTOM_KERNELS=1
+python setup.py install
 ```
 
 ### ray安装

@@ -51,7 +51,7 @@ MindSpeed RL依赖配套如下表：
   </tr>
   <tr>
     <td>PyTorch</td>
-    <td>2.5</td>
+    <td>2.7</td>
   </tr>
   <tr>
     <td>torch_npu插件</td>

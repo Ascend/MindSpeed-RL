@@ -47,7 +47,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>torch</td>
-    <td rowspan="2">2.5.1</td>
+    <td rowspan="2">2.7.1</td>
   </tr>
   <tr>
     <td>torch_npu</td>
@@ -62,7 +62,7 @@ MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套�
   </tr>
   <tr>
     <td>vllm</td>
-    <td>main</td>
+    <td>releases/v0.11.0</td>
   </tr>
 </table>
 

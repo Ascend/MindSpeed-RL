@@ -312,6 +312,7 @@ class MegatronConfig(BaseConfig):
         self.is_instruction_dataset = False
         self.is_pairwise_dataset = False
         self.variable_seq_lengths = False
+        self.no_pad_to_seq_lengths = False
         self.no_shuffle = False
         self.stage = None
         self.sequence_parallel = False

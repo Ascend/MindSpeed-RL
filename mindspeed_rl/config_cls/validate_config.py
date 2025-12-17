@@ -55,26 +55,21 @@ def validate_rl_args(
     if actor_config.context_parallel_size > 1 and actor_config.context_parallel_algo is not None:
         if actor_config.context_parallel_algo not in ["ulysses_cp_algo", "megatron_cp_algo"]:
             raise ValueError("Now just support ulysses CP and megatron cp(ring)")
-    if actor_config.attention_mask_type not in ["causal"]:
-        raise ValueError("Now just support causal attention_mask_type")
     if actor_config.context_parallel_algo == "megatron_cp_algo" and actor_config.context_parallel_size > 1 and rl_config.use_remove_padding:
         if not actor_config.reset_attention_mask:
             raise ValueError("when use ring cp and remove_padding, reset_attention_mask must be true")
-    if actor_config.context_parallel_size <= 1 or actor_config.context_parallel_algo != "megatron_cp_algo" or not rl_config.use_remove_padding:
-        if actor_config.reset_attention_mask:
-            raise ValueError("Just when use ring cp >=2 with remove_padding, reset_attention_mask must be true; otherwise should be false")
 
     # 校验移除填充特性相关配置
     if rl_config.use_remove_padding:
-        if actor_config.pipeline_model_parallel_size > 1 and not actor_config.variable_seq_lengths:
+        if actor_config.pipeline_model_parallel_size > 1 and not actor_config.no_pad_to_seq_lengths:
             raise ValueError(
-                "'use_remove_padding' feature requires 'variable_seq_lengths=True' when using pipeline parallelism!"
-                "If you want to use context parallelism under this premise and encounter the mindspeed_llm validation error about variable_seq_lengths, "
+                "'use_remove_padding' feature requires 'no_pad_to_seq_lengths=True' when using pipeline parallelism!"
+                "If you want to use context parallelism under this premise and encounter the mindspeed_llm validation error about no_pad_to_seq_lengths, "
                 "you just need to delete the validation code of mindspeed_llm, and it will not cause problems.")
 
-        if not actor_config.reset_position_ids:
+        if not actor_config.reset_attention_mask:
             raise ValueError(
-                "'use_remove_padding' feature requires 'reset_position_ids=True'! ")
+                "'use_remove_padding' feature requires 'reset_attention_mask=True'! ")
             
         if rl_config.is_multimodal:
             raise ValueError(

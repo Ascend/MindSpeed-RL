@@ -27,7 +27,7 @@ megatron_training:
   hidden_dropout: 0.0
   distributed_backend: nccl
   no_shared_storage: true
-  variable_seq_lengths: true
+  no_pad_to_seq_lengths: true
   dataset_additional_keys: ['labels']
   data_path: ./data
   split: 100,0,0

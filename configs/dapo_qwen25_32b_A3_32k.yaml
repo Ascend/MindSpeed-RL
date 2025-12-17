@@ -29,14 +29,13 @@ megatron_training:
   hidden_dropout: 0.0
   distributed_backend: nccl
   no_shared_storage: true
-  variable_seq_lengths: true
+  no_pad_to_seq_lengths: true
   dataset_additional_keys: ['labels',]
   data_path: ./data
   split: 100,0,0
   no_shuffle: false
   full_shuffle_instruction_dataset: false
   seed: 1
-  reset_position_ids: true
   reset_attention_mask: true
 
 actor_config:

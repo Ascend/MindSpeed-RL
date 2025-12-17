@@ -69,7 +69,7 @@ def make_megatron_config(args):
                          'tokenizer_type': args.tokenizer_type, 'tokenizer_name_or_path': args.tokenizer_path, 'global_batch_size': 2,
                          'seq_length': 512, 'save_interval': 10000,
                          'train_iters': 1000, 'distributed_backend': 'nccl', 'no_shared_storage': True,
-                         'variable_seq_lengths': True, 'micro_batch_size': 1, 'tensor_model_parallel_size': args.train_tp,
+                         'no_pad_to_seq_lengths': True, 'micro_batch_size': 1, 'tensor_model_parallel_size': args.train_tp,
                          'pipeline_model_parallel_size': args.train_pp, 'lr': '1e-7', 'lr_decay_style': 'constant',
                          'min_lr': 0.0, 'weight_decay': 0.0, 'lr_warmup_fraction': 0.0, 'clip_grad': 10000.0,
                          'adam_beta1': 0.9, 'adam_beta2': 0.999, 'initial_loss_scale': 4096, 'finetune': True,

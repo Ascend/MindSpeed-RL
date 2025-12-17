@@ -316,7 +316,7 @@ class BaseTrainingEngine(ABC):
             cu_seqlens_padded_ring = cu_seqlens_padded
             if self.megatron_config.attention_mask_type == 'causal': 
                 cu_seqlens_padded_ring = (cu_seqlens_padded / get_ring_degree(self.megatron_config)).to(torch.int)
-            self.set_actual_seq_len(cu_seqlens_padded_ring.tolist())
+            self.set_actual_seq_len(cu_seqlens_padded_ring)
 
             if cp_size > 1:
                 input_ids, position_ids, batch, index = self._get_batch_data_with_cp(batch, input_ids, position_ids, labels)

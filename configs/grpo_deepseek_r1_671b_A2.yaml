@@ -26,14 +26,14 @@ megatron_training:
   hidden_dropout: 0.0
   distributed_backend: nccl
   no_shared_storage: true
-  variable_seq_lengths: true
+  no_pad_to_seq_lengths: true
   dataset_additional_keys: ['labels',]
   no_shuffle: false
   data_path: ./deepscaler
   split: 100,0,0
   swap_optimizer: true
   moe_alltoall_overlap_comm: true
-  reset_position_ids: true
+  reset_attention_mask: true
 
 actor_config:
   model: deepseekv3_671b

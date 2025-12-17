@@ -63,8 +63,6 @@ def generate_mask(data_pad: Tensor, seq_lengths: Tensor):
         seq_mask = torch.ones(max_length)
         if seq_pad_length > 0:
             seq_mask[-seq_pad_length:] = 0
-        elif seq_pad_length == 0:
-            seq_mask[-1:] = 0
         seq_masks.append(seq_mask.numpy().tolist())
     return torch.tensor(seq_masks, dtype=torch.int64)
 

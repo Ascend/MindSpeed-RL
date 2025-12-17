@@ -21,14 +21,15 @@
 actor_config:
    context_parallel_size: 2
    context_parallel_algo: ulysses_cp_algo
+   attention_mask_type: general
 
 # 与remove_padding特性一起使用
 rl_config:
   use_remove_padding: true
 
 megatron_training:
-   reset_position_ids: true
-   variable_seq_lengths: true
+   reset_attention_mask: true
+   no_pad_to_seq_lengths: true
 ```
 
 对于直接偏好对齐（DPO）算法，通过如下配置可以使能：
@@ -36,7 +37,7 @@ megatron_training:
 ```yaml
 # 填写在megatron_training
 megatron_training:
-   variable_seq_lengths: true
+   no_pad_to_seq_lengths: true
    context_parallel_size: 2
    context_parallel_algo: ulysses_cp_algo
 ```
@@ -46,7 +47,7 @@ megatron_training:
 `context_parallel_algo` 表示选用的长序列并行方法，如果不配置此参数，默认取**ulysses_cp_algo**
 
 特别的，此特性与**remove_padding**一起使用时，配置说明如下：
-直接叠加使能remove_padding的配置即可：将use_remove_padding、reset_position_ids、variable_seq_lengths都设置为true。
+直接叠加使能remove_padding的配置即可：将use_remove_padding、reset_attention_mask、no_pad_to_seq_lengths都设置为true。
 
 ### Ring Attention
 ```yaml
@@ -60,8 +61,7 @@ rl_config:
   use_remove_padding: true
 
 megatron_training:
-   reset_position_ids: true
-   variable_seq_lengths: true
+   no_pad_to_seq_lengths: true
    reset_attention_mask: true
 ```
 
@@ -72,8 +72,8 @@ megatron_training:
 
 `context_parallel_algo` 表示选用的长序列并行方法，使能ring attention方案需要设置为**megatron_cp_algo**
 
-`attention_mask_type` 表示选用的attention_mask类型，默认配置**causal**，当前也只支持该类型
+`attention_mask_type` 表示选用的attention_mask类型，默认配置**causal**
 
 特别的，此特性与**remove_padding**一起使用时，配置说明如下：
 
-除了需要将use_remove_padding、reset_position_ids、variable_seq_lengths都设置为true之外（使能remove_padding），还需要将reset_attention_mask设置为true; 否则这些配置都不要配，默认**false**。
+除了需要将use_remove_padding、reset_attention_mask、no_pad_to_seq_lengths都设置为true之外（使能remove_padding），还需要将reset_attention_mask设置为true; 否则这些配置都不要配，默认**false**。

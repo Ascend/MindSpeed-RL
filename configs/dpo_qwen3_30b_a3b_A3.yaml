@@ -7,7 +7,7 @@ megatron_training:
   finetune: true
   stage: dpo
   is_pairwise_dataset: true
-  variable_seq_lengths: true
+  no_pad_to_seq_lengths: true
   tokenizer_not_use_fast: true
   dpo_loss_type: sigmoid
   # gpt_args:

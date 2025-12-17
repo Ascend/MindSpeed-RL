@@ -177,7 +177,7 @@ git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 
 git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
-git checkout 89f4632d2cbb1e583a69b2bf3a08d75222f1173d  # 参考MindSpeed-LLM依赖版本
+git checkout ac9f0e74061f968fdb285aa6a0df68a980fb0412  # 参考MindSpeed-LLM依赖版本
 pip install -r requirements.txt 
 cp -r mindspeed ../MindSpeed-RL/
 cd ..
@@ -189,9 +189,9 @@ git checkout core_v0.12.1
 cp -r megatron ../MindSpeed-RL/
 cd ..
 
-git clone https://gitcode.com/Ascend/MindSpeed-LLM.git -b 2.1.0
+git clone https://gitcode.com/Ascend/MindSpeed-LLM.git
 cd MindSpeed-LLM
-git checkout 887c2d8682021befd675bb03965dbdee4de24516
+git checkout a2c0733b9c8674e240a0a7607ed3f973115cc6b7
 cp -r mindspeed_llm ../MindSpeed-RL/
 cd ..
 

@@ -3,9 +3,6 @@ defaults:
       - qwen25_7b
 
 megatron_training:
-  use_ascend_coc: True
-  coc_fused_kernel: True
-  coc_parallel_num: 2
   model: qwen25_7b
   use_fused_rmsnorm: true
   use_mcore_models: true

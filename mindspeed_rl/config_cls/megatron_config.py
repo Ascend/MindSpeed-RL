@@ -111,7 +111,7 @@ class MegatronConfig(BaseConfig):
     is_instruction_dataset: Whether the dataset is instruction-based (default: False)
     is_pairwise_dataset: Whether the dataset is pairwise format that has a chosen sequence and rejected
         sequence, which usually used in reinforce learning (default: False)
-    variable_seq_lengths: Whether to use variable sequence lengths (default: False)
+    variable_seq_length: Whether to use variable sequence lengths (default: False)
     no_shuffle: Whether to shuffle the dataset (default: False)
     stage: Stage of the model (default: None)
     sequence_parallel: Whether to use sequence parallelism (default: False)
@@ -311,7 +311,8 @@ class MegatronConfig(BaseConfig):
         self.no_save_rng = None
         self.is_instruction_dataset = False
         self.is_pairwise_dataset = False
-        self.variable_seq_lengths = False
+        self.variable_seq_length = False
+        self.no_pad_to_seq_lengths = False
         self.no_shuffle = False
         self.stage = None
         self.sequence_parallel = False

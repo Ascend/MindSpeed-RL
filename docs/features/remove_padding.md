@@ -34,8 +34,8 @@
 
 ```yaml
 megatron_training:
-  variable_seq_lengths: true
-  reset_position_ids: true
+  no_pad_to_seq_lengths: true
+  reset_attention_mask: true
 
 rl_config:
   use_remove_padding: true

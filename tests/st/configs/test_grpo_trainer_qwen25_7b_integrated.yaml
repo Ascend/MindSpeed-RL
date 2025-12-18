@@ -8,15 +8,12 @@ megatron_training:
   use_mcore_models: true
   sequence_parallel: true
   use_flash_attn: true
-  reset_position_ids: true
+  reset_attention_mask: true
   no_masked_softmax_fusion: true
   attention_softmax_in_fp32: true
   no_gradient_accumulation_fusion: true
   use_fused_swiglu: true
   use_fused_rotary_pos_emb: true
-  use_ascend_coc: True
-  coc_fused_kernel: True
-  coc_parallel_num: 2
   bf16: true
   use_distributed_optimizer: true
   tokenizer_type: PretrainedFromHF
@@ -31,7 +28,7 @@ megatron_training:
   hidden_dropout: 0.0
   distributed_backend: nccl
   no_shared_storage: true
-  variable_seq_lengths: true
+  no_pad_to_seq_lengths: true
   dataset_additional_keys: ['labels',]
   data_path: /data/for_dt/datasets/pe-nlp/data
   split: 100,0,0

@@ -202,11 +202,11 @@ def initialize_megatron(
         load_args_from_checkpoint(args)
 
     _ori_vari_length = None
-    _ori_vari_length = args.variable_seq_lengths
-    args.variable_seq_lengths = False
+    _ori_vari_length = args.no_pad_to_seq_lengths
+    args.no_pad_to_seq_lengths = False
     validate_args(args, args_defaults)
     if _ori_vari_length is not None:
-        args.variable_seq_lengths = _ori_vari_length
+        args.no_pad_to_seq_lengths = _ori_vari_length
 
     set_global_variables(args)
 

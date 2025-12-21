@@ -344,7 +344,7 @@ def rm_model_provider(pre_process, post_process):
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from megatron.core.transformer.spec_utils import import_module
     from megatron.training.arguments import core_transformer_config_from_args
-    from mindspeed_llm.tasks.posttrain.orm.orm_model import GPTRewardModel
+    from mindspeed_rl.models.orm.orm_model import GPTRewardModel
     args = get_args()
     logger.info('building RM GPT model ...')
     # Experimental loading arguments from configs

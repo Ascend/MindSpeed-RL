@@ -3,8 +3,9 @@ from typing import Any
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers
-from mindspeed_rl.tools.schemas import OpenAIFunctionToolSchema
-from mindspeed_rl.tools.sandbox_fusion_tools import SandboxFusionTool
+from mindspeed_rl.tools.utils.schemas import OpenAIFunctionToolSchema
+from mindspeed_rl.tools.sandbox_fusion_tool import SandboxFusionTool
+
 
 logger = Loggers("ReTool")
 

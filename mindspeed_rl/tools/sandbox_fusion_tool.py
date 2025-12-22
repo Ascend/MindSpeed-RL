@@ -1,67 +1,15 @@
-import threading
-from contextlib import ExitStack
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Optional
 from uuid import uuid4
 import ray
 
 from mindspeed_rl.utils.loggers import Loggers
 from mindspeed_rl.tools.base_tool import BaseTool
-from mindspeed_rl.tools.schemas import OpenAIFunctionToolSchema
-from mindspeed_rl.tools.tool_utils import process_single_case
+from mindspeed_rl.tools.utils.schemas import OpenAIFunctionToolSchema
+from mindspeed_rl.tools.utils.tool_utils import process_single_case
+from mindspeed_rl.tools.utils.execution_pool import init_execution_pool
+
 
 logger = Loggers("SandboxFusionTool")
-
-T = TypeVar("T")
-
-
-@ray.remote(concurrency_groups={"acquire": 1, "release": 10})
-class TokenBucketWorker:
-    def __init__(self, rate_limit: int):
-        self.rate_limit = rate_limit
-        self.current_count = 0
-        self._semaphore = threading.Semaphore(rate_limit)
-
-    @ray.method(concurrency_group="acquire")
-    def acquire(self):
-        self._semaphore.acquire()
-        self.current_count += 1
-
-    @ray.method(concurrency_group="release")
-    def release(self):
-        self._semaphore.release()
-        self.current_count -= 1
-
-    def get_current_count(self):
-        return self.current_count
-
-
-class ExecutionWorker:
-    def __init__(self, enable_global_rate_limit=True, rate_limit=10):
-        self.rate_limit_worker = self._init_rate_limit(rate_limit) if enable_global_rate_limit else None
-
-    def _init_rate_limit(self, rate_limit):
-        return TokenBucketWorker.options(name="rate-limiter", get_if_exists=True).remote(rate_limit)
-
-    def execute(self, fn: Callable[..., T], *fn_args, **fn_kwargs) -> T:
-        with ExitStack() as stack:
-            stack.callback(self.rate_limit_worker.release.remote)
-            ray.get(self.rate_limit_worker.acquire.remote())
-            try:
-                return fn(*fn_args, **fn_kwargs)
-            except Exception as e:
-                logger.warning(f"Error when executing code: {e}")
-                return ''
-
-
-
-def init_execution_pool(
-    num_workers: int, enable_global_rate_limit=True, rate_limit=10
-):
-    return (
-        ray.remote(ExecutionWorker)
-        .options(max_concurrency=num_workers)
-        .remote(enable_global_rate_limit=enable_global_rate_limit, rate_limit=rate_limit)
-    )
 
 
 class SandboxFusionTool(BaseTool):
@@ -84,9 +32,7 @@ class SandboxFusionTool(BaseTool):
             raise ValueError("sandbox_fusion_url is not set")
         logger.info(f"Init SandboxFusionTool with config: {config}")
 
-    def create(
-        self, instance_id: Optional[str] = None, ground_truth: Optional[str] = None, **kwargs
-    ) -> str:
+    def create(self, instance_id: Optional[str] = None, ground_truth: Optional[str] = None, **kwargs) -> str:
         if instance_id is None:
             instance_id = str(uuid4())
         self._instance_dict[instance_id] = {
@@ -121,4 +67,5 @@ class SandboxFusionTool(BaseTool):
         return self._instance_dict[instance_id]["reward"]
 
     def release(self, instance_id: str, **kwargs) -> None:
-        del self._instance_dict[instance_id]
+        if instance_id in self._instance_dict:
+            del self._instance_dict[instance_id]

@@ -4,7 +4,8 @@ from abc import ABC, abstractmethod
 import regex as re
 
 from mindspeed_rl.utils.loggers import Loggers
-from mindspeed_rl.tools.schemas import OpenAIFunctionParsedSchema
+from mindspeed_rl.tools.utils.schemas import OpenAIFunctionParsedSchema
+
 
 logger = Loggers("ToolParser")
 

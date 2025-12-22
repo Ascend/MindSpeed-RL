@@ -32,9 +32,9 @@ from mindspeed_rl.utils.zmq_communication import (ZmqServer, ZmqClient, ZmqServe
                                                   ZMQ_ROLE_SERVER, ZMQ_ROLE_CLIENT)
 from mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state import get_vllm_tp_group_ranks
 from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
-from mindspeed_rl.tools.tool_registry import initialize_tools_from_config
-from mindspeed_rl.tools.tool_utils import process_response
-from mindspeed_rl.tools.tool_parser import ToolParser
+from mindspeed_rl.tools.utils.tool_registry import initialize_tools_from_config
+from mindspeed_rl.tools.utils.tool_utils import process_response
+from mindspeed_rl.tools.utils.tool_parser import ToolParser
 from mindspeed_rl.trainer.utils.parallel_state import get_tensor_model_parallel_rank, \
     get_tensor_model_parallel_src_rank, get_tensor_model_parallel_group
 

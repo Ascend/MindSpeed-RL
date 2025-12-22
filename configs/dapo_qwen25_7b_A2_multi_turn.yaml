@@ -72,7 +72,7 @@ rl_config:
   shuffle_mini_batch: false
   n_samples_per_prompt: 8
   rule_reward: true
-  verifier_function: ["acc_for_dapo"]
+  verifier_function: ["retool_reward"]
   verifier_weight: [1.0]
   num_cpus_for_local_task: 1.0
   use_tensorboard: true

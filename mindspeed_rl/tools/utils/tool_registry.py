@@ -2,7 +2,7 @@ import importlib
 import sys
 from omegaconf import OmegaConf
 
-from mindspeed_rl.tools.schemas import OpenAIFunctionToolSchema
+from mindspeed_rl.tools.utils.schemas import OpenAIFunctionToolSchema
 
 
 def get_tool_class(cls_name):

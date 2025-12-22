@@ -59,6 +59,7 @@ actor_config:
   attention_mask_type: causal
 
 rl_config:
+  zmq_communication: false
   blocking: true
   use_remove_padding: true
   actor_max_packing_token_size: 45056
@@ -66,10 +67,6 @@ rl_config:
   use_dynamic_bsz: true
   use_dp_batch_balance: true
   actor_forward_micro_batch_size: 1
-  actor_logprob_dispatch_size: 512
-  ref_dispatch_size: 512
-  reward_dispatch_size: 512
-  adv_dispatch_size: 512
   use_integrated_worker: true
   gamma: 1.0
   lam: 0.95

@@ -116,8 +116,11 @@ class StandardLogProbComputer(LogProbComputer):
             )
             if not skip_entropy:
                 entropy = vocab_parallel_entropy(output)
+                entropy_allgather = get_tensor_allgather_cp_with_pack(
+                    entropy, cp_size, index
+                )
                 entropy = postprocess_packed_seqs(
-                    entropy,
+                    entropy_allgather,
                     seqlens_in_batch,
                     cu_seqlens_padded,
                     seq_len,

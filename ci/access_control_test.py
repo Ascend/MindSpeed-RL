@@ -41,6 +41,10 @@ def is_no_suffix(file):
     return os.path.splitext(file)[1] == ''
 
 
+def in_verl_npu(file):
+    return file.startswith("verl_npu/")
+
+
 def skip_ci(files, skip_conds):
     for file in files:
         if not any(condition(file) for condition in skip_conds):
@@ -60,7 +64,8 @@ def choose_skip_ci(raw_txt_file):
         is_txt,
         is_owners,
         is_license,
-        is_no_suffix
+        is_no_suffix,
+        in_verl_npu
     ]
 
     return skip_ci(file_list, skip_conds)

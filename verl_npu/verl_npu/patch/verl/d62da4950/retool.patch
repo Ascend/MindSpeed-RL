@@ -1,0 +1,13 @@
+diff --git a/recipe/retool/retool.py b/recipe/retool/retool.py
+index 7bcc7045..7305ca09 100644
+--- a/recipe/retool/retool.py
++++ b/recipe/retool/retool.py
+@@ -104,7 +104,7 @@ class CustomRLHFDataset(RLHFDataset):
+         return row
+ 
+ 
+-def compute_score(data_source, solution_str, ground_truth, extra_info):
++def compute_score(data_source, solution_str, ground_truth, extra_info, **merged_kwargs):
+     # use \\boxed{...} answer
+     result = math_dapo.compute_score(solution_str, ground_truth, strict_box_verify=True)
+ 

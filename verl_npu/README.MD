@@ -5,6 +5,8 @@
 | ---------------- | ------------ |-----------| ---------- | ---------- |
 | master（主线）   | 2.7.1     | 2.7.1       | 8.2.RC3 | Python3.10 |
 
+注：如果需要安装sglang作为推理后端，请参考 **[sglang_readme](docs/sglang_readme.md)** 进行安装使用。
+
 ## 1、安装 vllm 和 vllm-ascend
 ```bash
 # vllm==0.11.0

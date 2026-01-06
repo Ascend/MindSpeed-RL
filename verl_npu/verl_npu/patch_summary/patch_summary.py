@@ -19,6 +19,8 @@ import logging
 import yaml
 import torch
 
+from verl_npu.utils.pkg_version import check_commit_id, get_target_path
+
 
 cur_file_dir = Path(__file__).absolute().parent
 
@@ -203,6 +205,10 @@ def patch_summary():
     patches = runtime_env["patches"]
     for _, patch in enumerate(patches):
         repo = patch["repo"]
+        target_path = get_target_path(repo)
+        commit_path, _ = check_commit_id(target_path, patch["current_rev"])
+        if not commit_path:
+            continue
         _PATCH_SUMMARY[repo] = {}
         _PATCH_SUMMARY[repo]["current_rev"] = patch["current_rev"]
         cur_patch = [x for x in patch["versions"] if x["rev"] == patch["current_rev"]]

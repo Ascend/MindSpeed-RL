@@ -1,6 +1,8 @@
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 import subprocess
+import sys
+from pathlib import Path
 
 from packaging.version import Version
 
@@ -86,5 +88,27 @@ def check_commit_id(target_path: str, version: str) -> bool:
     commit_id = get_commit_id(target_path)
 
     if commit_id is not None:
-        return commit_id == version
-    return True
+        return commit_id == version, commit_id
+    return True, None
+
+
+def get_target_path(repo):
+    target_path = None
+    repo_meta = subprocess.check_output(
+        [sys.executable, "-m", "pip", "show", repo]
+    ).decode("utf-8")
+    # Prioritize editable install location, since pip show lists both locations
+    # if installed in editable mode.
+    for line in repo_meta.split("\n"):
+        line = line.strip()
+        if line.startswith("Editable project location: "):
+            target_path = str(Path(line.split(": ")[1]))
+            break
+    else:
+        for line in repo_meta.split("\n"):
+            line = line.strip()
+            if line.startswith("Location: "):
+                target_path = str(Path(line.split(": ")[1]))
+
+    return target_path
+

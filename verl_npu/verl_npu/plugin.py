@@ -13,44 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.import os
 
-import pathlib
 import shutil
 import subprocess
-import sys
 import os
 from pathlib import Path
-from typing import Dict, Optional
 import logging as logger
 
-from verl_npu.utils.pkg_version import check_commit_id
+from verl_npu.utils.pkg_version import check_commit_id, get_target_path
 from verl_npu.patch_summary.patch_summary import get_patch_summary, print_patch_summary, patch_summary
-
-
-def get_target_path(repo):
-    target_path = None
-    repo_meta = subprocess.check_output(
-        [sys.executable, "-m", "pip", "show", repo]
-    ).decode("utf-8")
-    # Prioritize editable install location, since pip show lists both locations
-    # if installed in editable mode.
-    for line in repo_meta.split("\n"):
-        line = line.strip()
-        if line.startswith("Editable project location: "):
-            target_path = str(Path(line.split(": ")[1]))
-            break
-    else:
-        for line in repo_meta.split("\n"):
-            line = line.strip()
-            if line.startswith("Location: "):
-                target_path = str(Path(line.split(": ")[1]))
-
-    return target_path
 
 
 def apply_repo_patches(repo, current_rev, repo_dir):
     target_path = get_target_path(repo)
     # check repo commit_id, ensure its ok
-    check_commit_id(target_path, current_rev)
+    commit_match, env_commit = check_commit_id(target_path, current_rev)
+    if not commit_match:
+        logger.warning(
+            f"The current commit id <{env_commit}> of repo {repo} does not match the expected commit id <{current_rev}>, skip patch."
+        )
+        return
 
     p = Path(os.path.dirname(__file__))
     patch_dir = str(

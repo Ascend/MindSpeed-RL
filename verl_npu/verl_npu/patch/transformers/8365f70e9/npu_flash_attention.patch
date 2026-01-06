@@ -1,119 +1,96 @@
 diff --git a/src/transformers/integrations/npu_flash_attention.py b/src/transformers/integrations/npu_flash_attention.py
-index f4c4e98da9..a4a56cbb74 100644
+index f4c4e98da9..c5f549c8bd 100644
 --- a/src/transformers/integrations/npu_flash_attention.py
 +++ b/src/transformers/integrations/npu_flash_attention.py
-@@ -19,6 +19,12 @@ from ..utils.import_utils import is_torch_npu_available
+@@ -19,7 +19,7 @@ from ..utils.import_utils import is_torch_npu_available
  
  
  if is_torch_npu_available():
-+    import logging
-+
-+    import torch.nn.functional as F
-+    import torch_npu
-+    from einops import rearrange, repeat
-+    from ..modeling_flash_attention_utils import prepare_fa_kwargs_from_position_ids
-     from torch_npu import npu_fusion_attention
+-    from torch_npu import npu_fusion_attention
++    from torch_npu import npu_fusion_attention, npu_fusion_attention_v2
  
  
-@@ -136,3 +142,101 @@ def npu_flash_attn_varlen_func(
+ # FlashAttention2 is supported on Ascend NPU with down-right aligned causal mask by default.
+@@ -55,6 +55,7 @@ def npu_flash_attn_func(
+     dropout_p=0.0,
+     softmax_scale=None,
+     causal=False,
++    s_aux=None,
+     **kwargs,
+ ):
+     keep_prob = 1.0 - dropout_p
+@@ -65,7 +66,7 @@ def npu_flash_attn_func(
+     if not causal:
+         head_num = q.shape[2]
+         output = npu_fusion_attention(q, k, v, head_num, "BSND", keep_prob=keep_prob, scale=softmax_scale)[0]
+-    else:
++    elif s_aux is None:
+         attn_mask_npu = get_attn_mask_npu(q.device)
+         head_num = q.shape[2]
+         output = npu_fusion_attention(
+@@ -79,6 +80,22 @@ def npu_flash_attn_func(
+             atten_mask=attn_mask_npu,
+             sparse_mode=SPARSE_MODE,
          )[0]
++    else:
++        sink = s_aux.float()
++        attn_mask_npu = get_attn_mask_npu(q.device)
++        head_num = q.shape[2]
++        output = npu_fusion_attention_v2(
++            q,
++            k,
++            v,
++            head_num,
++            "BSND",
++            keep_prob=keep_prob,
++            scale=softmax_scale,
++            atten_mask=attn_mask_npu,
++            sink=sink,
++            sparse_mode=SPARSE_MODE,
++        )[0]
  
      return output
-+
-+
-+class IndexFirstAxis(torch.autograd.Function):
-+    @staticmethod
-+    def forward(ctx, input, indices):
-+        ctx.save_for_backward(indices)
-+        if not input.ndim >= 2:
-+            raise AssertionError("input.ndim < 2")
-+        ctx.first_axis_dim, other_shape = input.shape[0], input.shape[1:]
-+        second_dim = other_shape.numel()
-+        return torch.gather(
-+            rearrange(input, "b ... -> b (...)"), 0, repeat(indices, "z -> z d", d=second_dim)
-+        ).reshape(-1, *other_shape)
-+
-+    @staticmethod
-+    def backward(ctx, grad_output):
-+        (indices,) = ctx.saved_tensors
-+        if not grad_output.ndim >= 2:
-+            raise AssertionError("grad_output.ndim < 2")
-+        other_shape = grad_output.shape[1:]
-+        grad_output = rearrange(grad_output, "b ... -> b (...)")
-+        grad_input = torch.zeros(
-+            [ctx.first_axis_dim, grad_output.shape[1]],
-+            device=grad_output.device,
-+            dtype=grad_output.dtype,
-+        )
-+        grad_input.scatter_(0, repeat(indices, "z -> z d", d=grad_output.shape[1]), grad_output)
-+        return grad_input.reshape(ctx.first_axis_dim, *other_shape), None
-+
-+
-+index_first_axis = IndexFirstAxis.apply
-+
-+
-+class IndexPutFirstAxis(torch.autograd.Function):
-+    @staticmethod
-+    def forward(ctx, values, indices, first_axis_dim):
-+        ctx.save_for_backward(indices)
-+        if indices.ndim != 1 or values.ndim < 2:
-+            raise AssertionError("indices.ndim != 1 or values.ndim < 2")
-+        output = torch.zeros(first_axis_dim, *values.shape[1:], device=values.device, dtype=values.dtype)
-+        output[indices] = values
-+        return output
-+
-+    @staticmethod
-+    def backward(ctx, grad_output):
-+        (indices,) = ctx.saved_tensors
-+        grad_values = grad_output[indices]
-+        return grad_values, None, None
-+
-+
-+index_put_first_axis = IndexPutFirstAxis.apply
-+
-+
-+def pad_input(hidden_states, indices, batch, seqlen):
-+    """
-+    Arguments:
-+        hidden_states: (total_nnz, ...), where total_nnz = number of tokens in selected in attention_mask.
-+        indices: (total_nnz), the indices that represent the non-masked tokens of the original padded input sequence.
-+        batch: int, batch size for the padded sequence.
-+        seqlen: int, maximum sequence length for the padded sequence.
-+    Return:
-+        hidden_states: (batch, seqlen, ...)
-+    """
-+    output = index_put_first_axis(hidden_states, indices, batch * seqlen)
-+    return rearrange(output, "(b s) ... -> b s ...", b=batch)
-+
-+
-+def unpad_input(hidden_states, attention_mask, unused_mask=None):
-+    """
-+    Arguments:
-+        hidden_states: (batch, seqlen, ...)
-+        attention_mask: (batch, seqlen), bool / int, 1 means valid and 0 means not valid.
-+        unused_mask: (batch, seqlen), bool / int, 1 means the element is allocated but unused.
-+    Return:
-+        hidden_states: (total_nnz, ...), where total_nnz = number of tokens selected in attention_mask + unused_mask.
-+        indices: (total_nnz), the indices of masked tokens from the flattened input sequence.
-+        cu_seqlens: (batch + 1), the cumulative sequence lengths, used to index into hidden_states.
-+        max_seqlen_in_batch: int
-+        seqused: (batch), returns the number of tokens selected in attention_mask + unused_mask.
-+    """
-+    all_masks = (attention_mask + unused_mask) if unused_mask is not None else attention_mask
-+    seqlens_in_batch = all_masks.sum(dim=-1, dtype=torch.int32)
-+    used_seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-+    indices = torch.nonzero(all_masks.flatten(), as_tuple=False).flatten()
-+    max_seqlen_in_batch = seqlens_in_batch.max().item()
-+    cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.int32), (1, 0))
-+    # TD [2022-03-04] We don't want to index with a bool mask, because Pytorch will expand the
-+    # bool mask, then call nonzero to get the indices, then index with those. The indices is @dim
-+    # times larger than it needs to be, wasting memory. It's faster and more memory-efficient to
-+    # index with integer indices. Moreover, torch's index is a bit slower than it needs to be,
-+    # so we write custom forward and backward to make it a bit faster.
-+    return (
-+        index_first_axis(rearrange(hidden_states, "b s ... -> (b s) ..."), indices),
-+        indices,
-+        cu_seqlens,
-+        max_seqlen_in_batch,
-+        used_seqlens_in_batch,
-+    )
+ 
+@@ -94,6 +111,7 @@ def npu_flash_attn_varlen_func(
+     dropout_p=0.0,
+     softmax_scale=None,
+     causal=False,
++    s_aux=None,
+     **kwargs,
+ ):
+     keep_prob = 1.0 - dropout_p
+@@ -116,7 +134,7 @@ def npu_flash_attn_varlen_func(
+             actual_seq_qlen=tuple(cu_seqlens_q[1:].cpu().numpy().tolist()),
+             actual_seq_kvlen=tuple(cu_seqlens_k[1:].cpu().numpy().tolist()),
+         )[0]
+-    else:
++    elif s_aux is None:
+         attn_mask_npu = get_attn_mask_npu(q.device)
+         head_num = q.shape[1]
+         output = npu_fusion_attention(
+@@ -134,5 +152,25 @@ def npu_flash_attn_varlen_func(
+             actual_seq_kvlen=tuple(cu_seqlens_k[1:].cpu().numpy().tolist()),
+             sparse_mode=SPARSE_MODE,
+         )[0]
++    else:
++        sink = s_aux.float()
++        attn_mask_npu = get_attn_mask_npu(q.device)
++        head_num = q.shape[1]
++        output = npu_fusion_attention_v2(
++            q,
++            k,
++            v,
++            head_num,
++            pse=None,
++            padding_mask=None,
++            atten_mask=attn_mask_npu,
++            scale=softmax_scale,
++            keep_prob=keep_prob,
++            input_layout="TND",
++            sink=sink,
++            actual_seq_qlen=tuple(cu_seqlens_q[1:].cpu().numpy().tolist()),
++            actual_seq_kvlen=tuple(cu_seqlens_k[1:].cpu().numpy().tolist()),
++            sparse_mode=SPARSE_MODE,
++        )[0]
+ 
+     return output

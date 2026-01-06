@@ -1,0 +1,41 @@
+diff --git a/vllm_ascend/ops/fused_moe/fused_moe.py b/vllm_ascend/ops/fused_moe/fused_moe.py
+index c78764c4..50ab88b1 100644
+--- a/vllm_ascend/ops/fused_moe/fused_moe.py
++++ b/vllm_ascend/ops/fused_moe/fused_moe.py
+@@ -46,7 +46,8 @@ from vllm_ascend.quantization.w8a8_dynamic import \
+ from vllm_ascend.utils import (ACL_FORMAT_FRACTAL_NZ, enable_sp, is_310p,
+                                is_enable_nz, npu_stream_switch,
+                                shared_expert_dp_enabled,
+-                               shared_experts_calculation_stream)
++                               shared_experts_calculation_stream,
++                               get_use_sink_attention)
+ 
+ 
+ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+@@ -55,7 +56,7 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+ 
+         super().__init__(moe=moe)
+         self.dynamic_eplb = get_ascend_config().dynamic_eplb
+-        self.transpose = True
++        self.transpose = True if not get_use_sink_attention() else False
+ 
+     def process_weights_after_loading(self, layer):
+         super(UnquantizedFusedMoEMethod,
+@@ -101,6 +102,7 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+               global_num_experts: int = -1,
+               expert_map: Optional[torch.Tensor] = None,
+               apply_router_weight_on_input: bool = False,
++              activation: str = "silu",
+               enable_force_load_balance: bool = False,
+               shared_experts: Optional[Any] = None,
+               **kwargs) -> torch.Tensor:
+@@ -131,6 +133,9 @@ class AscendUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+             hidden_states=x,
+             w1=layer.w13_weight,
+             w2=layer.w2_weight,
++            w1_bias=layer.w13_bias if self.moe.has_bias else None,
++            w2_bias=layer.w2_bias if self.moe.has_bias else None,
++            activation=activation,
+             topk_weights=topk_weights,
+             topk_ids=topk_ids,
+             global_num_experts=global_num_experts,

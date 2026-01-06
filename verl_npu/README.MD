@@ -27,7 +27,7 @@ git clone https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
 git checkout 00ba07102212c7c7a40de427f09848f2e203c498
 pip install -r requirements.txt
-export COMPILE_CUSTOM_KERNELS=1
+export COMPILE_CUSTOM_KERNELS=1	 
 python setup.py install
 cd ..
 

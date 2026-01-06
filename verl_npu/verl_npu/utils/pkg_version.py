@@ -89,7 +89,7 @@ def check_commit_id(target_path: str, version: str) -> bool:
 
     if commit_id is not None:
         return commit_id == version, commit_id
-    return True, None
+    return False, None
 
 
 def get_target_path(repo):

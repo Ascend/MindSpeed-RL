@@ -32,7 +32,7 @@ patches:
                     name: dataclass
         - name: vllm_rollout_spmd
           diff:
-              class_changes: # [action, kind, name]
+            class_changes: # [action, kind, name]
               - action: updated # [added, replaced, deleted, updated]
                 name: vLLMRollout
                 changes: # [action, kind, name]
@@ -42,3 +42,72 @@ patches:
                   - action: replaced # [added, replaced, deleted]
                     kind: method # [class, method, attribute]
                     name: _init_dp_env
+  - repo: transformers
+    current_rev: 8365f70e9259c21058bf18f876006f945d2a99de
+    versions:
+    - rev: 8365f70e9259c21058bf18f876006f945d2a99de
+      dir: 8365f70e9
+      files:
+        - name: npu_flash_attention
+          diff:
+            class_changes:
+              - action: updated # [added, replaced, deleted, updated]
+                name: npu_flash_attention
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: parameter # [method, parameter, attribute]
+                    name: sink
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [class, method, attribute]
+                    name: npu_fusion_attention_v2
+  - repo: vllm_ascend
+    current_rev: 941d54a2ce1ce387e4bf5d80003c098ff6d44841
+    versions:
+    - rev: 941d54a2ce1ce387e4bf5d80003c098ff6d44841
+      dir: 941d54a2c
+      files:
+        - name: attention_v1
+          diff:
+            class_changes:
+              - action: updated # [added, replaced, deleted, updated]
+                name: AscendAttentionBackendImpl
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: attribute # [method, parameter, attribute]
+                    name: sink
+        - name: fused_moe
+          diff:
+            class_changes:
+              - action: updated # [added, replaced, deleted, updated]
+                name: AscendUnquantizedFusedMoEMethod
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: attribute # [method, parameter, attribute]
+                    name: sink
+        - name: moe_comm_method
+          diff:
+            class_changes:
+              - action: updated # [added, replaced, deleted, updated]
+                name: MoECommMethod
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: attribute # [method, parameter, attribute]
+                    name: sink
+        - name: moe_mlp
+          diff:
+            class_changes:
+              - action: updated # [added, replaced, deleted, updated]
+                name: unquant_apply_mlp
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: attribute # [method, parameter, attribute]
+                    name: sink
+        - name: utils
+          diff:
+            class_changes:
+              - action: added # [added, replaced, deleted, updated]
+                name: use_sink_attention
+                changes:
+                  - action: added # [added, replaced, deleted]
+                    kind: method # [method, parameter, attribute]
+                    name: sink

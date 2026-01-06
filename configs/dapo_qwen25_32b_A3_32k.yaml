@@ -49,7 +49,7 @@ actor_config:
   clip_grad: 1.0 #对齐 
   adam_beta1: 0.9
   adam_beta2: 0.95
-  finetune: false
+  finetune: true
   load: ./Qwen2.5-32B-tp8-pp2
   save: ./ckpt
   no_load_optim: true

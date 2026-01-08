@@ -42,6 +42,24 @@ patches:
                   - action: replaced # [added, replaced, deleted]
                     kind: method # [class, method, attribute]
                     name: _init_dp_env
+        - name: config_rollout
+          diff:
+            class_changes: # [action, kind, name]
+              - action: updated # [added, replaced, deleted, updated]
+                name: RolloutConfig
+                changes: # [action, kind, name]
+                  - action: added # [added, replaced, deleted]
+                    kind: attribute # [class, method, attribute]
+                    name: dp_model_parallel_size
+        - name: megatron_workers
+          diff:
+            class_changes: # [action, kind, name]
+              - action: updated # [added, replaced, deleted, updated]
+                name: MegatronWorker
+                changes: # [action, kind, name]
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [class, method, attribute]
+                    name: _init_hf_config_and_tf_config
   - repo: transformers
     current_rev: 8365f70e9259c21058bf18f876006f945d2a99de
     versions:
@@ -111,3 +129,77 @@ patches:
                   - action: added # [added, replaced, deleted]
                     kind: method # [method, parameter, attribute]
                     name: sink
+  - repo: mbridge
+    current_rev: da21f041311e73c99c337c2411223039f20eefb6
+    versions:
+    - rev: da21f041311e73c99c337c2411223039f20eefb6
+      dir: da21f0413
+      files:
+        - name: dequant_fp8_safetensor_io
+          diff:
+            class_changes:
+              - action: replaced # [added, replaced, deleted]
+                name: DequantFP8SafeTensorIO
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: load_some_hf_weight
+        - name: device
+          diff:
+            class_changes:
+              - action: added # [added, replaced, deleted]
+                name: device
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: is_torch_npu_available
+  - repo: mindspeed
+    current_rev: a654440c14159a68c8a7f1e1665a89bdec8e74f0
+    versions:
+    - rev: a654440c14159a68c8a7f1e1665a89bdec8e74f0
+      dir: a654440c14
+      files:
+        - name: adaptor
+          diff:
+            class_changes:
+              - action: replaced # [added, replaced, deleted]
+                name: adaptor
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: dot_product_attention_forward_impl
+      files:
+        - name: grouped_linear
+          diff:
+            class_changes:
+              - action: replaced # [added, replaced, deleted]
+                name: MindSpeedTEGroupedLinear
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: forward
+  - repo: megatron-core
+    current_rev: a845aa7e12b3a117e24c2352b9e3e60bad2e3a17
+    versions:
+    - rev: a845aa7e12b3a117e24c2352b9e3e60bad2e3a17
+      dir: a845aa7e12
+      files:
+        - name: dot_product_attention
+          diff:
+            class_changes:
+              - action: replaced # [added, replaced, deleted]
+                name: DotProductAttention
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: __init__
+        - name: multi_token_prediction
+          diff:
+            class_changes:
+              - action: replaced # [added, replaced, deleted]
+                name: MultiTokenPredictionBlock
+                changes:
+                  - action: replaced # [added, replaced, deleted]
+                    kind: method # [method, attribute, module_attr]
+                    name: forward
+                  

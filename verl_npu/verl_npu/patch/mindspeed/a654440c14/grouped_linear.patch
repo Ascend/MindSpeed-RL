@@ -1,0 +1,26 @@
+diff --git a/mindspeed/te/pytorch/module/grouped_linear.py b/mindspeed/te/pytorch/module/grouped_linear.py
+index ea164a81..45d16d08 100644
+--- a/mindspeed/te/pytorch/module/grouped_linear.py
++++ b/mindspeed/te/pytorch/module/grouped_linear.py
+@@ -126,15 +126,12 @@ class MindSpeedTEGroupedLinear(torch.nn.Module):
+             setattr(param, 'allreduce', not (is_expert and self.expert_parallel))
+ 
+     def forward(self, x, m_splits):
+-        group_list_type = 1
+-        for w in self.total_weight:
+-            if self.parallel_mode == 'column':
+-                w = w.view(self.config.hidden_size, -1)
+-            else:
+-                w = w.view(-1, self.config.hidden_size)
+-        self.total_weight_T = [w.T for w in self.total_weight]
+-        output = MindSpeedTEGroupedLinearGMM.apply(x, m_splits, group_list_type, self.total_weight, *self.total_weight_T)
+-        return output, None
++        original_weight = torch.cat([w.t() for w in self.total_weight], dim=0)
++        if self.parallel_mode == "column":
++            w = original_weight.view(self.num_gemms, self.config.hidden_size, -1)
++        else:
++            w = original_weight.view(self.num_gemms, -1, self.config.hidden_size)
++        return Ops.gmm(x, w, torch.Tensor(m_splits).long(), trans_b=False, gemm_fusion=False, original_weight=original_weight), None
+ 
+     def _sharded_state_dict_grouped(
+             self, tp_axis_map, prefix='', sharded_offsets=(), metadata=None

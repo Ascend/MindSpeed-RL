@@ -1,16 +1,19 @@
 diff --git a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
-index 63af4f79..adf8e18c 100644
+index 63af4f79..53fd851d 100644
 --- a/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
 +++ b/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
-@@ -49,6 +49,7 @@ from omegaconf import ListConfig
+@@ -49,8 +49,10 @@ from omegaconf import ListConfig
  from tensordict import TensorDict
  from torch.distributed.device_mesh import DeviceMesh
  from vllm import LLM, SamplingParams
 +import vllm.envs as envs
  from vllm.config import CompilationConfig, LoRAConfig
  from vllm.lora.request import LoRARequest
++from vllm.model_executor.model_loader.utils import process_weights_after_loading
  
-@@ -81,6 +82,7 @@ from verl.utils.torch_functional import get_response_mask, pad_2d_list_to_length
+ try:
+     # https://github.com/vllm-project/vllm/commit/96b9aa5aa076e64c68765232aec343e4d0006e2a
+@@ -81,6 +83,7 @@ from verl.utils.torch_functional import get_response_mask, pad_2d_list_to_length
  from verl.utils.vllm import TensorLoRARequest, VLLMHijack, is_version_ge
  from verl.workers.config import HFModelConfig, RolloutConfig
  from verl.workers.rollout.base import BaseRollout
@@ -18,7 +21,7 @@ index 63af4f79..adf8e18c 100644
  from verl.workers.rollout.utils import get_free_port, is_valid_ipv6_address
  from verl.workers.rollout.vllm_rollout.utils import (
      VLLM_LORA_INT_ID,
-@@ -152,7 +154,14 @@ class vLLMRollout(BaseRollout):
+@@ -152,7 +155,14 @@ class vLLMRollout(BaseRollout):
              if model_config.lora_rank > 0
              else {}
          )
@@ -33,7 +36,7 @@ index 63af4f79..adf8e18c 100644
          tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
          assert tensor_parallel_size <= torch.distributed.get_world_size(), (
              "tensor parallel size should be less than or equal to the world size"
-@@ -212,6 +221,27 @@ class vLLMRollout(BaseRollout):
+@@ -212,6 +222,27 @@ class vLLMRollout(BaseRollout):
          engine_kwargs = {key: val for key, val in engine_kwargs.items() if val is not None}
          if config.get("limit_images", None):  # support for multi-image data
              engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
@@ -61,7 +64,7 @@ index 63af4f79..adf8e18c 100644
  
          compilation_config = {}
  
-@@ -243,6 +273,7 @@ class vLLMRollout(BaseRollout):
+@@ -243,6 +274,7 @@ class vLLMRollout(BaseRollout):
              load_format=load_format,
              disable_log_stats=config.disable_log_stats,
              max_num_batched_tokens=max_num_batched_tokens,
@@ -69,7 +72,7 @@ index 63af4f79..adf8e18c 100644
              enable_chunked_prefill=config.enable_chunked_prefill,
              enable_prefix_caching=config.enable_prefix_caching,
              trust_remote_code=trust_remote_code,
-@@ -270,6 +301,35 @@ class vLLMRollout(BaseRollout):
+@@ -270,6 +302,35 @@ class vLLMRollout(BaseRollout):
          self.sampling_params = SamplingParams(**kwargs)
  
          self.pad_token_id = tokenizer.pad_token_id
@@ -105,7 +108,7 @@ index 63af4f79..adf8e18c 100644
  
      @contextmanager
      def update_sampling_params(self, **kwargs):
-@@ -384,7 +444,7 @@ class vLLMRollout(BaseRollout):
+@@ -384,7 +445,7 @@ class vLLMRollout(BaseRollout):
                  prompts=vllm_inputs,  # because we have already convert it to prompt token id
                  sampling_params=self.sampling_params,
                  lora_request=lora_requests,
@@ -114,3 +117,13 @@ index 63af4f79..adf8e18c 100644
              )
  
              # TODO(sgm): disable logprob when recompute_log_prob is enable
+@@ -494,6 +555,9 @@ class vLLMRollout(BaseRollout):
+             model = self.inference_engine.llm_engine.model_executor.driver_worker.worker.model_runner.model
+             patch_vllm_moe_model_weight_loader(model)
+             model.load_weights(weights)
++            vllm_config = self.inference_engine.llm_engine.vllm_config.model_config
++            device = next(model.parameters()).device
++            process_weights_after_loading(model, vllm_config, device)
+ 
+ 
+ # https://github.com/vllm-project/vllm/issues/13175

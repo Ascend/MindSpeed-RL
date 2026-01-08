@@ -1,0 +1,13 @@
+diff --git a/megatron/core/transformer/dot_product_attention.py b/megatron/core/transformer/dot_product_attention.py
+index cb52fca1f..c7ec1696f 100644
+--- a/megatron/core/transformer/dot_product_attention.py
++++ b/megatron/core/transformer/dot_product_attention.py
+@@ -42,6 +42,8 @@ class DotProductAttention(MegatronModule):
+         attention_dropout: float = None,
+         softmax_scale: float = None,
+         cp_comm_type: str = None,
++        k_channels: str = None, 
++        v_channels: str = None, 
+     ):
+         super().__init__(config=config)
+ 

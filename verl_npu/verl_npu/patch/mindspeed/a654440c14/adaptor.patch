@@ -1,0 +1,13 @@
+diff --git a/mindspeed/core/transformer/flash_attention/flash_attention/adaptor.pyy b/mindspeed/core/transformer/flash_attention/flash_attention/adaptor.py
+index 026faec1..b703cf6b 100644
+--- a/mindspeed/core/transformer/flash_attention/flash_attention/adaptor.py
++++ b/mindspeed/core/transformer/flash_attention/flash_attention/adaptor.py
+@@ -44,7 +44,7 @@ def dot_product_attention_forward_impl(
+     if attn_mask_type == AttnMaskType.no_mask:
+         sparse_mode = 0  # default mask
+ 
+-    scale = self.softmax_scale
++    scale = self.softmax_scale if self.softmax_scale is not None else (1.0 / math.sqrt(self.hidden_size_per_attention_head))
+ 
+     if packed_seq_params is not None: # TND
+         if isinstance(packed_seq_params.cu_seqlens_q, list):

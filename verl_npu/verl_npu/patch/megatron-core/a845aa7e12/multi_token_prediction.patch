@@ -1,0 +1,17 @@
+diff --git a/megatron/core/transformer/multi_token_prediction.py b/megatron/core/transformer/multi_token_prediction.py
+old mode 100755
+new mode 100644
+index c390c35e6..db25d0874
+--- a/megatron/core/transformer/multi_token_prediction.py
++++ b/megatron/core/transformer/multi_token_prediction.py
+@@ -652,6 +652,10 @@ class MultiTokenPredictionBlock(MegatronModule):
+         Returns:
+             (Tensor): The mtp loss tensor of shape [b, s].
+         """
++        if labels is None:
++            print(f"labels is None, skip mtp loss calculation.")
++            return hidden_states
++
+         assert (
+             labels is not None
+         ), f"labels should not be None for calculating multi token prediction loss."

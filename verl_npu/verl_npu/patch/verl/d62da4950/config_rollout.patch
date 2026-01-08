@@ -1,0 +1,28 @@
+diff --git a/verl/workers/config/rollout.py b/verl/workers/config/rollout.py
+index b3f2aca3..da5c5559 100644
+--- a/verl/workers/config/rollout.py
++++ b/verl/workers/config/rollout.py
+@@ -135,6 +135,7 @@ class RolloutConfig(BaseConfig):
+     enforce_eager: bool = True
+     cudagraph_capture_sizes: Optional[list] = None
+     free_cache_engine: bool = True
++    dp_model_parallel_size: int = 1
+     data_parallel_size: int = 1
+     expert_parallel_size: int = 1
+     tensor_model_parallel_size: int = 2
+
+
+diff --git a/verl/trainer/config/rollout/rollout.yaml b/verl/trainer/config/rollout/rollout.yaml
+index b57687ab..0228b798 100644
+--- a/verl/trainer/config/rollout/rollout.yaml
++++ b/verl/trainer/config/rollout/rollout.yaml
+@@ -49,6 +49,9 @@ free_cache_engine: True
+ # TP size for rollout. Not effective for hf
+ tensor_model_parallel_size: 2
+ 
++# DP size for rollout model
++dp_model_parallel_size: 1
++
+ # DP size for rollout
+ data_parallel_size: 1
+

@@ -247,6 +247,9 @@ class RayGRPOTrainer(RayBaseTrainer):
                     self.tensorboard.add_scalar(f"train/{k}", v, iteration)
             if self.wandb is not None:
                 self.wandb.log_metrics(metrics.metric, iteration)
+            if self.swanlab is not None:
+                self.swanlab.log_metrics(metrics.metric, iteration)
+
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
                 self.save_checkpoint(iteration)
 

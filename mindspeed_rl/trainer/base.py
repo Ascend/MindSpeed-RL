@@ -8,7 +8,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.utils.compute_utils import FixedKLController, AdaptiveKLController
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
-from mindspeed_rl.utils.loggers import WandbLogger
+from mindspeed_rl.utils.loggers import WandbLogger, SwanLabLogger
 
 
 class RayBaseTrainer(object):
@@ -91,6 +91,9 @@ class RayBaseTrainer(object):
 
         self.wandb = None
         self.tensorboard = None
+        self.swanlab = None
+        if kwargs.get("use_swanlab", ""):
+            self.swanlab = SwanLabLogger(kwargs)
         if kwargs.get("use_wandb", ""):
             self.wandb = WandbLogger(kwargs)
         if kwargs.get("use_tensorboard", "") and self.wandb is None:

@@ -26,6 +26,16 @@ def add_config(rl_config_dict, profiler_config_dict, megatron_config):
     if 'wandb_save_dir' in rl_config_dict:
         megatron_config.wandb_save_dir = rl_config_dict['wandb_save_dir']
 
+    # add swanlab config
+    if 'use_swanlab' in rl_config_dict:
+        megatron_config.use_swanlab = rl_config_dict['use_swanlab']
+    if 'swanlab_exp_name' in rl_config_dict:
+        megatron_config.swanlab_exp_name = rl_config_dict['swanlab_exp_name']
+    if 'swanlab_project' in rl_config_dict:
+        megatron_config.swanlab_project = rl_config_dict['swanlab_project']
+    if 'swanlab_save_dir' in rl_config_dict:
+        megatron_config.swanlab_save_dir = rl_config_dict['swanlab_save_dir']
+
     # add profile config
     for key, value in profiler_config_dict.items():
         if 'profile' in key:

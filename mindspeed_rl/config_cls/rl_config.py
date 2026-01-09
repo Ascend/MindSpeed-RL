@@ -105,6 +105,11 @@ class RLConfig(BaseConfig):
         self.wandb_project = ""
         self.wandb_exp_name = ""
         self.wandb_save_dir = ""
+        self.use_swanlab = False
+        self.swanlab_mode = ""
+        self.swanlab_project = ""
+        self.swanlab_exp_name = ""
+        self.swanlab_save_dir = ""
         self.blocking = True
         self.async_engine = False
         self.guarantee_order = False

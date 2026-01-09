@@ -17,7 +17,7 @@ from .workers import (
     RayActorGroup, MegatronShardingManager, RuleReward
 )
 from .utils import (
-    get_tokenizer, Metric, WandbLogger, get_batch_metrices_mean,
+    get_tokenizer, Metric, WandbLogger, SwanLabLogger, get_batch_metrices_mean,
     num_floating_point_operations, seed_all, synchronize_time, parse_args_from_config,
     extract_answer, choice_answer_clean, math_equal
 )
@@ -28,7 +28,7 @@ __all__ = [
     'build_train_valid_test_datasets', 'get_train_valid_test_num_samples',
     'LossFuncFactory', 'GRPOActorLossFunc', 'ReferenceLossFunc', 'RewardLossFunc',
     'Actor', 'ActorRolloutHybrid', 'Reference', 'Reward', 'RayGRPOTrainer',
-    'get_tokenizer', 'WandbLogger', 'Metric',
+    'get_tokenizer', 'WandbLogger', 'SwanLabLogger', 'Metric',
     'get_batch_metrices_mean', 'num_floating_point_operations',
     'seed_all', 'synchronize_time', 'parse_args_from_config',
     'extract_answer', 'choice_answer_clean', 'math_equal',

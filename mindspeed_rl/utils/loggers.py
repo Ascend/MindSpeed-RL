@@ -17,7 +17,7 @@ class Loggers(object):
                  ):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logger_level)
-        
+
         if not self.logger.handlers:
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logger_level)
@@ -74,6 +74,7 @@ class WandbLogger(Loggers):
     一般在trainer中初始化WandbLogger, 记录待可视化的训练指标
 
     """
+
     def __init__(self, kwargs):
         super(WandbLogger, self).__init__()
 
@@ -126,9 +127,9 @@ class WandbLogger(Loggers):
             logging.warning(f"Failed to initialize wandb as {e}, switch to offline mode")
             os.environ["WANDB_MODE"] = "offline"
             self.wandb.init(**wandb_kwargs)
-    
+
     def get_WanDB_API_KEY(self):
-        raise NotImplementedError("The method to get the wandb API key has not been implemented yet.") 
+        raise NotImplementedError("The method to get the wandb API key has not been implemented yet.")
 
     def log_metrics(self, metrics, step=None):
         """
@@ -173,3 +174,80 @@ class WandbLogger(Loggers):
         """
         if self.wandb:
             self.wandb.finish()
+
+
+class SwanLabLogger(Loggers):
+    """
+    一般在trainer中初始化SwanLabLogger, 记录待可视化的训练指标
+
+    """
+
+    def __init__(self, kwargs):
+        super(SwanLabLogger, self).__init__()
+
+        self.swanlab = None
+        if kwargs.get("swanlab_project", ""):
+            self._init_swanlab(kwargs)
+
+    def _import_swanlab(self):
+        try:
+            import swanlab
+        except ImportError as e:
+            raise ImportError('Please run "pip install swanlab" to install swanlab') from e
+        self.swanlab = swanlab
+
+    def _init_swanlab(self, kwargs):
+        if self.swanlab is None:
+            self._import_swanlab()
+
+        if kwargs.get("swanlab_exp_name", "") == "":
+            raise ValueError("Please specify the swanlab experiment name!")
+        if kwargs.get("swanlab_save_dir", ""):
+            save_dir = kwargs["swanlab_save_dir"]
+        else:
+            # Defaults to the save dir.
+            save_dir = os.path.join("./", 'swanlab')
+        swanlab_kwargs = {
+            'project': kwargs["swanlab_project"],
+            'experiment_name': kwargs["swanlab_exp_name"],
+            'logdir': save_dir,
+            'mode': kwargs["swanlab_mode"]
+        }
+        os.makedirs(swanlab_kwargs['logdir'], exist_ok=True)
+
+        # 初始化 swanlab
+        try:
+            from loguru import logger
+            self.swanlab.init(**swanlab_kwargs)
+        except Exception as e:
+            logging.warning(f"Failed to initialize swanlab as {e}")
+
+    def log_metrics(self, metrics, step=None):
+        """
+        记录指标，x轴默认是step。
+
+        :param metrics: dict[str, Any]. 指标字典，例如 {"accuracy": 0.95, "loss": 0.1}
+        :param step: (int| None). 当前step（可选）
+
+        for example:
+        swanlab_logger = SwanLabLogger()
+        swanlab_logger.log_metrics({"train-loss": 0.4}, step=step)
+
+        """
+        if self.swanlab:
+            self.swanlab.log(metrics, step=step)
+
+    def log_config(self, config):
+        """
+        记录配置（超参数）。
+        :param config: 配置字典
+        """
+        if self.swanlab:
+            self.swanlab.config.update(config)
+
+    def finish(self):
+        """
+        结束 swanlab 运行。
+        """
+        if self.swanlab:
+            self.swanlab.finish()

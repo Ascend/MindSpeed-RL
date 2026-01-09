@@ -8,7 +8,6 @@ set -xeuo pipefail
 
 project_name='DAPO'
 exp_name='DAPO-qwen3-235b-megatron'
-RUNTIME_ENV=verl/trainer/mc2_env.yaml
 
 adv_estimator=grpo
 

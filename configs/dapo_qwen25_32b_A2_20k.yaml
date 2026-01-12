@@ -33,7 +33,6 @@ megatron_training:
   no_shuffle: false
   full_shuffle_instruction_dataset: false
   seed: 1
-  reset_position_ids: true
   reset_attention_mask: true
 
 actor_config:
@@ -108,7 +107,7 @@ rl_config:
     num_npus: 64
 
 generate_config:
-  enforce_eager: True
+  enforce_eager: true
   trust_remote_code: true
   offload_train_optimizer: true
   offload_train_grad: true
@@ -124,7 +123,7 @@ generate_config:
   max_model_len: 22528
   max_num_batched_tokens: 22528
   dtype: "bfloat16"
-  gpu_memory_utilization: 0.8
+  gpu_memory_utilization: 0.85
 
   # 采样配置
   sampling_config:

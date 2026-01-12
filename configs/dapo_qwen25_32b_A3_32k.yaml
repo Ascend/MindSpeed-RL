@@ -33,7 +33,6 @@ megatron_training:
   no_shuffle: false
   full_shuffle_instruction_dataset: false
   seed: 1
-  reset_position_ids: true
   reset_attention_mask: true
 
 actor_config:

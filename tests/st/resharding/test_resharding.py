@@ -330,8 +330,6 @@ class TestActor():
             infer_tensor_parallel_size=args.infer_tp,
             infer_pipeline_parallel_size=args.infer_pp,
             infer_expert_parallel_size=args.infer_ep,
-            infer_prefill_context_parallel_size=args.infer_prefill_context_parallel_size,
-            infer_decode_context_parallel_size=args.infer_decode_context_parallel_size,
             sampling_config=sampling_config,
             max_num_seqs=16,
             max_model_len=4096,
@@ -397,8 +395,6 @@ def parse_args():
     parser.add_argument("--infer-tp", type=int, default=4)
     parser.add_argument("--infer-pp", type=int, default=1)
     parser.add_argument("--infer-ep", type=int, default=1)
-    parser.add_argument("--infer-prefill-context-parallel-size", type=int, default=1)
-    parser.add_argument("--infer-decode-context-parallel-size", type=int, default=1)
     return parser.parse_args()
 
 

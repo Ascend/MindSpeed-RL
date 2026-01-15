@@ -1,16 +1,16 @@
 # 安装指南
 
-## 版本配套表
+##  版本配套表
 
 MindSpeed RL支持Atlas 800T A2等昇腾训练硬件形态。软件版本配套表如下：
 
-| MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本 | Python版本 |
-| ---------------- | ------------ | ----------- | ------------- | -------- | ---------- |
-| master（主线）   | Core 0.12.0  | 2.7.1       | 2.7.1         | 8.5.0    | Python3.10 |
-| 2.3.0（商分）    | Core 0.12.0  | 2.5.1       | 2.5.1         | 8.5.0    | Python3.10 |
-| 2.2.0（商分）    | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.3.RC1  | Python3.10 |
-| 2.1.0（商分）    | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.2.RC1  | Python3.10 |
-| 2.0.0（预览）    | Core 0.8.0   | 2.5.1       | 2.5.1         | 8.1.RC1  | Python3.10 |
+| MindSpeed RL版本 | Megatron版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
+| ---------------- | ------------ |-----------|-------------|---------| ---------- |
+| master（主线）   | Core 0.12.0   | 2.7.1     | 2.7.1       | 8.5.0 | Python3.10 |
+| 2.3.0（商分）    | Core 0.12.0   | 2.5.1     | 2.5.1       | 8.5.0 | Python3.10 |
+| 2.2.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.3.RC1 | Python3.10 |
+| 2.1.0（商分）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.2.RC1 | Python3.10 |
+| 2.0.0（预览）    | Core 0.8.0   | 2.5.1     | 2.5.1       | 8.1.RC1 | Python3.10 |
 
 [昇腾辅助软件](https://gitcode.com/Ascend/pytorch/tree/master#%E6%98%87%E8%85%BE%E8%BE%85%E5%8A%A9%E8%BD%AF%E4%BB%B6)中有更多关于PyTorch和CANN的版本信息。
 
@@ -77,9 +77,7 @@ bash Ascend-hdk-*-npu-driver_*.run --full
 ```
 
 ### CANN安装
-
 （注：下载参考：[商用稳定版CANN](https://www.hiascend.com/developer/download/commercial/result?module=cann)和[8.5.0 社区体验版CANN](https://www.hiascend.com/developer/download/community/result?module=cann)）
-
 ```shell
 bash Ascend-cann-toolkit_*_linux-aarch64.run --install
 bash Ascend-cann-A3-ops_*_linux-aarch64.run --install
@@ -89,27 +87,23 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 ```
 
 ### vllm及相关依赖安装：
-
 （注：环境中需要安装git，因为vllm的安装过程依赖git）
-
 ```shell
 # pydantic高版本包会产生冲突，指定版本安装
 pip install pydantic==2.12.0
-git clone https://github.com/vllm-project/vllm.git
+git clone -b releases/v0.11.0 https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout ad32e3e19ccf0526cb6744a5fed09a138a5fb2f9
+git checkout b8b302c
 VLLM_TARGET_DEVICE=empty pip install .
 cd ..
 ```
 
 ### vllm_ascend安装
-
 （注：若机器为x86架构，需要先进行[PyTorch框架安装](#PyTorch框架安装)中的torch和torch_npu安装，安装vllm_ascend时，注释requirements.txt和pyproject.toml中torch和torch_npu的安装）
-
 ```shell
-git clone https://github.com/vllm-project/vllm-ascend.git
+git clone -b v0.11.0-dev https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
-git checkout 0983c5510aa49c7310b79db72657d8a0f92918ec
+git checkout 1b16c01
 pip install -r requirements.txt
 export COMPILE_CUSTOM_KERNELS=1
 python setup.py install
@@ -120,7 +114,6 @@ python setup.py install
 ```shell
 pip install ray==2.42.1
 ```
-
 ```shell
 # ray 生成的日志文件夹权限修改
 # 此处针对 ray==2.42.1 实现
@@ -130,10 +123,8 @@ sed -i 's/os.chmod(\(.*\), 0o0777)/os.chmod(\1, 0o0750)/g' "$UTILS_PATH"
 ```
 
 ### PyTorch框架安装
-
 （注：[PyTorch框架和torch_npu插件安装教程](https://www.hiascend.com/document/detail/zh/Pytorch/710/configandinstg/instg/insg_0004.html)）
 可从[PyTorch-Ascend官方代码仓](https://gitcode.com/Ascend/pytorch/releases)获取PyTorch各个版本对应的torch_npu的whl包，也可以通过本仓库对应版本的[vllm-ascend官方代码仓的requirements](https://github.com/vllm-project/vllm-ascend/blob/v0.11.0-dev/requirements.txt)中的安装方式安装torch和torch_npu。
-
 ```shell
 # 安装torch和torch_npu
 pip install torch-2.7.1-cp310-cp310-*.whl
@@ -144,19 +135,13 @@ pip install apex-0.1.dev*.whl
 ```
 
 ### 高性能内存库 jemalloc 安装
-
 为了确保 Ray 进程能够正常回收内存，需要安装并使能 jemalloc 库进行内存管理。
-
 #### Ubuntu 操作系统
-
 通过操作系统源安装jemalloc（注意： 要求ubuntu版本>=20.04）：
-
 ```shell
 sudo apt install libjemalloc2
 ```
-
 在启动任务前执行如下命令通过环境变量导入jemalloc，需先通过 **find /usr -name libjemalloc.so.2** 确认文件是否存在 ：
-
 ```shell
 # arm64架构
 export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
@@ -167,14 +152,11 @@ export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 #### OpenEuler 操作系统
 
 执行如下命令重操作系统源安装jemalloc
-
 ```shell
 yum install jemalloc
 ```
-
 如果上述方法无法正常安装，可以通过源码编译安装
 前往jemalloc官网下载最新稳定版本，官网地址:https://github.com/jemalloc/jemalloc/releases/
-
 ```shell
 tar -xvf jemalloc-{version}.tar.bz2
 cd jemalloc-{version}
@@ -182,9 +164,7 @@ cd jemalloc-{version}
 make
 make install
 ```
-
 在启动任务前执行如下命令通过环境变量导入jemalloc：
-
 ```shell
 #根据实际安装路径设置环境变量，例如安装路径为:/usr/local/lib/libjemalloc.so.2,可通过以下命令来设置环境变量(可通过 find /usr -name libjemalloc.so.2 确认文件是否存在)
 export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
@@ -193,7 +173,6 @@ export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 > 如以上安装过程出现错误，可以通过提出issue获得更多解决建议。
 
 ## 准备源码
-
 ```shell
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 
@@ -223,7 +202,6 @@ pip install antlr4-python3-runtime==4.9.3 --no-deps
 ```
 
 ## FAQ
-
 Q：安装过程中出现的软件依赖冲突，是否会影响正常运行？
 
 A：建议软件安装顺序严格按照安装指南从上到下进行，此时遇到依赖冲突不会影响正常运行

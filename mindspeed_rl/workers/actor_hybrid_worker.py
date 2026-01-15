@@ -836,8 +836,6 @@ class ActorHybridWorkerBase(BaseWorker):
             infer_tensor_parallel_size=self.generate_config.infer_tensor_parallel_size,
             infer_pipeline_parallel_size=self.generate_config.infer_pipeline_parallel_size,
             infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
-            infer_prefill_context_parallel_size=self.generate_config.infer_prefill_context_parallel_size,
-            infer_decode_context_parallel_size=self.generate_config.infer_decode_context_parallel_size,
             megatron_config=self.megatron_config,
             sampling_config=sampling_config,
             enable_prefix_caching=self.generate_config.enable_prefix_caching,
@@ -868,7 +866,7 @@ class ActorHybridWorkerBase(BaseWorker):
 
             from vllm.distributed import parallel_state as vpu
             if vpu.get_tensor_model_parallel_rank() == 0 and \
-                vpu.get_pp_group().rank_in_group == 0:
+                vpu.get_pipeline_model_parallel_group().rank_in_group == 0:
                 server_info = ZmqServerInfo()
                 server_info.global_rank = self._rank
                 server_info.dp_world_size = (vpu.get_tensor_model_parallel_world_size() *

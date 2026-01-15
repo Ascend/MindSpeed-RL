@@ -92,7 +92,14 @@ def initialize_kv_cache(self, kv_cache_config: KVCacheConfig) -> None:
 
     self.may_reinitialize_input_batch(kv_cache_config)
 
-    kv_caches = self.initialize_kv_cache_tensors(kv_cache_config)
+    if self.use_sparse:
+        kv_caches = self.initialize_kv_cache_tensors_deepseek_sfa(
+            kv_cache_config)
+    elif self.model_config.is_deepseek_mla:
+        kv_caches = self.initialize_kv_cache_tensors_deepseek_mla(
+            kv_cache_config)
+    else:
+        kv_caches = self.initialize_kv_cache_tensors(kv_cache_config)
     if has_kv_transfer_group():
         get_kv_transfer_group().register_kv_caches(kv_caches)
 

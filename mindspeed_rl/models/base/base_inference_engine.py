@@ -21,8 +21,6 @@ class BaseInferEngine(ABC):
             infer_tensor_parallel_size: int = 8,
             infer_pipeline_parallel_size: int = 1,
             infer_expert_parallel_size: int = 1,
-            infer_prefill_context_parallel_size: int = 1,
-            infer_decode_context_parallel_size: int = 1,
             max_num_seqs: int = 1,  # Default value set to 1
             max_model_len: int = 2048,  # Default value set to 2048
             dtype: str = "bfloat16",  # Default value set to "bfloat16"
@@ -42,8 +40,6 @@ class BaseInferEngine(ABC):
             infer_tensor_parallel_size (int): Tensor parallel size during inference.
             infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
             infer_expert_parallel_size (int): Expert parallel size during inference.
-            infer_prefill_context_parallel_size (int): Prefill context parallel size during inference.
-            infer_decode_context_parallel_size (int): Decode context parallel size during inference.
             max_num_seqs (int): Maximum number of sequences to process simultaneously. Default is 1.
             max_model_len (int): Maximum model length (in tokens). Default is 2048.
             dtype (str): Data type for model weights. Default is "bfloat16".
@@ -61,8 +57,6 @@ class BaseInferEngine(ABC):
         self.infer_tensor_parallel_size = infer_tensor_parallel_size
         self.infer_pipeline_parallel_size = infer_pipeline_parallel_size
         self.infer_expert_parallel_size = infer_expert_parallel_size
-        self.infer_prefill_context_parallel_size = infer_prefill_context_parallel_size
-        self.infer_decode_context_parallel_size = infer_decode_context_parallel_size
         self.max_num_seqs = max_num_seqs
         self.max_model_len = max_model_len
         self.dtype = dtype

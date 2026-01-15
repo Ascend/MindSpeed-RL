@@ -169,14 +169,6 @@ def validate_rl_args(
     if generate_config.infer_pipeline_parallel_size > 1:
         raise ValueError(
             "pipeline_parallel for vllm is not supported yet ! ")
-    
-    if generate_config.infer_prefill_context_parallel_size > 1:
-        raise ValueError(
-            "prefill_context_parallel for vllm is not supported yet ! ")
-
-    if generate_config.infer_decode_context_parallel_size > 1:
-        raise ValueError(
-            "decode_context_parallel for vllm is not supported yet ! ")
 
     if ref_config:
         ref_data_parallel_size = rl_config.reference_resource.num_npus // (

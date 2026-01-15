@@ -43,6 +43,10 @@ _EP = None
 _MC2 = None
 # Data model parallel group that the current rank belongs to.
 _DP = None
+# Prefill context model parallel group that the current rank belongs to.
+_PCP = None
+# Decode context model parallel group that the current rank belongs to.
+_DCP = None
 
 # Tensor model parallel group
 _TP_GROUP_RANKS = None
@@ -64,6 +68,8 @@ def initialize_parallel_state(
         train_expert_model_parallel_size: int = 1,
         infer_expert_model_parallel_size: int = 1,
         train_context_model_parallel_size: int = 1,
+        infer_prefill_context_model_parallel_size: int = 1,
+        infer_decode_context_model_parallel_size: int = 1,
 ):
     os.environ["TORCH_NCCL_AVOID_RECORD_STREAMS"] = "1"
 
@@ -87,7 +93,9 @@ def initialize_parallel_state(
             infer_expert_tensor_parallel_size=infer_expert_tensor_parallel_size,
             train_expert_model_parallel_size=train_expert_model_parallel_size,
             infer_expert_model_parallel_size=infer_expert_model_parallel_size,
-            train_context_model_parallel_size=train_context_model_parallel_size
+            train_context_model_parallel_size=train_context_model_parallel_size,
+            infer_prefill_context_model_parallel_size=infer_prefill_context_model_parallel_size,
+            infer_decode_context_model_parallel_size=infer_decode_context_model_parallel_size
         )
     else:
         initialize_model_parallel(infer_tensor_model_parallel_size, infer_pipeline_model_parallel_size, backend)
@@ -102,6 +110,8 @@ def initialize_model_parallel_for_vllm(
         train_expert_model_parallel_size: int = 1,
         infer_expert_model_parallel_size: int = 1,
         train_context_model_parallel_size: int = 1,
+        infer_prefill_context_model_parallel_size: int = 1,
+        infer_decode_context_model_parallel_size: int = 1,
         rebulid_EP_group: bool = False
 ) -> None:
 
@@ -117,7 +127,7 @@ def initialize_model_parallel_for_vllm(
         raise ValueError("tensor model parallel group is already initialized")
 
     global _TP
-
+    
     world_size: int = torch.distributed.get_world_size()
 
     backend = torch.distributed.get_backend()
@@ -197,7 +207,41 @@ def initialize_model_parallel_for_vllm(
         backend=backend,
         use_message_queue_broadcaster=True,
     )
+
     ps._TP = _TP
+
+    global _PCP
+    pcp_group_ranks = []
+    num_pcp_model_parallel_groups: int = world_size // infer_prefill_context_model_parallel_size
+    for i in range(num_pcp_model_parallel_groups):
+        ranks = list(range(i, world_size, num_pcp_model_parallel_groups))
+        pcp_group_ranks.append(ranks)
+    logger.info(f"PCP rank: {pcp_group_ranks}")
+    _PCP = init_model_parallel_group(
+        group_ranks=pcp_group_ranks,
+        local_rank=get_world_group().local_rank,
+        backend=backend,
+        use_message_queue_broadcaster=True,
+    )
+    ps._PCP = _PCP
+
+    global _DCP
+    dcp_group_ranks = []
+    num_dcp_model_parallel_groups: int = world_size // infer_decode_context_model_parallel_size
+    for i in range(num_dcp_model_parallel_groups):
+        ranks = list(range(i, world_size, num_dcp_model_parallel_groups))
+        dcp_group_ranks.append(ranks)
+    logger.info(f"DCP rank: {dcp_group_ranks}")
+
+    _DCP = init_model_parallel_group(
+        group_ranks=dcp_group_ranks,
+        local_rank=get_world_group().local_rank,
+        backend=backend,
+        use_message_queue_broadcaster=True,
+    )
+    ps._DCP = _DCP
+
+
     num_pipeline_model_parallel_groups: int = world_size // infer_pipeline_model_parallel_size
     global _PP
     if _PP is not None:
@@ -295,6 +339,7 @@ def initialize_model_parallel_for_vllm(
                                        get_world_group().local_rank,
                                        backend,
                                        group_name="dp")
+
 
     os.environ["VLLM_DP_RANK"] = str(ps._DP.rank_in_group)
     envs.VLLM_DP_RANK = int(os.environ["VLLM_DP_RANK"])

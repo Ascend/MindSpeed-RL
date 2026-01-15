@@ -40,6 +40,8 @@ class VLLMInferEngine(BaseInferEngine):
             infer_tensor_parallel_size: int,
             infer_pipeline_parallel_size: int,
             infer_expert_parallel_size: int,
+            infer_prefill_context_parallel_size: int,
+            infer_decode_context_parallel_size: int,
             sampling_config: dict,
             prompt_type: str = None,
             prompt_type_path: str = None,
@@ -104,6 +106,8 @@ class VLLMInferEngine(BaseInferEngine):
             gpu_memory_utilization=gpu_memory_utilization,
             trust_remote_code=trust_remote_code,
             enable_expert_parallel=enable_expert_parallel,
+            infer_prefill_context_parallel_size=infer_prefill_context_parallel_size,
+            infer_decode_context_parallel_size=infer_decode_context_parallel_size
         )
         # Additional initialization logic for VLLMInferEngine
 
@@ -159,7 +163,9 @@ class VLLMInferEngine(BaseInferEngine):
                 train_pipeline_model_parallel_size=train_pipeline_parallel_size,
                 train_expert_model_parallel_size=train_expert_parallel_size,
                 infer_expert_model_parallel_size=infer_expert_parallel_size,
-                train_context_model_parallel_size=train_context_parallel_size
+                train_context_model_parallel_size=train_context_parallel_size,
+                infer_prefill_context_model_parallel_size=infer_prefill_context_parallel_size,
+                infer_decode_context_model_parallel_size=infer_decode_context_parallel_size
             )
 
         if load_format == "megatron":
@@ -181,6 +187,7 @@ class VLLMInferEngine(BaseInferEngine):
             model=tokenizer_name_or_path,
             trust_remote_code=trust_remote_code,
             tensor_parallel_size=infer_tensor_parallel_size,
+            prefill_context_parallel_size=infer_prefill_context_parallel_size,
             load_format='dummy' if load_format == 'megatron' else load_format,
             distributed_executor_backend="external_launcher",
             enable_prefix_caching=enable_prefix_caching,
@@ -246,8 +253,7 @@ class VLLMInferEngine(BaseInferEngine):
             ctx = worker.model_runner.vllm_config.compilation_config.static_forward_context
         else:
             ctx = self.llm.llm_engine.model_executor.driver_worker.worker.compilation_config.static_forward_context
-        from vllm.attention import AttentionType
-
+        from vllm.attention.backends.abstract import AttentionType
         layer_need_kv_cache = []
         for layer_name in ctx:
             if hasattr(ctx[layer_name], 'attn_type') and ctx[layer_name].attn_type in (AttentionType.DECODER, AttentionType.ENCODER_DECODER):
@@ -361,12 +367,14 @@ class VLLMInferEngine(BaseInferEngine):
             idx_list = None
         else:
             prompts = [self.tokenizer.tokenizer.decode(p, skip_special_tokens=True) for p in idx_list]
+
         with self.update_sampling_params(**kwargs):
             response = self.llm.generate(
                 prompts=prompts,
                 sampling_params=self.sampling_params,
                 use_tqdm=False
             )
+            
             outs = self._post_process_outputs(response)
         self.free_cache_engine()
         return outs

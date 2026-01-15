@@ -21,6 +21,8 @@ class GenerateConfig(BaseConfig):
     infer_tensor_parallel_size: Tensor parallel size during inference. Default is 8.
     infer_pipeline_parallel_size: Pipeline parallel size during inference. Default is 1.
     infer_expert_parallel_size: Expert parallel size during inference. Default is 1.
+    infer_prefill_context_parallel_size: Prefill context parallel size during inference. Default is 1.
+    infer_decode_context_parallel_size: Decode context parallel size during inference. Default is 1.
 
     max_num_seqs: Maximum number of sequences to process simultaneously. Default is 256.
     max_model_len: Maximum model length (in tokens). Default is 2048.
@@ -73,6 +75,12 @@ class GenerateConfig(BaseConfig):
         # 推理时的流水线并行大小，默认为 1
         self.infer_pipeline_parallel_size = 1
 
+        # 推理时的Prefill上下文并行并行大小，默认为 1
+        self.infer_prefill_context_parallel_size = 1
+        
+        # 推理时的Decode上下文并行并行大小，默认为 1
+        self.infer_decode_context_parallel_size = 1
+        
         # 推理时的专家并行大小，默认为 1
         self.infer_expert_parallel_size = 1
 

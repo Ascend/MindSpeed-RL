@@ -24,13 +24,13 @@ from vllm.model_executor.layers.fused_moe.layer import (FusedMoE, UnquantizedFus
 
 import vllm_ascend.envs as envs_ascend
 from vllm_ascend.ascend_config import get_ascend_config
-from vllm_ascend.ascend_forward_context import FusedMoEState
+from vllm_ascend.ascend_forward_context import MoECommType
 from vllm_ascend.distributed.parallel_state import get_mc2_group
 from vllm_ascend.ops.expert_load_balancer import ExpertLoadBalancer
-from vllm_ascend.ops.moe.experts_selector import select_experts
-from vllm_ascend.ops.common_fused_moe import AscendFusedMoE
-from vllm_ascend.utils import (AscendSocVersion, dispose_tensor, get_ascend_soc_version, npu_stream_switch)
-from vllm_ascend.torchair.utils import npu_wait_tensor, super_kernel
+from vllm_ascend.ops.fused_moe.experts_selector import select_experts
+from vllm_ascend.ops.fused_moe.fused_moe import AscendFusedMoE
+from vllm_ascend.utils import (AscendDeviceType, dispose_tensor, get_ascend_device_type, npu_stream_switch)
+
 import vllm_ascend
 
 
@@ -85,11 +85,11 @@ def fused_experts_with_mc2(
         ep_world_size)
 
     #  Currently, when in A3 or in torchair graph, we need to pass in some extra param into dispatch & combine
-    need_extra_args = get_ascend_soc_version(
-    ) == AscendSocVersion.A3 or is_torchair
+    need_extra_args = get_ascend_device_type(
+    ) == AscendDeviceType._910_93 or is_torchair
 
     #  Currently, when in A3, we need to pass in some extra param into dispatch & combine
-    a3_need_extra_args = get_ascend_soc_version() == AscendSocVersion.A3
+    a3_need_extra_args = get_ascend_device_type() == AscendDeviceType._910_93
 
     enable_dispatch_v2 = hasattr(torch_npu, "npu_moe_distribute_dispatch_v2")
 
@@ -137,10 +137,10 @@ def fused_experts_with_mc2(
 
     if shared_experts is not None:
         with npu_stream_switch("moe_secondary", 0):
-            npu_wait_tensor(hidden_states_for_share, topk_weights)
+            torch.npu.current_stream().synchronize()
             shared_gate_up, _ = shared_experts.gate_up_proj(
                 hidden_states_for_share)
-            npu_wait_tensor(shared_gate_up, expand_x)
+            torch.npu.current_stream().synchronize()
             shared_act = shared_experts.act_fn(shared_gate_up)
 
     w1 = w1.transpose(1, 2)
@@ -220,7 +220,7 @@ def fused_experts_with_mc2(
         return hidden_states, expert_token_nums, group_list_type
     else:
         with npu_stream_switch("moe_secondary", 0):
-            npu_wait_tensor(shared_act, down_out_list)
+            torch.npu.current_stream().synchronize()
             shared_hidden_states, _ = shared_experts.down_proj(shared_act)
         return hidden_states, shared_hidden_states, expert_token_nums, group_list_type
 

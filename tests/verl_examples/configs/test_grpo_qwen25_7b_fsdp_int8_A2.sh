@@ -9,23 +9,27 @@ export VLLM_LOGGING_LEVEL=DEBUG
 export VLLM_CONFIGURE_LOGGING=1
 export FLASHRL_LOGGING_LEVEL=DEBUG
 export FLASHRL_CONFIG='./.flashrl_config.7b.yaml'
-export FLASHRL_LMHEAD_FP32=0   # if set to 1, forcing vLLM conducting lm head compute in bf16
-
-train_prompt_bsz=32
-n_resp_per_prompt=4
-
-train_prompt_mini_bsz=32
-actor_micro_batch_size=4
-ref_micro_batch_size=4
-rollout_micro_batch_size=4
-
-max_prompt_length=512
-max_response_length=2048
+export FLASHRL_LMHEAD_FP32=1   # if set to 1, forcing vLLM conducting lm head compute in bf16
 
 RAY_DATA_HOME=${RAY_DATA_HOME:-"${HOME}/verl"}
 MODEL_PATH=${MODEL_PATH:-"${RAY_DATA_HOME}/models/qwen25-7b"}
 TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/gsm8k/train.parquet"}
 TEST_FILE=${TEST_FILE:-"${RAY_DATA_HOME}/data/gsm8k/test.parquet"}
+
+max_prompt_length=2048
+max_response_length=10240
+
+train_prompt_bsz=16
+train_prompt_mini_bsz=8
+n_resp_per_prompt=4
+
+use_remove_padding=True
+use_dynamic_bsz=True
+train_max_token_len=12288
+
+actor_micro_batch_size=2
+ref_micro_batch_size=2
+rollout_micro_batch_size=2
 
 # Importance Sampling (IS) weights configuration
 rollout_is="sequence"                     # Self-normalized sequence-level IS
@@ -55,7 +59,9 @@ python3 -m verl.trainer.main_ppo \
     data.truncation='error' \
     actor_rollout_ref.model.path=${MODEL_PATH} \
     actor_rollout_ref.actor.optim.lr=5e-8 \
-    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.model.use_remove_padding=${use_remove_padding} \
+    actor_rollout_ref.actor.use_dynamic_bsz=${use_dynamic_bsz} \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${train_max_token_len} \
     actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${actor_micro_batch_size} \
     actor_rollout_ref.actor.use_kl_loss=True \

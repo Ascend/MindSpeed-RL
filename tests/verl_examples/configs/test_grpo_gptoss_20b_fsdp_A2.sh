@@ -37,7 +37,7 @@ TEST_FILE=${TEST_FILE:-"${RAY_DATA_HOME}/data/gsm8k/test.parquet"}
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files= ${TRAIN_FILE}\
+    data.train_files=${TRAIN_FILE} \
     data.val_files=${TEST_FILE} \
     data.train_batch_size=${train_prompt_bsz} \
     actor_rollout_ref.rollout.n=${n_resp_per_prompt} \

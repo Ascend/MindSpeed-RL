@@ -15,11 +15,11 @@ cd vllm
 git checkout b8b302cde434df8c9289a2b465406b47ebab1c2d
 pip install -r requirements/build.txt
 VLLM_TARGET_DEVICE=empty pip install -v .
-# 此处的build安装的是torch以及torch-npu==2.8.0，需要更改成torch以及torch-npu==2.7.0，以下给出参考命令，vllm-ascend同
+# 此处的build安装的是torch以及torch-npu==2.8.0，需要更改成torch以及torch-npu==2.7.1，以下给出参考命令，vllm-ascend同
 # pip uninstall torch
 # pip uninstall torch-npu
-# pip install torch==2.7.0
-# pip uninstall torch-npu==2.7.0
+# pip install torch==2.7.1
+# pip install torch-npu==2.7.1
 cd ..
 
 # vllm-ascend==0.11.0

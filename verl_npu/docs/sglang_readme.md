@@ -27,7 +27,7 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 
 pip install torch-2.7.1-cp311-cp311-*
 pip install torch_npu-2.7.1-cp311-cp311-*
-pip install -i https://test.pypi.org/simple/triton-ascend/ triton_ascend==3.2.0.dev20251226
+pip install -i https://test.pypi.org/simple/ --trusted-host=test-files.pythonhosted.org --trusted-host=test.pypi.org triton_ascend==3.2.0.dev20251226
 ```
 
 
@@ -57,7 +57,7 @@ cd ..
 
 ## 5. 安装 verl
 
-**注意**：安装前需要将 `MindSpeed-RL/verl_npu` 下提供的 **[requirements-npu-sgl.txt](../requirement-npu-sgl.txt)** 移至verl文件夹下。
+**注意**：安装前需要将 `MindSpeed-RL/verl_npu` 下提供的 **[requirements-npu-sgl.txt](../requirements-npu-sgl.txt)** 移至verl文件夹下。
 
 ```bash
 # verl v0.6.1版本

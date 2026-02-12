@@ -12,7 +12,7 @@ from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
-from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
+from mindspeed_rl.trainer.utils.data_strategy import DataStrategy
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_ppo_data_metrics, apply_kl_penalty
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
@@ -95,6 +95,7 @@ class RayPPOTrainer(RayBaseTrainer):
 
         self.transfer_dock = None
         self.metrics = Metric()
+        self.data_strategy = DataStrategy(self.actor_worker.rl_config)
         self.kwargs = kwargs
         self.set_actor_log_prob_skip_flag()
         self.addition_columns = ['values']
@@ -104,13 +105,15 @@ class RayPPOTrainer(RayBaseTrainer):
         self.transfer_dock_init()
 
     def transfer_dock_init(self):
-        self.transfer_dock = GRPOTransferDock.remote(
-            self.global_batch_size,
-            self.n_samples_per_prompt,
-            self.metrics,
+        self.data_strategy.build_ppo(
+            prompts_num=self.global_batch_size,
+            n_samples_per_prompt=self.n_samples_per_prompt,
+            metrics=self.metrics,
             addition_columns=self.addition_columns,
-            addition_consumers=self.addition_consumers
+            addition_consumers=self.addition_consumers,
+            dataset_additional_keys=self.dataset_additional_keys,
         )
+        self.transfer_dock = self.data_strategy.td
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock)
         self.critic_worker.sync_init_transfer_dock(self.transfer_dock)
@@ -142,11 +145,11 @@ class RayPPOTrainer(RayBaseTrainer):
             logger.info('async start ppo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
 
         while iteration < self.train_iters:
-            ray.get(self.transfer_dock.clear.remote())
+            self.data_strategy.clear_main()
 
             batch = next(data_iters)
             batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes))
+            self.data_strategy.put_experience(batch, indexes)
 
             with Timer(name='iteration', logger=None) as all_timer:
                 # generate sequences
@@ -198,7 +201,7 @@ class RayPPOTrainer(RayBaseTrainer):
                     self.global_batch_size * self.n_samples_per_prompt,
                     self.guarantee_order
                 )
-                metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
+                metrics_result = self.data_strategy.get_metrics()
 
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_timer.last)
@@ -246,19 +249,15 @@ class RayPPOTrainer(RayBaseTrainer):
         if blocking:
             ray.get(compute_advantage_ref)
         end_adv_time = time.time()
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "timing/adv",
-                value=[round(end_adv_time, 4), round(start_adv_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "timing/adv",
+            value=[round(end_adv_time, 4), round(start_adv_time, 4)],
+            cumulate=True
         )
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "end_time/end_adv_time",
-                value=[round(end_adv_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "end_time/end_adv_time",
+            value=[round(end_adv_time, 4)],
+            cumulate=True
         )
 
     def apply_kl_penalty(self, blocking=False, guarantee_order=False):
@@ -277,19 +276,15 @@ class RayPPOTrainer(RayBaseTrainer):
         if blocking:
             ray.get(apply_kl_penalty_ref)
         end_kl_time = time.time()
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "timing/kl",
-                value=[round(end_kl_time, 4), round(start_kl_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "timing/kl",
+            value=[round(end_kl_time, 4), round(start_kl_time, 4)],
+            cumulate=True
         )
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "end_time/end_kl_time",
-                value=[round(end_kl_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "end_time/end_kl_time",
+            value=[round(end_kl_time, 4)],
+            cumulate=True
         )
 
     def save_checkpoint(self, iteration: int):

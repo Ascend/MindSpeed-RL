@@ -39,6 +39,7 @@ from mindspeed_rl.trainer.utils.parallel_state import get_tensor_model_parallel_
     get_tensor_model_parallel_src_rank, get_tensor_model_parallel_group
 
 
+
 class ActorState(Enum):
     NONE = "none"
     INFER = "infer"
@@ -350,7 +351,6 @@ class ActorHybridWorkerBase(BaseWorker):
         actor_generate_profiler = profiler_start(self.profiler_config, role="actor_generate",
                                                  profiler_iteration=self.prof_iteration)
         MsProbe.debugger_start(self.inference_model.model, tag='actor_generate_sequences')
-
 
         start_time = time.time()
         while self.all_consumed(experience_consumer_stage, sorted_indexes, use_vllm=True, is_generate=True) > 0:

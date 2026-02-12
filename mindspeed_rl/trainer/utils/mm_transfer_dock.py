@@ -69,6 +69,7 @@ class MMGRPOTransferDock(TransferDock):
 
     def get_experience(
             self,
+            consumer: str,
             experience_columns: List[str],
             indexes: List[int] = None,
             get_n_samples: bool = True,

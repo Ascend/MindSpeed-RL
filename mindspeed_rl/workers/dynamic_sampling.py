@@ -34,9 +34,14 @@ class DynamicSampling(object):
         assign_batch_size = self.global_batch_size * self.n_samples_per_prompt
         sorted_indexes = get_current_dp_range_indexes(experience_count=experience_count,
                                                       assign_batch_size=assign_batch_size) if self.guarantee_order else None
-        while not ray.get(self.sampling_transfer_dock.all_consumed.remote(experience_consumer_stage)):
+        sampling_td = self.sampling_transfer_dock
+        main_td = self.td
+        mm_sampling_td = self.mm_sampling_transfer_dock
+        mm_main_td = self.mm_td
+
+        while not ray.get(sampling_td.all_consumed.remote(experience_consumer_stage)):
             batch_data, index = ray.get(
-                self.sampling_transfer_dock.get_experience.remote(
+                sampling_td.get_experience.remote(
                     experience_consumer_stage,
                     experience_columns,
                     experience_count,
@@ -46,7 +51,6 @@ class DynamicSampling(object):
             )
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if batch_data and index:
-                # filter by metric values
                 metric_values = batch_data['metric_for_dapo']
                 kept_idx_list = []
                 for idx in range(0, experience_count, self.n_samples_per_prompt):
@@ -54,18 +58,20 @@ class DynamicSampling(object):
                     if np.std(metric_group) > 0 or len(metric_group) == 1:
                         kept_idx_list.extend(list(range(idx, idx + self.n_samples_per_prompt)))
                 if not kept_idx_list:
-                    logger.info(f"dynamic_sampling: kept_idx_list is empty")
+                    logger.info("dynamic_sampling: kept_idx_list is empty")
                     continue
 
-                index_list = ray.get(self.td.prefetch_request_index.remote(len(kept_idx_list)))
+                index_list = ray.get(main_td.prefetch_request_index.remote(len(kept_idx_list)))
                 if index_list:
                     kept_idx_list = kept_idx_list[:len(index_list)]
                     experience_data = extract_from_dict(batch_data, kept_idx_list)
                     experience_data = padding_dict_to_tensor_dict(experience_data)
-                    ray.get(self.td.put_experience.remote(experience_data, index_list))
-                    if is_multimodal():
-                        mm_columns = ray.get(self.mm_sampling_transfer_dock.get_columns.remote(experience_consumer_stage))
-                        batch_mm_data = ray.get(self.mm_sampling_transfer_dock.get_experience_dict.remote(mm_columns, kept_idx_list, False))
+                    ray.get(main_td.put_experience.remote(experience_data, index_list))
+                    if is_multimodal() and mm_sampling_td and mm_main_td:
+                        mm_columns = ray.get(mm_sampling_td.get_columns.remote(experience_consumer_stage))
+                        batch_mm_data = ray.get(
+                            mm_sampling_td.get_experience_dict.remote(mm_columns, kept_idx_list, False)
+                        )
                         mm_index_list = [i // self.n_samples_per_prompt for i in index_list]
-                        ray.get(self.mm_td.put_experience.remote(batch_mm_data, mm_index_list))
+                        ray.get(mm_main_td.put_experience.remote(batch_mm_data, mm_index_list))
 

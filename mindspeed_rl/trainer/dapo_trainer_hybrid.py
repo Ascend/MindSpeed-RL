@@ -8,8 +8,8 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.dynamic_sampling import DynamicSampling
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
-from mindspeed_rl.trainer.utils import MMGRPOTransferDock
-from mindspeed_rl.trainer.utils.transfer_dock import GRPOTransferDock, put_prompts_experience
+from mindspeed_rl.trainer.utils.data_strategy import DataStrategy
+from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_dapo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
@@ -91,6 +91,7 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.mm_transfer_dock = None
         self.mm_sampling_transfer_dock = None
         self.metrics = Metric()
+        self.data_strategy = DataStrategy(self.actor_worker.rl_config)
         self.kwargs = kwargs
         self.should_filter = kwargs['filter_groups_enable']
         self.max_num_prompt_in_batch = kwargs['filter_groups_train_batch_size']
@@ -114,32 +115,30 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
+        self.data_strategy.build_dapo(
+            should_filter=self.should_filter,
+            max_num_prompt_in_batch=self.max_num_prompt_in_batch,
+            td_max_len=self.td_max_len,
+            n_samples_per_prompt=self.n_samples_per_prompt,
+            metrics=self.metrics,
+            max_age=self.partial_rollout_max_split,
+            gbs_train=self.global_batch_size,
+            addition_columns=self.addition_columns,
+            addition_consumers=self.addition_consumers,
+            dataset_additional_keys=self.dataset_additional_keys,
+        )
+        self.transfer_dock = self.data_strategy.td
+        self.sampling_transfer_dock = self.data_strategy.sampling_td
+        self.mm_transfer_dock = self.data_strategy.mm_td
+        self.mm_sampling_transfer_dock = self.data_strategy.mm_sampling_td
         if self.should_filter:
-            # 存储动态采样过滤后的数据，用于计算损失、更新权重等
-            self.transfer_dock = GRPOTransferDock.remote(self.max_num_prompt_in_batch, self.n_samples_per_prompt,
-                                                         max_age=1, GBS_train=self.max_num_prompt_in_batch,
-                                                         metrics=self.metrics, addition_columns=self.addition_columns,
-                                                         addition_consumers=self.addition_consumers)
-            # 存储动态采样过滤前的数据，用于生成response、计算奖励等
-            self.sampling_transfer_dock = GRPOTransferDock.remote(self.td_max_len, self.n_samples_per_prompt,
-                                                                  max_age=self.partial_rollout_max_split,
-                                                                  GBS_train=self.global_batch_size,
-                                                                  metrics=self.metrics,
-                                                                  addition_columns=self.addition_columns,
-                                                                  addition_consumers=self.addition_consumers)
-            if is_multimodal():
-                self.mm_transfer_dock = MMGRPOTransferDock.remote(self.max_num_prompt_in_batch, self.n_samples_per_prompt)
-                self.mm_sampling_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
             for sampling in self.dynamic_sampling_list:
-                sampling.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
-        else:
-            self.transfer_dock = GRPOTransferDock.remote(self.td_max_len, self.n_samples_per_prompt,
-                                                         max_age=self.partial_rollout_max_split,
-                                                         GBS_train=self.global_batch_size,
-                                                         metrics=self.metrics, addition_columns=self.addition_columns,
-                                                         addition_consumers=self.addition_consumers)
-            if is_multimodal():
-                self.mm_transfer_dock = MMGRPOTransferDock.remote(self.global_batch_size, self.n_samples_per_prompt)
+                sampling.init_transfer_dock.remote(
+                    self.transfer_dock,
+                    self.mm_transfer_dock,
+                    self.sampling_transfer_dock,
+                    self.mm_sampling_transfer_dock,
+                )
 
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
         if self.ref_worker:
@@ -162,22 +161,23 @@ class RayDAPOTrainer(RayBaseTrainer):
 
     def put_experience_data(self, batch, data_num, add_another_batch):
         if self.should_filter:
-            ray.get(self.sampling_transfer_dock.clear.remote(consumer='dynamic_sampling'))
-            index_list = ray.get(self.sampling_transfer_dock.prefetch_request_index.remote(data_num))
+            self.data_strategy.clear_sampling(consumer='dynamic_sampling')
+            index_list = self.data_strategy.prefetch_sampling_index(data_num)
             if index_list:
                 if is_multimodal():
-                    ray.get(self.mm_sampling_transfer_dock.clear.remote())
-                    ray.get(self.mm_sampling_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+                    self.data_strategy.clear_mm(sampling=True)
+                    self.data_strategy.put_mm(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)],
+                                              sampling=True)
                 batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys,
                                                         indexes=index_list, add_another_batch=add_another_batch)
-                ray.get(self.sampling_transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+                self.data_strategy.put_sampling(batch, indexes, is_prompt=True)
         else:
             if is_multimodal():
-                ray.get(self.mm_transfer_dock.clear.remote())
-                ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+                self.data_strategy.clear_mm()
+                self.data_strategy.put_mm(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)])
             batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys,
                                                     add_another_batch=add_another_batch)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+            self.data_strategy.put_experience(batch, indexes, is_prompt=True)
 
     def fit(self, data_loader):
         """
@@ -279,7 +279,7 @@ class RayDAPOTrainer(RayBaseTrainer):
                                                           data_num,
                                                           self.guarantee_order,
                                                           self.multi_turn_enable)
-            metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
+            metrics_result = self.data_strategy.get_metrics()
             end_time = time.time()
             all_time += end_time - start_time
 
@@ -298,7 +298,7 @@ class RayDAPOTrainer(RayBaseTrainer):
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
                 self.save_checkpoint(iteration)
 
-            ray.get(self.transfer_dock.clear.remote())
+            self.data_strategy.clear_main()
             if self.should_filter:
                 logger.info(f"dapo fit clear")
                 # 刷新current train prompt num, 和filter_groups_train_batch_size比较
@@ -317,7 +317,7 @@ class RayDAPOTrainer(RayBaseTrainer):
         for sampling in self.dynamic_sampling_list:
             sampling_list.append(sampling.dynamic_sampling.remote())
         ray.get(sampling_list)
-        experience_data_num = ray.get(self.transfer_dock.get_cur_index.remote())
+        experience_data_num = self.data_strategy.get_cur_index()
         self.num_prompt_in_batch = experience_data_num // self.n_samples_per_prompt
         logger.info(f"dynamic_sampling: num_prompt_in_batch {self.num_prompt_in_batch}")
 
@@ -348,19 +348,15 @@ class RayDAPOTrainer(RayBaseTrainer):
         if blocking:
             ray.get(compute_advantage_ref)
         end_adv_time = time.time()
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "timing/adv", 
-                value=[round(end_adv_time, 4), round(start_adv_time, 4)],
-                cumulate=True
-            )
-        ) 
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "end_time/end_adv_time",
-                value=[round(end_adv_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "timing/adv",
+            value=[round(end_adv_time, 4), round(start_adv_time, 4)],
+            cumulate=True
+        )
+        self.data_strategy.update_metrics(
+            "end_time/end_adv_time",
+            value=[round(end_adv_time, 4)],
+            cumulate=True
         )
 
     def process_metric(self, all_time, metrics_result, dapo_data_metrics, metrics):

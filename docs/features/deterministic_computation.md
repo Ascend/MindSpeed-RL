@@ -35,9 +35,9 @@
       seed: 1234  # 如果有就不用再加
       full_shuffle_instruction_dataset: false
       ```
-  - 1.2 使能TransferDock (TD) 保序特性
-  
-      TransferDock在MindSpeed RL仓中用于存取数据，控制数据流，数据取出默认是乱序的，vllm推理等对于数据的输入顺序是敏感的，两次训练需要保持一致的顺序才能有相同输出。开启此特性之后，将按实际数据顺序进行存取。
+ - 1.2 使能数据通道保序特性（TD/TQ）
+ 
+      DataStrategy 支持 TD（TransferDock）与 TQ（TransferQueue）两种数据通道。数据取出默认是乱序的，vLLM 推理等对输入顺序敏感，两次训练需要保持一致顺序才能有相同输出。开启此特性后，将按实际数据顺序进行存取。
 
       使能方法，在rl_config参数中加入
       ```

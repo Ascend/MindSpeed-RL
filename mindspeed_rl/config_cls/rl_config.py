@@ -155,6 +155,9 @@ class RLConfig(BaseConfig):
 
         # token level loss
         self.token_level_loss = True
+        self.data_strategy = "td"
+        self.transfer_queue_data_shard_num = config_dict.get('transfer_queue_data_shard_num', 1)
+        self.transfer_queue_data_shard_port_base = config_dict.get('transfer_queue_data_shard_port_base', None)
 
         # Clip Higher策略
         self.clip_higher_enable = False

@@ -382,7 +382,8 @@ class GRPOTransferDock(TransferDock):
         dp_size: int = 1,
         indexes: List[int] = None,
         get_n_samples: bool = True,
-        use_batch_seqlen_balance: bool = False
+        use_batch_seqlen_balance: bool = False,
+        allow_partial_ready_data: bool = False
     ):
         """Get padded experience data from GRPOTransferDock.
 
@@ -682,7 +683,7 @@ class GRPOTransferDock(TransferDock):
 
         return sampled_indexes
 
-    def all_consumed(self, consumer: str):
+    def all_consumed(self, consumer: str, get_n_samples: bool = True):
         """If consumer has consumed all data in GRPOTransferDock.
 
         Args:

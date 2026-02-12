@@ -11,6 +11,7 @@ from .compute_utils import (
 from .training import get_finetune_data_on_this_tp_rank, broadcast_data
 from .transfer_dock import TransferDock, GRPOTransferDock
 from .mm_transfer_dock import MMGRPOTransferDock
+from .data_strategy import DataStrategy
 
 __all__ = [
     "AdaptiveKLController",
@@ -22,5 +23,6 @@ __all__ = [
     "compute_grpo_data_metrics",
     'TransferDock',
     'GRPOTransferDock',
-    'MMGRPOTransferDock'
+    'MMGRPOTransferDock',
+    'DataStrategy'
 ]

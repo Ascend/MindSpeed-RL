@@ -35,7 +35,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
 from mindspeed_rl.utils.compute import set_parallel_state, set_vocab_parallel
 from mindspeed_rl.utils.utils import get_current_dp_range_indexes, get_current_node_ip
 from mindspeed_rl.trainer.utils.transfer_dock import pack_experience_columns, unpack_pad_experience
-from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
+from mindspeed_rl.trainer.utils.data_strategy import unpack_mm_experience
 from mindspeed_rl.utils.utils import mstx_timer_decorator, is_multimodal
 from mindspeed_rl.utils.zmq_communication import (ZmqServer, ZmqClient, ZmqServerInfo, ZmqClientInfo,
                                                   ZMQ_ROLE_NONE, ZMQ_ROLE_CLIENT, ZMQ_ROLE_SERVER)
@@ -174,12 +174,17 @@ class BaseWorker(BaseRayWorker, ABC):
             rank_flg = (get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0 and
                         get_pipeline_model_parallel_rank(self.parallel_state, use_vllm) == 0)
         if rank_flg:
+            get_n_samples = not (getattr(self.rl_config, "partial_rollout_max_split", 1) > 1 and is_generate)
             if self.sampling_transfer_dock and is_generate:
-                status = torch.tensor(int(not ray.get(self.sampling_transfer_dock.all_consumed.remote(experience_consumer_stage))),
-                                      device=current_device)
+                status = torch.tensor(
+                    int(not ray.get(self.sampling_transfer_dock.all_consumed.remote(experience_consumer_stage, get_n_samples))),
+                    device=current_device,
+                )
             else:
-                status = torch.tensor(int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage))),
-                                      device=current_device)
+                status = torch.tensor(
+                    int(not ray.get(self.td.all_consumed.remote(experience_consumer_stage, get_n_samples))),
+                    device=current_device,
+                )
         torch.distributed.all_reduce(status, group=get_model_parallel_group(self.parallel_state, use_vllm),
                                      op=torch.distributed.ReduceOp.MAX)
         if not use_vllm:
@@ -472,24 +477,44 @@ class BaseWorker(BaseRayWorker, ABC):
             if enable_partial_rollout:
                 # 获取单条数据，不满足的位置补重复样本
                 dp_world_size = self.parallel_state.get_data_parallel_world_size()
-                batch_data, index = ray.get(td.get_experience.remote(experience_consumer_stage, experience_columns,
-                                                                     experience_count, dp_world_size, indexes=indexes,
-                                                                     get_n_samples=get_n_samples))  # cpu数据
+                batch_data, index = ray.get(td.get_experience.remote(
+                    experience_consumer_stage,
+                    experience_columns,
+                    experience_count,
+                    dp_world_size,
+                    indexes=indexes,
+                    get_n_samples=get_n_samples,
+                    allow_partial_ready_data=True,
+                ))
             else:
                 batch_data, index = ray.get(
                     td.get_experience.remote(experience_consumer_stage, experience_columns,
                                              experience_count, indexes=indexes,
                                              get_n_samples=get_n_samples,
-                                             use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+                                             use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance,
+                                             allow_partial_ready_data=False))  # cpu数据
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
                 if self.sampling_transfer_dock and is_generate:
-                    batch_mm_data = ray.get(self.mm_sampling_transfer_dock.get_experience.remote(mm_columns, index,
-                                                                                                 get_n_samples))
+                    batch_mm_data = ray.get(
+                        self.mm_sampling_transfer_dock.get_experience.remote(
+                            experience_consumer_stage,
+                            mm_columns,
+                            index,
+                            get_n_samples
+                        )
+                    )
                 else:
-                    batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples))
+                    batch_mm_data = ray.get(
+                        self.mm_td.get_experience.remote(
+                            experience_consumer_stage,
+                            mm_columns,
+                            index,
+                            get_n_samples
+                        )
+                    )
 
             if not index:
                 index = [-1] * experience_count
@@ -609,20 +634,34 @@ class BaseWorker(BaseRayWorker, ABC):
             if enable_partial_rollout:
                 # 获取单条数据，不满足的位置补重复样本
                 dp_world_size = self.parallel_state.get_data_parallel_world_size()
-                batch_data, index = ray.get(td.get_experience.remote(experience_consumer_stage, experience_columns,
-                                                                     experience_count, dp_world_size, indexes=indexes,
-                                                                     get_n_samples=get_n_samples))  # cpu数据
+                batch_data, index = ray.get(td.get_experience.remote(
+                    experience_consumer_stage,
+                    experience_columns,
+                    experience_count,
+                    dp_world_size,
+                    indexes=indexes,
+                    get_n_samples=get_n_samples,
+                    allow_partial_ready_data=True,
+                ))
             else:
                 batch_data, index = ray.get(
                     td.get_experience.remote(experience_consumer_stage, experience_columns,
                                              experience_count, indexes=indexes,
                                              get_n_samples=get_n_samples,
-                                             use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance))  # cpu数据
+                                             use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance,
+                                             allow_partial_ready_data=False))  # cpu数据
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if not index:  # 判断是否取出数据，未取出数据为-1
                 index = [-1] * experience_count
             elif is_multimodal():
-                batch_mm_data = ray.get(self.mm_td.get_experience.remote(mm_columns, index, get_n_samples))
+                batch_mm_data = ray.get(
+                    self.mm_td.get_experience.remote(
+                        experience_consumer_stage,
+                        mm_columns,
+                        index,
+                        get_n_samples
+                    )
+                )
 
             index = torch.tensor(index + ([-1] * (experience_count - len(index)))).cuda()
         else:

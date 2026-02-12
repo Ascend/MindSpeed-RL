@@ -13,6 +13,21 @@
 
 在该架构中，推理框架、训练框架中的各个实例数据均存放至数据调度模块，由其统一调度，从而避免了各个实例之间的绑定，提高了整体计算资源的利用率。
 
+### DataStrategy 说明
+
+数据调度模块通过 `DataStrategy` 统一选择数据通道，支持两种实现：
+
+- **TD (TransferDock)**：单机内存队列，适合低并发或开发调试场景。
+- **TQ (TransferQueue)**：分片队列，支持更高并发和分布式读写。
+
+通过 `rl_config.data_strategy` 进行选择，支持别名：
+
+| 值 | 含义 |
+|:--|:--|
+| `td` / `transfer_dock` / `dock` | 使用 TransferDock |
+| `tq` / `transfer_queue` / `queue` | 使用 TransferQueue |
+
+默认值为 `td`。在训练器里会由 `DataStrategy` 初始化并将数据通道下发到各个 Worker。
 
 ### 高并发设计
 
@@ -75,6 +90,12 @@
 |ref_dispatch_size| config_cls/rl_config.py | 【可选参数】ref logprob的每路DP每次从TD中读出的(Prompt, Response)对的数据量；默认设置为global_batch_size * n_samples_per_prompt / ref_logprob_dp_size                                                                                                      |
 |reward_dispatch_size| config_cls/rl_config.py | 【可选参数】reward每路DP(若有)每次从TD中读出的(Prompt, Response)对的数据量；对于Reward Model，默认设置为global_batch_size * n_samples_per_prompt / reward_dp_size；对于规则奖励默认设置为global_batch_size * n_samples_per_prompt；手动设置时对于GRPO算法需保证为n_samples_per_prompt的整数倍 |
 |adv_dispatch_size| config_cls/rl_config.py | 【可选参数】advantage每次从TD中读出的(Prompt, Response)对的数据量；默认设置为global_batch_size * n_samples_per_prompt                                                                                                                                   |
+
+同时可通过以下参数选择数据通道：
+
+| 参数名 | 参数位置 | 说明 |
+|:--|:--|:--|
+| data_strategy | config_cls/rl_config.py | 数据通道选择：`td` 或 `tq`，默认 `td` |
 
 
 

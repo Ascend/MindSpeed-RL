@@ -13,7 +13,7 @@ from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.trainer.base import RayBaseTrainer
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig
-from mindspeed_rl.trainer.utils import GRPOTransferDock, MMGRPOTransferDock
+from mindspeed_rl.trainer.utils.data_strategy import DataStrategy
 from mindspeed_rl.trainer.utils.compute_utils import compute_advantage, compute_grpo_data_metrics
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from mindspeed_rl.utils.loggers import Loggers
@@ -96,6 +96,7 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.mm_transfer_dock = None
         self.enable_partial_rollout = self.partial_rollout_max_split > 1
         self.metrics = Metric()
+        self.data_strategy = DataStrategy(self.actor_worker.rl_config)
         self.reuse_image_embeds = self.actor_worker.rl_config.reuse_image_embeds
         self.colocate_actor_and_vit = self.actor_worker.rl_config.colocate_actor_and_vit
         if self.enable_partial_rollout:
@@ -107,20 +108,18 @@ class RayGRPOTrainer(RayBaseTrainer):
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
-        self.transfer_dock = GRPOTransferDock.remote(
-            prompts_num=self.td_max_len,  # max sample num
+        self.data_strategy.build_grpo(
+            prompts_num=self.td_max_len,
             n_samples_per_prompt=self.n_samples_per_prompt,
             metrics=self.metrics,
             max_age=self.partial_rollout_max_split,
-            GBS_train=self.global_batch_size,  # GBS_train
-            addition_columns=self.dataset_additional_keys
+            gbs_train=self.global_batch_size,
+            addition_columns=self.dataset_additional_keys,
+            reuse_image_embeds=self.reuse_image_embeds,
+            dataset_additional_keys=self.dataset_additional_keys,
         )
-        if is_multimodal():
-            self.mm_transfer_dock = MMGRPOTransferDock.remote(
-                self.global_batch_size, 
-                self.n_samples_per_prompt,
-                self.reuse_image_embeds
-            )
+        self.transfer_dock = self.data_strategy.td
+        self.mm_transfer_dock = self.data_strategy.mm_td
 
         self.actor_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
         self.ref_worker.sync_init_transfer_dock(self.transfer_dock, self.mm_transfer_dock)
@@ -157,7 +156,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             first_batch = next(data_iters)
             batch, indexes = put_prompts_experience(first_batch, self.n_samples_per_prompt,
                                                     self.dataset_additional_keys)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+            self.data_strategy.put_experience(batch, indexes, is_prompt=True)
             logger.info(f'training start, put first batch')
 
         while iteration < self.train_iters:
@@ -169,13 +168,13 @@ class RayGRPOTrainer(RayBaseTrainer):
                         batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt,
                                                                 self.dataset_additional_keys,
                                                                 add_another_batch=True)
-                        ray.get(self.transfer_dock.put_experience.remote(data_dict=batch, indexes=indexes, is_prompt=True))
+                        self.data_strategy.put_experience(batch, indexes, is_prompt=True)
                 else:
                     batch_dict, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
-                    ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
+                    self.data_strategy.put_experience(batch_dict, indexes, is_prompt=True)
                 if is_multimodal():
-                    ray.get(self.mm_transfer_dock.clear.remote())
-                    ray.get(self.mm_transfer_dock.put_experience.remote(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)]))
+                    self.data_strategy.clear_mm()
+                    self.data_strategy.put_mm(batch, indexes=[i for i in range(len(batch['prompts']) * self.n_samples_per_prompt)])
 
                 if self.reuse_image_embeds:
                     if self.colocate_actor_and_vit:
@@ -223,7 +222,7 @@ class RayGRPOTrainer(RayBaseTrainer):
                                                               self.tokenizer,
                                                               self.global_batch_size * self.n_samples_per_prompt,
                                                               self.guarantee_order)
-                metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
+                metrics_result = self.data_strategy.get_metrics()
 
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_timer.last)
@@ -241,7 +240,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             metrics.update("vllm_tps", vllm_tps)
             iteration += 1
             logger.info(metrics.metric, iteration, self.train_iters)
-            ray.get(self.transfer_dock.clear.remote())
+            self.data_strategy.clear_main()
             if self.tensorboard is not None:
                 for k, v in metrics.metric.items():
                     self.tensorboard.add_scalar(f"train/{k}", v, iteration)
@@ -274,19 +273,15 @@ class RayGRPOTrainer(RayBaseTrainer):
         if blocking:
             ray.get(compute_advantage_ref)
         end_adv_time = time.time()
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "timing/adv",
-                value=[round(end_adv_time, 4), round(start_adv_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "timing/adv",
+            value=[round(end_adv_time, 4), round(start_adv_time, 4)],
+            cumulate=True
         )
-        ray.get(
-            self.transfer_dock.update_metrics.remote(
-                "end_time/end_adv_time",
-                value=[round(end_adv_time, 4)],
-                cumulate=True
-            )
+        self.data_strategy.update_metrics(
+            "end_time/end_adv_time",
+            value=[round(end_adv_time, 4)],
+            cumulate=True
         )
 
     def save_checkpoint(self, iteration: int):

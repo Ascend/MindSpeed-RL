@@ -1,7 +1,7 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
 """
 description:
-    Launch MindSpeed-RL Worker.
+    Launch MindSpeed RL Worker.
     Expose the RayActorGroup class.
 
 launch remote worker task:

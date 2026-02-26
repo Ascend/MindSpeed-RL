@@ -35,7 +35,7 @@ profiler_config:
     profile_ranks: all
 ```
 
-针对MindSpeed-RL仓库支持的直接偏好对齐（DPO）算法，可以通过如下方式进行配置：
+针对MindSpeed RL仓库支持的直接偏好对齐（DPO）算法，可以通过如下方式进行配置：
 > **注意**:其他未罗列的参数目前对应功能都未支持，且该场景下采集profiling 数据会warmup 1步，即实际采集步数为 profile_step_end - profile_step_start + 1。
 ```yaml
 profiler_config:
@@ -96,7 +96,7 @@ GRPO算法涉及多个worker模块交互，包含训练、推理等流程。在�
   profile_with_npu: true
   ```
   
-- **适用场景**: 轻量级采集包含自定义打点和所有通信算子的内置打点，MindSpeed-RL已集成所有worker的关键计算函数、dispatch_transfer_dock_data、resharding等关键函数的自定义打点。如需查看某代码片段在timeline中的执行耗时，可通过以下两种方式在MindSpeed-RL中添加自定义打点：
+- **适用场景**: 轻量级采集包含自定义打点和所有通信算子的内置打点，MindSpeed RL已集成所有worker的关键计算函数、dispatch_transfer_dock_data、resharding等关键函数的自定义打点。如需查看某代码片段在timeline中的执行耗时，可通过以下两种方式在MindSpeed RL中添加自定义打点：
 
   ```python
   # 方式一：使用装饰器装饰函数

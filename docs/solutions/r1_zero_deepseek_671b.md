@@ -15,15 +15,15 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 
 **Reward曲线：**
 
-![](../../sources/images/r1_zero/deepseek-671b-reward-curses.png)
+![](../../docs/zh/figures/r1_zero/deepseek-671b-reward-curses.png)
 
 **Response length曲线：**
 
-![](../../sources/images/r1_zero/deepseek-671b-response-curses.png)
+![](../../docs/zh/figures/r1_zero/deepseek-671b-response-curses.png)
 
 
 ## 环境配置
-配置MindSpeed-RL基础环境以及准备代码，参考[安装指南](../install_guide.md)
+配置MindSpeed RL基础环境以及准备代码，参考[安装指南](../install_guide.md)
 
 ## 模型选择
 * DeepSeek-671B-Base [[**下载**]](https://huggingface.co/deepseek-ai/DeepSeek-V3)
@@ -64,7 +64,7 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 ## 打分器
 DeepSeek-R1-Zero训练的过程中仅使用了基于程序的打分器而没有使用ORM，我们在数学领域上的打分逻辑分为以下几个部分：
 
-![](../../sources/images/r1_zero/rule_reward.png)
+![](../../docs/zh/figures/r1_zero/rule_reward.png)
 
 ## 训练
 
@@ -108,4 +108,4 @@ bash examples/grpo/grpo_trainer_deepseek_r1_671b.sh
 ```
 
 
-***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed RL目录下***

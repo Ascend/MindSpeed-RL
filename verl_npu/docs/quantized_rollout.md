@@ -129,11 +129,11 @@ bash ./grpo_qwen25_7b_fsdp_int8_A2.sh
 #### 精度： 
 由于 [GSM8K](https://huggingface.co/datasets/openai/gsm8k/tree/main) 数据集更容易收敛，用于验证精度，红色为 bf16，蓝色为 int8:
 <p align="left">
-  <img src="../../sources/images/verl_npu/int8_accuracy.png" width="600"/>
+  <img src="../../docs/zh/figures/verl_npu/int8_accuracy.png" width="600"/>
 </p>
 
 #### 性能：
 使用 [Math-17k](https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k) 数据集，用于验证性能，红色为 int8，蓝色为 bf16:
 <p align="left">
-  <img src="../../sources/images/verl_npu/int8_performance.png" width="600"/>
+  <img src="../../docs/zh/figures/verl_npu/int8_performance.png" width="600"/>
 </p>

@@ -11,7 +11,7 @@
 针对这一挑战，提出了swap-attention功能，旨在梯度反向传播的同时，从CPU内存中动态预取需要的激活值，通过优化内存使用和计算过程来减少重计算，并充分利用H2D（Host to Device）高带宽的数据传输优势，有效缓解内存瓶颈，提升每秒浮点运算数（MFU），加速大模型的训练。
 
 
-![alt text](../../sources/images/swap_attention/swap_attention0.png)
+![alt text](../../docs/zh/figures/swap_attention/swap_attention0.png)
 
 ## 使用场景
 
@@ -21,7 +21,7 @@
 
 开启后，将对每一层的attention层的激活值进行预取，同时，对前[int]层的全连接层进行重计算。
 
-![alt text](../../sources/images/swap_attention/swap_attention1.png)
+![alt text](../../docs/zh/figures/swap_attention/swap_attention1.png)
 
 ### b. 仅开启预取功能, 节省内存：
 
@@ -29,7 +29,7 @@
 
 开启后，将对每一层的attention层的激活值进行预取，提高计算效率。
 
-![alt text](../../sources/images/swap_attention/swap_attention2.png)
+![alt text](../../docs/zh/figures/swap_attention/swap_attention2.png)
 
 ## 使用方法
 

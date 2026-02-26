@@ -2,10 +2,10 @@
 
 ## 全共卡部署
 ### 方案概述
-MindSpeed-RL 仓库目前主推的部署方式为`全共卡部署`，即 Actor, Reference 等 worker 分时复用同一批机器资源，交替进行计算任务。 在全共卡配置中，为了节省显存，各个计算任务执行时只会将必要的数据加载到显存上，并在结束计算任务后，将加载的数据重新卸载到CPU侧的内存上。
+MindSpeed RL 仓库目前主推的部署方式为`全共卡部署`，即 Actor, Reference 等 worker 分时复用同一批机器资源，交替进行计算任务。 在全共卡配置中，为了节省显存，各个计算任务执行时只会将必要的数据加载到显存上，并在结束计算任务后，将加载的数据重新卸载到CPU侧的内存上。
 整个训练流程中的显存调度过程可以参考下图：
 
-![pipeline](../../sources/images/integrated_worker/pipeline.png)
+![pipeline](../../docs/zh/figures/integrated_worker/pipeline.png)
 
 目前仓库只支持全共卡配置方案，在全共卡配置中，Actor部分会进一步使用训推共卡的部署方案来节约资源，下一节还会对训推共卡技术部分进行进一步展开描述。
 
@@ -29,7 +29,7 @@ rl_config:
 在 GRPO、PPO 等 RLHF 算法中，主要耗时会集中在推理阶段，所以通常会使用专门的推理引擎（如 vLLM 等）对推理过程进行加速。 
 因此，Actor 模型在训练过程中会同时存在推理态和训练态两种模式，在每轮训练中，Actor 模型需要在训练态和推理态间切换。
 
-![background](../../sources/images/integrated_worker/background.jpg)
+![background](../../docs/zh/figures/integrated_worker/background.jpg)
 
 如果采用分离方案进行 Actor 部署，即将 Actor 推理态与训练态部署在不同的物理资源上，可能导致训练推理任务相互等待，资源利用率低。
 即使采用了 MBS 间异步方案提升利用率，分离式部署的资源需求量也会远大于共卡部署方案，因此 Actor 共卡方案在资源量较为有限的情况下，是一种资源高效的部署方式。
@@ -54,14 +54,14 @@ rl_config:
 该类主要包括 `model`，`optimizer`，`inference_model`，`sharding_manager` 等成员，其中 `model`和 `optimizer` 是训练态的模型和优化器，当前基于 Megatron 框架实现；
 `inference_model` 是推理态的模型，当前基于 vLLM 框架实现；`sharding_manager` 负责实现训推状态的切换，包括从训练状态到推理状态的权重切分转换及相关显存管理功能。
 
-![actor_hybrid_worker](../../sources/images/integrated_worker/actor_hybrid_worker.jpg)
+![actor_hybrid_worker](../../docs/zh/figures/integrated_worker/actor_hybrid_worker.jpg)
 
 #### 具体实现
 
 从训练态切换到推理态时，需要根据推理态的切分从训练权重构建出相应的推理权重，并将训练态的模型权重、优化器和梯度从显存上进行卸载，为推理时的 KV Cache 留出显存空间；
 从推理态切换到训练态时，则只需将推理态的权重和KV Cache卸载，并重新加载回训练态的权重、优化器和梯度。
 
-![sharding_process](../../sources/images/integrated_worker/sharding_process.jpg)
+![sharding_process](../../docs/zh/figures/integrated_worker/sharding_process.jpg)
 
 当前框架会自动启用训推共卡式 Actor，在配置文件中，可以对共卡情况下的训练态和推理态模型的切分策略进行分别配置，并设定在推理时是否需要对训练相关权重、梯度和优化器进行卸载。
 以 `grpo_qwen25_7b_A3.yaml` 为例，

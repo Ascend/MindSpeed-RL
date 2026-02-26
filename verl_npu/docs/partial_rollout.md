@@ -44,6 +44,6 @@ partial rollout 特性可以降低长序列推理场景下的长尾样本对端�
 ### 效果验证
 
 使用qwen2.5-7B验证，2k推20k，开关partial rollout性能比较，红色曲线为开启partial rollout，蓝色曲线为关闭partial rollout。
-![img.png](../../sources/images/verl_npu/img.png)
-![img_1.png](../../sources/images/verl_npu/img_1.png)
-![img_2.png](../../sources/images/verl_npu/img_2.png)
+![img.png](../../docs/zh/figures/verl_npu/img.png)
+![img_1.png](../../docs/zh/figures/verl_npu/img_1.png)
+![img_2.png](../../docs/zh/figures/verl_npu/img_2.png)

@@ -18,7 +18,7 @@
 2. **Step 阶段处理**​：在每次训练的 step 阶段，为了实现 host 到 device（H2D）和 device 到 host（D2H）的并行操作，优化器首先会一次性将约 `numel(shard_fp32_from_float16_groups) // swap_optimizer_times` 大小的参数从主机端传输到设备端（H2D）。接着，执行 AdamW 优化计算，并将结果复制回模型的 BF16 权重。最后，再进行 D2H 操作，释放设备端的显存。
 3. **异步拷贝保证时序正确**​：由于 D2H 和 H2D 操作是异步进行的，为确保数据传输时序的正确性，第二轮的 D2H 操作需要等待第一轮的 H2D 操作完成之后才会执行。
 
-![alt text](../../sources/images/swap_optimizer/swap_optimizer.png)
+![alt text](../../docs/zh/figures/swap_optimizer/swap_optimizer.png)
 
 ## 使用介绍
 

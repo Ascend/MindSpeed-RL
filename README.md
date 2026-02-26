@@ -1,4 +1,4 @@
-  <p align="center"> <img src="./sources/images/logo.png" height="110px" width="500px"> </p>
+  <p align="center"> <img src="./docs/zh/figures/logo.png" height="110px" width="500px"> </p>
 
 # 简介
 

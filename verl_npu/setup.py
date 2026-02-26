@@ -67,7 +67,7 @@ def inject_verl_plugin(custom_path=None):
     
     # 检查是否已经注入过
     import_content = """
-# NPU acceleration support added by mindspeed-rl plugin
+# NPU acceleration support added by MindSpeed RL plugin
 from verl.utils.device import is_npu_available
 
 if is_npu_available:

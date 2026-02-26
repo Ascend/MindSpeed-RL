@@ -23,11 +23,11 @@
 3. **后处理还原阶段**：根据记录信息，将 logits 拆解还原为原始样本对应的维度。
 
 <p align="center">
-  <img src="../../sources/images/remove_padding/packing.png" width="800"/>
+  <img src="../../docs/zh/figures/remove_padding/packing.png" width="800"/>
 </p>
 
 <p align="center">
-  <img src="../../sources/images/remove_padding/attention_mask.png" width="800"/>
+  <img src="../../docs/zh/figures/remove_padding/attention_mask.png" width="800"/>
 </p>
 
 ## 配置方法
@@ -115,7 +115,7 @@ rl_config:
 3. **数据分配**：将分组后的样本分配至各 DP 节点，实现计算量均衡。
 
 <p align="center">
-  <img src="../../sources/images/remove_padding/dp_balance.png" width="400"/>
+  <img src="../../docs/zh/figures/remove_padding/dp_balance.png" width="400"/>
 </p>
 
 ## 配置方法

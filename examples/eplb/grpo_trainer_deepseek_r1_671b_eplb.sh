@@ -3,7 +3,6 @@ ray stop --force
 export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1
 
-SOCKET_IFNAME="Your SOCKET IFNAME"
 DEFAULT_YAML="grpo_deepseek_r1_671b_A3_eplb"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"

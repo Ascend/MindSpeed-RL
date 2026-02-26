@@ -51,22 +51,22 @@ swanlab_mode 如果为 cloud
 详情请见 
 https://docs.swanlab.cn/guide_cloud/general/quick-start.html
 
-![img.png](../../sources/images/swanlab_logging/img.png)
+![img.png](../../docs/zh/figures/swanlab_logging/img.png)
 
 #### 查看可视化指标
 Step1. cd 进入 本地日志保存路径 参数配置里的这个路径
 ```
 cd "Path_to_save_the_swanlab_results_locally"
 ```
-![img_2.png](../../sources/images/swanlab_logging/img_2.png)  
+![img_2.png](../../docs/zh/figures/swanlab_logging/img_2.png)  
 Step2.*执行命令*
 ```
 swanlab watch . -host xxxx -port xxxx
 ```
 *成功后会显示*  
-![img_3.png](../../sources/images/swanlab_logging/img_3.png)  
+![img_3.png](../../docs/zh/figures/swanlab_logging/img_3.png)  
 访问IP:端口就能看到训练可视化内容  
-![img_1.png](../../sources/images/swanlab_logging/img_1.png)  
+![img_1.png](../../docs/zh/figures/swanlab_logging/img_1.png)  
 
 注：
 >1. 如果遇到如下问题  
@@ -86,4 +86,4 @@ vi /usr/local/lib/python3.10/site-packages/swanboard/run/run.py
 #    tip = URL(host, port).__str__()
 tip = URL(host, port).__str__()
 ```  
-![img_4.png](../../sources/images/swanlab_logging/img_4.png)
+![img_4.png](../../docs/zh/figures/swanlab_logging/img_4.png)

@@ -55,7 +55,7 @@
 ### 初始化
 数据系统在Trainer类中进行初始化，其引用作为参数传递给后训练过程中的各个Worker。该初始化过程保证了各个Worker间基于相同的数据模块实例，提供了集中式的数据管理能力。
 
-![数据系统初始化过程](../../sources/images/data_module/td_init.png)
+![数据系统初始化过程](../../docs/zh/figures/data_module/td_init.png)
 
 
 ### Worker读写逻辑
@@ -64,7 +64,7 @@
 
 上述交互逻辑简化了分布式计算中各个进程的数据读写操作，每个计算任务均向单一的数据源进行读写请求，避免了显式定义不同计算任务之间的数据链路，简化了编程流程。
 
-![数据系统交互逻辑](../../sources/images/data_module/td_interaction_logic.png)
+![数据系统交互逻辑](../../docs/zh/figures/data_module/td_interaction_logic.png)
 
 ## 参数配置
 

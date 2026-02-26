@@ -21,7 +21,7 @@ Step2. 终端输入命令：`tensorboard  --logdir=./runs  --host=$your_host_ip 
 Step3. 浏览器打开`Step2`生成的url
 tensorboard可视化训练指标效果示例：
 
-![ScreenShot_20250320113451](../../sources/images/logging/logging_1.PNG)
+![ScreenShot_20250320113451](../../docs/zh/figures/logging/logging_1.PNG)
 
 ### WandB使用
 MindSpeed RL使用开源库WandB能力
@@ -43,16 +43,16 @@ wandb_save_dir: "Path_to_save_the_wandb_results_locally"  # 开启wandb时必填
 Step1. 开启`use_wandb`，配置`wandb_project`、`wandb_exp_name`、`wandb_save_dir`，开始训练。如果运行过程中wandb初始化失败则会默认切换到wandb离线模式，即只会生成wandb日志到设置的保存路径，不会同步到云端
 wandb初始化成功会打印project url：
 
-![ScreenShot_20250320155301](../../sources/images/logging/logging_4.PNG)
+![ScreenShot_20250320155301](../../docs/zh/figures/logging/logging_4.PNG)
 
 
 Step2. 浏览器打开`Step1`生成的wandb project url，查看训练指标。若当前环境不能联网，则可以将生成的日志拷贝到能联网的机器上，手动同步到云端：wandb sync $wandb日志保存路径
 
 wandb可视化训练指标效果示例：
 
-![ScreenShot_20250320113628](../../sources/images/logging/logging_2.PNG)
+![ScreenShot_20250320113628](../../docs/zh/figures/logging/logging_2.PNG)
 
-![ScreenShot_20250320113713](../../sources/images/logging/logging_3.PNG)
+![ScreenShot_20250320113713](../../docs/zh/figures/logging/logging_3.PNG)
 
 注：
 >1.qwen3-30b dpo暂不支持TensorBoard，你可以使用WandB取代！

@@ -27,20 +27,18 @@ bash examples/data/preprocess_data.sh orca_rlhf
 ```
 
 数据集处理配置可以根据需求自行配置，以下是数据集处理的yaml文件中基础参数的介绍：
-* `input`：数据集的路径，需指定具体文件，例如 ./datasets/orca_rlhf.json;
-* `tokenizer_type`：指定分词器的类型，例如 HuggingFaceTokenizer 使用 Hugging Face 库提供的分词器来对文本进行分词处理;
-* `tokenizer_name_or_path`：指定分词器的名称或路径;
-* `output_prefix`：输出结果的前缀路径，例如 ./dataset/data;
-* `workers`：设置处理数据时使用的 worker 数;
-* `prompt_type`: 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name";
-* `log_interval`：设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态;
-* `handler_name`：指定处理数据的处理器名称；
-* `seq_length`：设置数据预处理最大序列长度，超过了会过滤掉;
-* `map_keys`：指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中；
-  - prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令。
-  - query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""。
-  - response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"。
-  - system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 ""。
+| 参数 | 说明 |
+|------|------|
+| `input` | 数据集的路径，需指定具体文件，例如 ./datasets/orca_rlhf.json |
+| `tokenizer_type` | 指定分词器的类型，例如 HuggingFaceTokenizer 使用 HuggingFace 库提供的分词器来对文本进行分词处理 |
+| `tokenizer_name_or_path` | 指定分词器的名称或路径 |
+| `output_prefix` | 输出结果的前缀路径，例如 ./dataset/data |
+| `workers` | 设置处理数据时使用的 worker 数 |
+| `prompt_type` | 用于指定对话模板，能够让 base 模型微调后能具备更好的对话能力，`prompt_type` 的可选项可以在 [configs/model/templates.json](../../configs/model/templates.json) 文件内查看关键词"name" |
+| `log_interval` | 设置日志记录的间隔，每处理多少条数据时记录一次日志，用于监控数据处理的进度和状态 |
+| `handler_name` | 指定处理数据的处理器名称 |
+| `seq_length` | 设置数据预处理最大序列长度，超过了会过滤掉 |
+| `map_keys` | 指定数据处理时使用的映射字典，用于将原始数据中的字段映射到目标字段中：<br>- prompt：主指令/题目文本（Alpaca 格式里的 instruction）。例如把原始样本的 "problem" 作为指令<br>- query：可选的补充输入/上下文（Alpaca 格式里的 input）。没有就设为空串 ""<br>- response：目标答案/参考输出（训练时作为监督标签）。这里映射到原始样本的 "answer"<br>- system：可选的系统提示（chat 模板的 system 角色，用于全局行为设定）。没有就设为空串 "" |
 
 ## 模型权重转换
 
@@ -50,7 +48,7 @@ bash examples/data/preprocess_data.sh orca_rlhf
 --moe-tp-extend-ep
 ```
 ### 环境要求
-**权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed-RL 出现依赖冲突。**
+**权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed RL 出现依赖冲突。**
 如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。
 
 接下来，以 Qwen3-30B-A3B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
@@ -59,15 +57,15 @@ bash examples/data/preprocess_data.sh orca_rlhf
 权重文件可以从 Huggingface 网站上获取，可以根据模型的使用场景灵活选择，在这里以
 [Qwen3-30B-A3B](https://huggingface.co/Qwen/Qwen3-30B-A3B)  为参考。
 ### hf 转 mcore
-在训练前，需要将 Hugging Face 权重转换成Mcore格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
+在训练前，需要将 HuggingFace 权重转换成Mcore格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ### mcore 转 hf（可选）
-训练结束后，如果需要将生成的mcore格式权重转换回 Hugging Face 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
+训练结束后，如果需要将生成的mcore格式权重转换回 HuggingFace 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ## 启动训练
 
-以 Qwen3 30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_trainer_qwen3_30b_a3b.sh)的环境变量的配置：
-1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 A3 可设置 NNODES 为 1 （双机 A3 可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 A2 可设置 NNODES 为 1 （双机 A2 可设置 NNODES 为2）、NPUS_PER_NODE 为8；
+以 Qwen3-30B 模型为例，在启动训练之前，需要修改[ 启动脚本 ](../../examples/dpo/dpo_trainer_qwen3_30b_a3b.sh)的环境变量的配置：
+1. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为8；
 2. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP；
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练
@@ -76,7 +74,7 @@ bash examples/dpo/dpo_trainer_qwen3_30b_a3b.sh
 
 ***注意：***
 
-***1、所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+***1、所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed RL目录下***
 
 ***2、Moe模型开启mc2暂不支持EP跨超节点***
 

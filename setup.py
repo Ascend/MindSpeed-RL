@@ -5,10 +5,10 @@ from pathlib import Path
 
 import setuptools
 
-__description = 'MindSpeed-RL for LLMs of Ascend'
+__description = 'MindSpeed RL for LLMs of Ascend'
 __version = '2.1.0'
 __author = 'Ascend'
-__long_description = 'MindSpeed-RL for LLMs of Ascend'
+__long_description = 'MindSpeed RL for LLMs of Ascend'
 __keywords = 'Ascend, langauge, deep learning, NLP'
 __package_name = 'mindspeed_rl'
 __contact_names = 'Ascend'

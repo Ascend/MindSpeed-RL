@@ -12,7 +12,7 @@
  
 具体的训推过程权重切换及内存调度则全部由ShardingManager完成。用户可以直接传入训练引擎及推理引擎中的静态参数，如模型权重、优化器参数、梯度等，并对训练推理并行策略进行注册。训推切换过程中，ShardingManager会自动实现权重重切分，并对训练推理中其他参数进行调度。其中，ShardingManager中只需传入训练引擎及推理引擎初始化后的模型权重，内部没有对模型权重进行初始化的操作，因此不耦合训练及推理引擎类型，可以支持Megatron、VLLM及其他训练及推理引擎。
  
-![pipeline](../../sources/images/resharding/resharding_UML.png)
+![pipeline](../../docs/zh/figures/resharding/resharding_UML.png)
  
 核心模块功能说明：
 
@@ -38,7 +38,7 @@
  
 （4）完成训练态计算后，再次通过步骤（2）变为推理态进行计算。
  
-![pipeline](../../sources/images/resharding/param_buckets.png)
+![pipeline](../../docs/zh/figures/resharding/param_buckets.png)
  
 由于推理态MemoryBuffer尺寸分配是根据推理引擎的权重元信息分配的，因此推理参数桶中不存在任何冗余内存。由此，通过训练推理参数内存上的隔离和训练态权重的装卸载，即可实现训推内存0冗余切换。
  

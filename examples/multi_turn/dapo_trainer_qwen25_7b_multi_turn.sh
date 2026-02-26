@@ -2,7 +2,6 @@ ray stop --force
 export RAY_DEDUP_LOGS=0
 export HYDRA_FULL_ERROR=1 
 
-SOCKET_IFNAME="Your SOCKET IFNAME"
 DEFAULT_YAML="dapo_qwen25_7b_A2_multi_turn"
 YAML=${1:-$DEFAULT_YAML}
 echo "Use $YAML"

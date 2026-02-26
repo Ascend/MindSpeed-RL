@@ -44,7 +44,7 @@ bash ./recipe/retool/run_qwen2_7b_dapo_npu.sh
 ### 训练过程记录
 使用qwen2.5-7B验证，2k推20k
 <div align="center">
-  <img src="../../sources/images/retool/rewards.png" width="33%" />
-  <img src="../../sources/images/retool/response_len.png" width="33%" />
-  <img src="../../sources/images/retool/times_gen.png" width="33%" />
+  <img src="../../docs/zh/figures/retool/rewards.png" width="33%" />
+  <img src="../../docs/zh/figures/retool/response_len.png" width="33%" />
+  <img src="../../docs/zh/figures/retool/times_gen.png" width="33%" />
 </div>

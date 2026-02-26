@@ -372,6 +372,84 @@ def validate_rl_args(
                 f"{int(rl_config.mini_batch_size/actor_data_parallel_size)})"
             )
 
+    # 若指定了自定义的dispatch_size，检查 dispatch_size 是否超过单个DP上生成的样本数量，避免出现DP上没有样本可用的情况
+    def _validate_dispatch_size(dispatch_size, global_batch_size, n_samples_per_prompt, data_parallel_size, component):
+        if dispatch_size and dispatch_size > (global_batch_size * n_samples_per_prompt // data_parallel_size):
+            raise ValueError(
+                f"{component} {dispatch_size} cannot be greater than "
+                f"the number of samples generated on each data parallel worker, which is "
+                f"global_batch_size * n_samples_per_prompt // data_parallel_size = "
+                f"{global_batch_size} * {n_samples_per_prompt} // {data_parallel_size} = "
+                f"{global_batch_size * n_samples_per_prompt // data_parallel_size}"
+            )
+
+    _validate_dispatch_size(rl_config.actor_rollout_dispatch_size, actor_config.global_batch_size, rl_config.n_samples_per_prompt, generate_config.data_parallel_size, "actor_rollout_dispatch_size")
+    _validate_dispatch_size(rl_config.actor_logprob_dispatch_size, actor_config.global_batch_size, rl_config.n_samples_per_prompt, actor_data_parallel_size, "actor_logprob_dispatch_size")
+
+    if ref_config:
+        _validate_dispatch_size(rl_config.ref_dispatch_size, ref_config.global_batch_size, rl_config.n_samples_per_prompt, ref_data_parallel_size, "ref_dispatch_size")
+
+    _validate_dispatch_size(rl_config.actor_update_dispatch_size, actor_config.global_batch_size, rl_config.n_samples_per_prompt, actor_data_parallel_size, "actor_update_dispatch_size")
+    if rl_config.critic_resource:
+        _validate_dispatch_size(rl_config.critic_update_dispatch_size, critic_config.global_batch_size, rl_config.n_samples_per_prompt, critic_data_parallel_size, "critic_update_dispatch_size")
+        _validate_dispatch_size(rl_config.critic_value_dispatch_size, critic_config.global_batch_size, rl_config.n_samples_per_prompt, critic_data_parallel_size, "critic_value_dispatch_size")
+
+    if rl_config.kl_dispatch_size and rl_config.kl_dispatch_size > (critic_config.global_batch_size * rl_config.n_samples_per_prompt):
+        raise ValueError(
+            f"kl_dispatch_size {rl_config.kl_dispatch_size} cannot be greater than "
+            f"the number of samples generated on each data parallel worker, which is "
+            f"global_batch_size * n_samples_per_prompt = "
+            f"{critic_config.global_batch_size} * {rl_config.n_samples_per_prompt} = "
+            f"{critic_config.global_batch_size * rl_config.n_samples_per_prompt}"
+        )
+
+    if rl_config.reward_resource:
+        reward_data_parallel_size = rl_config.reward_resource.num_npus // (
+            reward_config.tensor_model_parallel_size *
+            reward_config.pipeline_model_parallel_size *
+            reward_config.context_parallel_size
+        )
+        _validate_dispatch_size(rl_config.reward_dispatch_size, reward_config.global_batch_size, rl_config.n_samples_per_prompt, reward_data_parallel_size, "reward_dispatch_size")
+
+    if rl_config.dynamic_sampling_dispatch_size and rl_config.dynamic_sampling_dispatch_size > (
+        reward_config.global_batch_size * rl_config.n_samples_per_prompt // get_node_nums()
+    ):
+        raise ValueError(
+            f"dynamic_sampling_dispatch_size {rl_config.dynamic_sampling_dispatch_size} cannot be greater than "
+            f"the number of samples generated on each data parallel worker, which is "
+            f"global_batch_size * n_samples_per_prompt // num_nodes_in_ray_cluster = "
+            f"{reward_config.global_batch_size} * {rl_config.n_samples_per_prompt} // {get_node_nums()} = "
+            f"{reward_config.global_batch_size * rl_config.n_samples_per_prompt // get_node_nums()}"
+        )
+
+    if (
+        rl_config.reuse_image_embeds and rl_config.actor_image_embeds_dispatch_size 
+        and rl_config.actor_image_embeds_dispatch_size > (
+            actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size
+        )
+    ):
+        raise ValueError(
+            f"actor_image_embeds_dispatch_size {rl_config.actor_image_embeds_dispatch_size} cannot be greater than "
+            f"the number of samples generated on each data parallel worker, which is "
+            f"global_batch_size * n_samples_per_prompt // actor_data_parallel_size = "
+            f"{actor_config.global_batch_size} * {rl_config.n_samples_per_prompt} // {actor_data_parallel_size} = "
+            f"{actor_config.global_batch_size * rl_config.n_samples_per_prompt // actor_data_parallel_size}"
+        )
+
+    if (
+        rl_config.reuse_image_embeds and rl_config.actor_image_embeds_dispatch_size 
+        and rl_config.actor_image_embeds_dispatch_size > (
+            vit_config.global_batch_size * rl_config.n_samples_per_prompt // vit_data_parallel_size
+        )
+    ):
+        raise ValueError(
+            f"actor_image_embeds_dispatch_size {rl_config.actor_image_embeds_dispatch_size} cannot be greater than "
+            f"the number of samples generated on each data parallel worker, which is "
+            f"global_batch_size * n_samples_per_prompt // vit_data_parallel_size = "
+            f"{vit_config.global_batch_size} * {rl_config.n_samples_per_prompt} // {vit_data_parallel_size} = "
+            f"{vit_config.global_batch_size * rl_config.n_samples_per_prompt // vit_data_parallel_size}"
+        )
+
     if rl_config.filter_groups_enable:
         # 若开启dapo动态采样，update的gbs=filter_groups_train_batch_size
         rl_config.actor_update_dispatch_size = (

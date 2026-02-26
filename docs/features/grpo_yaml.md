@@ -25,7 +25,7 @@ MindSpeed RL 通过将模型参数和训练配置解耦的层级化参数配置�
 | `stage` | 用于指定训练算法，使用 Ray GRPO 训练须设置为 `ray_grpo` | `ray_grpo` |
 | `global_batch_size` | 经过多少样本后 actor-train 和 rollout 权重同步 |
 | `data_path` | 数据集路径配置，例如 `/dataset/data`，注意带前缀 |
-| `tokenizer_name_or_path` | 分词器路径配置，可以配置为 Hugging Face 权重文件的文件夹路径，例如 `/ckpt/qwen2.5_7b_hf/` |
+| `tokenizer_name_or_path` | 分词器路径配置，可以配置为 HuggingFace 权重文件的文件夹路径，例如 `/ckpt/qwen2.5_7b_hf/` |
 | `其余参数` | 其余参数为 Megatron 训练中的特性配置 |
 
 #### 全量重计算

@@ -12,7 +12,7 @@ verl_npu框架提供了一套易用、完整的修改和扩展外部模块的特
 ## 架构图
 
 <p align="center">
-  <img src="../../sources/images/verl_npu/verl_npu_structure.png" width="600"/>
+  <img src="../../docs/zh/figures/verl_npu/verl_npu_structure.png" width="600"/>
 </p>
 
 ## 目录结构

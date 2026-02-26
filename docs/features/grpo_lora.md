@@ -27,7 +27,7 @@ GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `ge
 2. 动态上下文切换： Actor 前向正常累加 LoRA Adapter 的输出，Reference 前向通过 `with self.model.disable_adapter()` 上下文管理器临时屏蔽 LoRA 分支，仅计算 Backbone 输出。
 3. 适用范围：该机制仅支持基于 Integrated Worker 架构实现的算法，对于 DAPO 等天然无需 Reference Model 的算法，系统将在初始化阶段阻断。
 
-<p align="center"> <img src="../../sources/images/grpo_lora/grpo_lora1.png" > </p>
+<p align="center"> <img src="../../docs/zh/figures/grpo_lora/grpo_lora1.png" > </p>
 
 <div align="center">
 图1 Actor/Reference 逻辑复用示意图
@@ -37,7 +37,7 @@ GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `ge
 1. LoRA 权重转换：在进入 Rollout 阶段前，系统自动识别训练时的 TP/PP 策略与 vLLM 配置的 TP/PP 策略差异。将分布在不同节点 上的 LoRA 权重按照 Rollout 的分布式结构进行重新切分和重组。
 2. 权重合并与推理：将转换后的 LoRA 权重 add 到对应的 Backbone 权重中，vLLM 引擎直接加载合并后的完整模型进行推理。这种方式规避了 vLLM 对 LoRA 算子的额外开销，又保证了推理引擎的纯净性和升级兼容性。
 
-<p align="center"> <img src="../../sources/images/grpo_lora/grpo_lora2.png" > </p>
+<p align="center"> <img src="../../docs/zh/figures/grpo_lora/grpo_lora2.png" > </p>
 
 <div align="center">
 图2 训练态到推理态的权重转换与合并流程
@@ -60,7 +60,7 @@ GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `ge
 </div>
 Reward 和 Loss 对比结果如下：
 <p align="center"> 
-    <img src="../../sources/images/grpo_lora/grpo_lora3.png" style="width: 75%;"> 
+    <img src="../../docs/zh/figures/grpo_lora/grpo_lora3.png" style="width: 75%;"> 
 </p>
 
 <div align="center">

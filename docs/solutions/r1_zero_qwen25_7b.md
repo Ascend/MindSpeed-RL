@@ -3,7 +3,7 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 
 ## 整体流程示意图
 
-![](../../sources/images/r1_zero/r1_zero_roadmap.png)
+![](../../docs/zh/figures/r1_zero/r1_zero_roadmap.png)
 
 
 ## 复现效果
@@ -15,11 +15,11 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 
 **Reward曲线：**
 
-![](../../sources/images/r1_zero/7b-reward-curses.png)
+![](../../docs/zh/figures/r1_zero/7b-reward-curses.png)
 
 **Response length曲线：**
 
-![](../../sources/images/r1_zero/7b-response-curses.png)
+![](../../docs/zh/figures/r1_zero/7b-response-curses.png)
 
 
 ### 评测结果
@@ -37,14 +37,14 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 
 - **训练前**
 
-  ![](../../sources/images/r1_zero/normal_answer.png)
+  ![](../../docs/zh/figures/r1_zero/normal_answer.png)
 - **训练后**
 
-  ![](../../sources/images/r1_zero/aha_moment.png)
+  ![](../../docs/zh/figures/r1_zero/aha_moment.png)
 
 
 ## 环境配置
-配置MindSpeed-RL基础环境以及准备代码，参考[安装指南](../install_guide.md)
+配置MindSpeed RL基础环境以及准备代码，参考[安装指南](../install_guide.md)
 
 ## 模型选择
 * Qwen2.5-7B [[**下载**]](https://huggingface.co/Qwen/Qwen2.5-7B)
@@ -84,7 +84,7 @@ R1-Zero模型是使用base模型，基于GRPO+规则奖励打分进行训练，�
 ## 打分器
 DeepSeek-R1-Zero训练的过程中仅使用了基于程序的打分器而没有使用ORM，我们在数学领域上的打分逻辑分为以下几个部分：
 
-![](../../sources/images/r1_zero/rule_reward.png)
+![](../../docs/zh/figures/r1_zero/rule_reward.png)
 
 ## 训练
 ### 背景
@@ -93,7 +93,7 @@ DeepSeek-R1-Zero训练的过程中仅使用了基于程序的打分器而没有�
 
 GRPO通过分组采样n个输出，利用组内的平均奖励作为基线计算每个输出在组内的相对奖励，并基于相对奖励计算优势值，从而避免了引入额外的价值网络（critic model）
 
-![](../../sources/images/r1_zero/grpo.png)
+![](../../docs/zh/figures/r1_zero/grpo.png)
 
 DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）替换为基于规则的打分器。
 
@@ -137,4 +137,4 @@ bash examples/grpo/grpo_trainer_qwen25_7b.sh
 ```
 
 
-***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed-RL目录下***
+***注意：所有节点的代码、权重、数据等路径的层级要保持一致，且启动ray的时候都位于MindSpeed RL目录下***

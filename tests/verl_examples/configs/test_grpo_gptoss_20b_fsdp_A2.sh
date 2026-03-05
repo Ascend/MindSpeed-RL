@@ -1,12 +1,3 @@
-# vllm-ascend has not yet been adapted for sink.
-# To run this model, please：
-# switch the vllm commit ID to 2918c1b49c88c29783c86f78d2c4221cb9622379
-# switch the vllm—ascend commit ID to 941d54a2ce1ce387e4bf5d80003c098ff6d44841
-# import verl_npu will patch this commit.
-# Some files may fail to patch due to differences in system line endings.
-# If this happens, it is recommended to add them manually.
-# We will adapt as soon as vllm-ascend is supported.
-
 set -x
 
 project_name='GRPO'

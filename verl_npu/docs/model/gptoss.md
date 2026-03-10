@@ -52,10 +52,8 @@ pip install git+https://github.com/NVIDIA/Megatron-LM.git@core_v0.12.1
 
 ## 3、安装 verl
 ```bash
-# verl==0.6.1
 git clone https://github.com/volcengine/verl.git
 cd verl
-git checkout d62da4950573d7a4b7ef2362337952e7ab59e78d
 pip install -v -e .
 cd ..
 ```

@@ -199,6 +199,9 @@ cd ..
 cd ./MindSpeed-RL
 pip install -r requirements.txt
 pip install antlr4-python3-runtime==4.9.3 --no-deps 
+
+# 注意：MindSpeed RL不支持 triton，如果环境中有 triton-ascend 需卸载
+# pip uninstall triton-ascend
 ```
 
 ## FAQ

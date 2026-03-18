@@ -1,0 +1,334 @@
+diff --git a/src/megatron/bridge/models/conversion/model_bridge.py b/src/megatron/bridge/models/conversion/model_bridge.py
+index 0f989304..6e751e8a 100644
+--- a/src/megatron/bridge/models/conversion/model_bridge.py
++++ b/src/megatron/bridge/models/conversion/model_bridge.py
+@@ -65,6 +65,11 @@ from megatron.bridge.peft.lora import LoRAMerge
+ from megatron.bridge.peft.utils import get_adapter_attributes_from_linear
+ from megatron.bridge.utils.common_utils import print_rank_0
+ 
++kv_flag = {}
++kv_cnt = 0
++def get_kv_flag():
++    global kv_flag
++    return kv_flag
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -84,6 +89,17 @@ ADAPTER_NAME_MAP = {
+ }
+ 
+ 
++def check_full(param_name):
++    kv_local = get_kv_flag()
++    if "self_attention.linear_k_up_proj.weight" not in param_name and  "self_attention.linear_v_up_proj.weight" not in param_name:
++        return True, None
++    name_splits = param_name.split(".")
++    layer_number = str(name_splits[2])
++    if layer_number in kv_flag:
++        return True, layer_number
++    return False, layer_number
++
++
+ class MegatronWeightTuple(NamedTuple):
+     """Tuple representing a Megatron model weight with its metadata."""
+ 
+@@ -773,7 +789,10 @@ class MegatronModelBridge(Generic[HFPreTrained, ModelProviderTarget, MegatronMod
+             hf_weights = self.maybe_modify_loaded_hf_weight(task.mapping.hf_param, hf_state_dict)
+ 
+             # 2) Delegate conversion & distribution to the bridge
+-            converted_weights = task.mapping.hf_to_megatron(hf_weights, task.megatron_module)
++            if "self_attention.linear_k_up_proj.weight" in task.param_name or "self_attention.linear_v_up_proj.weight" in task.param_name:
++                converted_weights = task.mapping.hf_to_megatron(hf_weights, task.megatron_module, task.param_name)
++            else:
++                converted_weights = task.mapping.hf_to_megatron(hf_weights, task.megatron_module)
+ 
+             # 3) Copy into Megatron param if this rank received a shard
+             if converted_weights is not None:
+@@ -947,8 +966,44 @@ class MegatronModelBridge(Generic[HFPreTrained, ModelProviderTarget, MegatronMod
+         unwrapped_model = unwrap_model(megatron_model)[0]
+         model_config = unwrapped_model.config
+         embeddings_are_tied = self._share_embeddings_and_output_weights(model_config, unwrapped_model)
++
++        kv_flag_local_2 = get_kv_flag()
+         for task in self._with_progress_tracking(megatron_to_hf_tasks, "Converting to HuggingFace", show_progress):
+             converted_weights_dict = task.mapping.megatron_to_hf(task.param_weight, task.megatron_module)
++            hf_name_tmp = None
++            for hf_name, tensor in converted_weights_dict.items():
++                hf_name_tmp = hf_name
++            
++            global kv_cnt
++            flag, layer_num = check_full(task.global_param_name)
++            if not flag:
++                for hf_name, tensor in converted_weights_dict.items():
++                    kv_flag_local_2[layer_num] = {}
++                    kv_flag_local_2[layer_num][task.global_param_name] = tensor.clone()
++                    if torch.distributed.get_rank() == 0:
++                        print(f"layer_num{layer_num} , {task.global_param_name}, {kv_cnt} continue")
++                continue
++            elif "self_attention.linear_k_up_proj.weight" in task.global_param_name or "self_attention.linear_v_up_proj.weight" in task.global_param_name:
++                if "self_attention.linear_k_up_proj.weight" in task.global_param_name:
++                    for param_name, tensor_v in kv_flag_local_2[layer_num].items():
++                        tensor_k = converted_weights_dict[hf_name_tmp].clone()
++                        tensor_k = tensor_k.view(128, 128, -1)
++                        tensor_v = tensor_v.view(128, 128, -1)
++                        new_tensor = torch.cat([tensor_k, tensor_v], dim=1)
++                        converted_weights_dict[hf_name_tmp] = new_tensor.view(-1, tensor_k.shape[-1])
++                else:
++                    for param_name, tensor_k in kv_flag_local_2[layer_num].items():
++                        tensor_v = converted_weights_dict[hf_name_tmp].clone()
++                        tensor_k = tensor_k.view(128, 128, -1)
++                        tensor_v = tensor_v.view(128, 128, -1)
++                        new_tensor = torch.cat([tensor_k, tensor_v], dim=1)
++                        converted_weights_dict[hf_name_tmp] = new_tensor.view(-1, tensor_k.shape[-1])
++                        
++                del kv_flag_local_2[layer_num]
++                if torch.distributed.get_rank() == 0:
++                    print(f"layer_num{layer_num} , {task.global_param_name}, {kv_cnt} done")
++                kv_cnt = kv_cnt + 1
++                
+             converted_weights_dict = self.maybe_modify_converted_hf_weight(
+                 task, converted_weights_dict
+             )  # dict will be none except for one expert;
+diff --git a/src/megatron/bridge/models/conversion/param_mapping.py b/src/megatron/bridge/models/conversion/param_mapping.py
+index 84adb91b..e2cadabb 100644
+--- a/src/megatron/bridge/models/conversion/param_mapping.py
++++ b/src/megatron/bridge/models/conversion/param_mapping.py
+@@ -789,8 +789,21 @@ class ColumnParallelMapping(MegatronParamMapping[torch.Tensor]):
+         self,
+         hf_weights: torch.Tensor,
+         megatron_module: nn.Module,
++        param_name=None
+     ) -> torch.Tensor:
+         """Split weight along dim 0 and distribute to TP ranks."""
++        if param_name is not None and "self_attention.linear_k_up_proj.weight" in param_name:
++            # num_attention_heads, qk_head_dim + v_head_dim, -1
++            hf_weights = hf_weights.reshape(128, 256, -1)
++            dim1 = hf_weights.shape[1]//2
++            hf_weights = hf_weights.split([128,128],dim=1)[0]
++            hf_weights = hf_weights.view(-1, 512)
++        elif param_name is not None and "self_attention.linear_v_up_proj.weight" in param_name:
++            # num_attention_heads, qk_head_dim + v_head_dim, -1
++            hf_weights = hf_weights.reshape(128, 256, -1)
++            dim1 = hf_weights.shape[1] // 2
++            hf_weights = hf_weights.split([128,128],dim=1)[1]
++            hf_weights = hf_weights.view(-1, 512)
+         if self.tp_size == 1:
+             return hf_weights
+ 
+@@ -1151,6 +1164,8 @@ class AutoMapping(MegatronParamMapping[torch.Tensor]):
+     def _detect_parallelism_type(self, module: nn.Module) -> str:
+         """Detect parallelism type from module."""
+         module_type = type(module).__name__
++        if module_type.startswith("MindSpeed"):
++            module_type = module_type.replace("MindSpeed", "")
+ 
+         # Handle fused modules like TELayerNormColumnParallelLinear
+         # These modules have both column-parallel weights (weight, bias)
+@@ -1187,9 +1202,10 @@ class AutoMapping(MegatronParamMapping[torch.Tensor]):
+ 
+         # Check parallel_mode for TELinear
+         if module_type == "TELinear":
+-            if module.parallel_mode == "column":
++            parallel_mode = getattr(module, 'parallel_mode', '')
++            if parallel_mode == "column":
+                 return "column"
+-            elif module.parallel_mode == "row":
++            elif parallel_mode == "row":
+                 return "row"
+             else:
+                 return "replicated"
+@@ -1210,6 +1226,7 @@ class AutoMapping(MegatronParamMapping[torch.Tensor]):
+         self,
+         hf_weights: torch.Tensor,
+         megatron_module: nn.Module,
++        param_name=None
+     ) -> torch.Tensor:
+         """Delegate to appropriate mapping based on module type."""
+         # Apply permutation if specified (before distribution)
+@@ -1220,8 +1237,11 @@ class AutoMapping(MegatronParamMapping[torch.Tensor]):
+         if self._mapping is None:
+             self._detected_type = self._detect_parallelism_type(megatron_module)
+             self._mapping = self._get_or_create_mapping(self._detected_type)
+-
+-        return self._mapping.hf_to_megatron(hf_weights, megatron_module)
++        if param_name is not None:
++            if "self_attention.linear_k_up_proj.weight" in param_name or "self_attention.linear_v_up_proj.weight" in param_name:
++                return self._mapping.hf_to_megatron(hf_weights, megatron_module, param_name)
++        else:
++            return self._mapping.hf_to_megatron(hf_weights, megatron_module)
+ 
+     def megatron_to_hf(
+         self,
+diff --git a/src/megatron/bridge/models/deepseek/__init__.py b/src/megatron/bridge/models/deepseek/__init__.py
+index 50d137fe..f08d1972 100644
+--- a/src/megatron/bridge/models/deepseek/__init__.py
++++ b/src/megatron/bridge/models/deepseek/__init__.py
+@@ -21,12 +21,13 @@ from megatron.bridge.models.deepseek.deepseek_provider import (
+     DeepSeekV2Provider,
+     DeepSeekV3ModelProvider,
+     DeepSeekV3Provider,
++    DeepSeekV32ModelProvider,
+     MoonlightModelProvider16B,
+     MoonlightProvider,
+ )
+ from megatron.bridge.models.deepseek.deepseek_v2_bridge import DeepSeekV2Bridge  # noqa: F401
+ from megatron.bridge.models.deepseek.deepseek_v3_bridge import DeepSeekV3Bridge  # noqa: F401
+-
++from megatron.bridge.models.deepseek.deepseek_v32_bridge import DeepSeekV32Bridge  # noqa: F401
+ 
+ __all__ = [
+     "DeepSeekModelProvider",
+@@ -34,6 +35,7 @@ __all__ = [
+     "DeepSeekV2ModelProvider",
+     "DeepSeekV3ModelProvider",
+     "MoonlightModelProvider16B",
++    "DeepSeekV32ModelProvider",
+     "DeepSeekProvider",
+     "DeepSeekV2LiteProvider",
+     "DeepSeekV2Provider",
+diff --git a/src/megatron/bridge/models/deepseek/common.py b/src/megatron/bridge/models/deepseek/common.py
+index bc34726a..229698e4 100644
+--- a/src/megatron/bridge/models/deepseek/common.py
++++ b/src/megatron/bridge/models/deepseek/common.py
+@@ -73,6 +73,13 @@ def get_common_configs(hf_pretrained: PreTrainedCausalLM) -> dict:
+     configs["init_method_std"] = hf_config.initializer_range
+     configs["layernorm_epsilon"] = hf_config.rms_norm_eps
+ 
++    # Indexer configs for DeepSeek-V3.2
++    if "DeepseekV32ForCausalLM" in hf_config.architectures:
++        configs["sparse_attention_type"] = "dsa"
++        configs["index_head_dim"] = hf_config.index_head_dim
++        configs["index_n_heads"] = hf_config.index_n_heads
++        configs["index_topk"] = hf_config.index_topk
++
+     return configs
+ 
+ 
+@@ -93,14 +100,24 @@ def get_common_mapping_list() -> list:
+         "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+         "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+         "decoder.layers.*.self_attention.linear_kv_down_proj.weight": "model.layers.*.self_attn.kv_a_proj_with_mqa.weight",
+-        "decoder.layers.*.self_attention.linear_kv_up_proj.weight": "model.layers.*.self_attn.kv_b_proj.weight",
++        # "decoder.layers.*.self_attention.linear_kv_up_proj.weight": "model.layers.*.self_attn.kv_b_proj.weight",
++        # "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight": "model.layers.*.self_attn.kv_a_layernorm.weight",  # For Dense MLA
++        "decoder.layers.*.self_attention.linear_k_up_proj.weight": "model.layers.*.self_attn.kv_b_proj.weight",# NPU AbsorbedDSA
+         "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight": "model.layers.*.self_attn.kv_a_layernorm.weight",
++        "decoder.layers.*.self_attention.linear_v_up_proj.weight": "model.layers.*.self_attn.kv_b_proj.weight",
++        # Sparse attention indexer
++        "decoder.layers.*.self_attention.core_attention.indexer.linear_wq_b.weight": "model.layers.*.self_attn.indexer.wq_b.weight",
++        "decoder.layers.*.self_attention.core_attention.indexer.linear_wk.weight": "model.layers.*.self_attn.indexer.wk.weight",
++        "decoder.layers.*.self_attention.core_attention.indexer.k_norm.weight": "model.layers.*.self_attn.indexer.k_norm.weight",
++        "decoder.layers.*.self_attention.core_attention.indexer.k_norm.bias": "model.layers.*.self_attn.indexer.k_norm.bias",
++        "decoder.layers.*.self_attention.core_attention.indexer.linear_weights_proj.weight": "model.layers.*.self_attn.indexer.weights_proj.weight",
+         # Mcore local spec
+         "decoder.layers.*.self_attention.kv_layernorm.weight": "model.layers.*.self_attn.kv_a_layernorm.weight",
+         # Dense MLP
+         "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
+         # MoE
+         "decoder.layers.*.mlp.router.weight": "model.layers.*.mlp.gate.weight",
++        "decoder.layers.*.mlp.router.expert_bias": "model.layers.*.mlp.gate.e_score_correction_bias",
+         "decoder.layers.*.mlp.experts.linear_fc2.weight*": "model.layers.*.mlp.experts.*.down_proj.weight",
+         "decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "model.layers.*.mlp.shared_experts.down_proj.weight",
+         # LM Head
+diff --git a/src/megatron/bridge/models/deepseek/deepseek_provider.py b/src/megatron/bridge/models/deepseek/deepseek_provider.py
+index ccc1a659..1e77f88f 100644
+--- a/src/megatron/bridge/models/deepseek/deepseek_provider.py
++++ b/src/megatron/bridge/models/deepseek/deepseek_provider.py
+@@ -110,9 +110,9 @@ class DeepSeekModelProvider(MLATransformerConfig, GPTModelProvider):
+     bias_dropout_fusion: bool = True
+     masked_softmax_fusion: bool = True
+     gradient_accumulation_fusion: bool = True
+-    cross_entropy_loss_fusion: bool = True
++    cross_entropy_loss_fusion: bool = False
+     cross_entropy_fusion_impl: str = "te"
+-    moe_permute_fusion: bool = is_te_min_version("2.1.0") if HAVE_TE else False
++    moe_permute_fusion: bool = False
+ 
+ 
+ @dataclass
+@@ -229,6 +229,22 @@ class MoonlightModelProvider16B(DeepSeekModelProvider):
+     vocab_size: int = 163842
+ 
+ 
++@dataclass
++class DeepSeekV32ModelProvider(DeepSeekV3ModelProvider):
++    """
++    DeepSeek-V3-2 Model: https://github.com/deepseek-ai/DeepSeek-V3.2-Exp
++    HuggingFace: https://huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp
++    """
++    moe_aux_loss_coeff: float = 0.001
++    sparse_attention_type: str = "dsa"
++    index_head_dim: int = 128
++    index_n_heads: int = 64
++    index_topk: int = 2048
++    # Add mindspeed parameter
++    moe_zero_memory_num_layers: int = None
++    moe_zero_memory: str = "disable"
++
++
+ # -----------------------------------------------------------------------------
+ # Deprecated aliases (to be removed in a future release)
+ # -----------------------------------------------------------------------------
+diff --git a/src/megatron/bridge/models/deepseek/deepseek_v32_bridge.py b/src/megatron/bridge/models/deepseek/deepseek_v32_bridge.py
+new file mode 100644
+index 00000000..67c0ee61
+--- /dev/null
++++ b/src/megatron/bridge/models/deepseek/deepseek_v32_bridge.py
+@@ -0,0 +1,56 @@
++import torch
++from megatron.core.models.gpt.gpt_model import GPTModel
++
++from megatron.bridge.models.conversion.mapping_registry import MegatronMappingRegistry
++from megatron.bridge.models.conversion.model_bridge import MegatronModelBridge
++from megatron.bridge.models.conversion.param_mapping import AutoMapping
++from megatron.bridge.models.deepseek.common import get_common_configs, get_common_mapping_list
++from megatron.bridge.models.deepseek.deepseek_provider import DeepSeekV32ModelProvider
++from megatron.bridge.models.hf_pretrained.causal_lm import PreTrainedCausalLM
++
++
++@MegatronModelBridge.register_bridge(source="DeepseekV32ForCausalLM", target=GPTModel)
++class DeepSeekV32Bridge(MegatronModelBridge):
++    """
++    Megatron Bridge for DeepSeek-V3-2.
++    As a user you would not use this bridge directly, but through `AutoBridge`.
++    Example:
++        >>> from megatron.bridge import AutoBridge
++        >>> bridge = AutoBridge.from_hf_pretrained("deepseek-ai/DeepSeek-V3.2-Exp", trust_remote_code=True)
++        >>> provider = bridge.to_megatron_provider()
++    """
++
++    def provider_bridge(self, hf_pretrained: PreTrainedCausalLM) -> DeepSeekV32ModelProvider:
++        hf_config = hf_pretrained.config
++        configs = get_common_configs(hf_pretrained)
++
++        configs["fp16"] = self.dtype_from_hf(hf_config, default=torch.float32) == torch.float16
++        configs["bf16"] = self.dtype_from_hf(hf_config, default=torch.float32) == torch.bfloat16
++        configs["params_dtype"] = self.dtype_from_hf(hf_config, default=torch.float32)
++
++        configs["make_vocab_size_divisible_by"] = 1280
++        configs["moe_router_score_function"] = "sigmoid"
++        # configs["moe_router_enable_expert_bias"] = True  # TODO: uncomment this
++        configs["moe_router_enable_expert_bias"] = False  # TODO: remove this
++        # aux_loss_alpha is not set in all DSv3.2 HF configs
++        if hasattr(hf_config, "aux_loss_alpha"):
++            configs["moe_aux_loss_coeff"] = hf_config.aux_loss_alpha
++
++        # TODO: mtp
++        configs["experimental_attention_variant"]="dsa"
++        provider = DeepSeekV32ModelProvider(**configs)
++        # assert False, f"{provider.moe_aux_loss_coeff=}, {provider.index_topk=}"
++        return provider
++
++    def mapping_registry(self) -> MegatronMappingRegistry:
++        mapping_list = get_common_mapping_list()
++
++        param_mappings = {
++            # expert bias
++            "decoder.layers.*.mlp.router.expert_bias": "model.layers.*.mlp.gate.e_score_correction_bias",
++        }
++
++        for megatron_param, hf_param in param_mappings.items():
++            mapping_list.append(AutoMapping(megatron_param=megatron_param, hf_param=hf_param))
++
++        return MegatronMappingRegistry(*mapping_list)
+\ No newline at end of file

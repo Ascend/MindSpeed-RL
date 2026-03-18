@@ -1,0 +1,214 @@
+diff --git a/verl/models/mcore/util.py b/verl/models/mcore/util.py
+index aefb798a..73e59f54 100644
+--- a/verl/models/mcore/util.py
++++ b/verl/models/mcore/util.py
+@@ -16,6 +16,7 @@
+ import math
+ 
+ import torch
++import numpy as np
+ from megatron.core import parallel_state as mpu
+ from megatron.core.packed_seq_params import PackedSeqParams
+ 
+@@ -189,14 +190,15 @@ def preprocess_bshd(
+     assert attention_mask.ndim == 2
+     assert position_ids.ndim == 2
+     cp_size = mpu.get_context_parallel_world_size()
+-    assert cp_size == 1, "Context parallel size without seq_pack is not supported"
++    # Implement adaptations to support cp>1
+     batch_size = input_ids.shape[0]
+     shape = list(input_ids.shape)  # batch_size, seq_len,...
+     seq_lens = attention_mask.sum(dim=1)
+     seq_len = seq_lens.max().item()
+     if sequence_parallel:
+         sp_world_size = mpu.get_tensor_model_parallel_world_size()
+-        pad_size = (sp_world_size - seq_len % sp_world_size) % sp_world_size
++        align_size = sp_world_size * cp_size * 2 if cp_size > 1 else sp_world_size
++        pad_size = (align_size - seq_len % align_size) % align_size
+         seq_len = seq_len + pad_size
+     shape[1] = seq_len
+     if pre_process:
+@@ -210,6 +212,47 @@ def preprocess_bshd(
+             new_input_ids[i, : seq_lens[i]] = input_ids[i, attention_mask[i]]
+         new_attention_mask[i, : seq_lens[i]] = attention_mask[i, attention_mask[i]]
+         new_position_ids[i, : seq_lens[i]] = position_ids[i, attention_mask[i]]
++
++    if cp_size > 1:
++        cp_rank = mpu.get_context_parallel_rank()
++        local_seq_len = seq_len // cp_size  
++
++        local_input = torch.zeros((batch_size, local_seq_len), dtype=input_ids.dtype, device=input_ids.device)
++        local_mask = torch.zeros((batch_size, local_seq_len), dtype=attention_mask.dtype, device=attention_mask.device)
++        local_pos = torch.zeros((batch_size, local_seq_len), dtype=position_ids.dtype, device=position_ids.device)
++
++        for i in range(batch_size):
++            seq_chunk = local_seq_len
++            half_chunk = seq_chunk // 2
++
++            # First half
++            start0 = cp_rank * half_chunk
++            end0 = (cp_rank + 1) * half_chunk
++
++            # The symmetrical second half
++            start1 = seq_len - (cp_rank + 1) * half_chunk
++            end1 = seq_len - cp_rank * half_chunk
++
++            # Original data after padding removal
++            d_input = new_input_ids[i]
++            d_mask = new_attention_mask[i]
++            d_pos = new_position_ids[i]
++
++            local_input[i, :half_chunk] = d_input[start0:end0]
++            local_mask[i, :half_chunk] = d_mask[start0:end0]
++            local_pos[i, :half_chunk] = d_pos[start0:end0]
++
++            remain_len = max(0, end1 - start1)
++            if remain_len > 0:
++                local_input[i, half_chunk:half_chunk+remain_len] = d_input[start1:end1]
++                local_mask[i, half_chunk:half_chunk+remain_len] = d_mask[start1:end1]
++                local_pos[i, half_chunk:half_chunk+remain_len] = d_pos[start1:end1]
++
++        new_input_ids = local_input
++        new_attention_mask = local_mask
++        new_position_ids = local_pos
++
++
+     if pre_process:
+         return new_input_ids, new_attention_mask, new_position_ids
+     else:
+@@ -224,18 +267,62 @@ def postprocess_bshd(
+     post_process: bool = True,
+ ):
+     """
+-    Recover left padding from result
+-    return result
++    result, @[b, s]
++    attention_mask: @[b, len]
++    original_attention_mask: @[b, prmopt+repsone_length]
++
++    Recover left padding from result,
++    Support context parallel with symmetric split
+     """
+     if not post_process:
+         return result
++    cp_size = mpu.get_context_parallel_world_size()
+     shape = list(result.shape)
+     batch_size = shape[0]
+     shape[1] = origin_seqlen
+     new_result = torch.zeros(dtype=result.dtype, device=result.device, size=shape)
+-    for i in range(batch_size):
+-        new_result[i, original_attention_mask[i]] = result[i, attention_mask[i]]
+-    return new_result
++    if cp_size == 1:
++        for i in range(batch_size):
++            new_result[i, original_attention_mask[i]] = result[i, attention_mask[i]]
++        return new_result
++    else:
++        cp_rank = mpu.get_context_parallel_rank()
++
++        # allgather
++        result_list = [torch.empty_like(result) for _ in range(cp_size)]
++        torch.distributed.all_gather(result_list, result.detach(), group=mpu.get_context_parallel_group())
++        result_list[cp_rank] = result
++
++        # Step2: The result of symmetrically splitting splicing
++        ## True length of the global total sequence
++        full_seq_len_mask = original_attention_mask.sum(dim=1).max().item()
++
++        # Restores the data (including the padding) when the data is segmented.
++        full_seq_len = attention_mask.shape[1] * cp_size
++        full_result = torch.zeros((batch_size, full_seq_len), dtype=result.dtype, device=result.device)
++
++        for i in range(batch_size):
++            seq_len = attention_mask.shape[1]
++            half_chunk = seq_len // 2
++            for j in range(cp_size):
++                local = result_list[j][i]
++                # First Half
++                start0 = j * half_chunk
++                end0 = (j + 1) * half_chunk
++                full_result[i, start0:end0] = local[:half_chunk]
++
++                # The symmetrical second half
++                start1 = full_seq_len - (j + 1) * half_chunk
++                end1 = full_seq_len - j * half_chunk
++                full_result[i, start1:end1] = local[half_chunk:half_chunk + half_chunk]
++
++        # ---------------------------------
++        # Step3: recover left padding
++        # ---------------------------------
++        for i in range(batch_size):
++            new_result[i, original_attention_mask[i]] = full_result[i, : full_seq_len_mask]
++
++        return new_result
+ 
+ 
+ def postprocess_packed_seqs_for_dict_output(
+diff --git a/verl/trainer/ppo/ray_trainer.py b/verl/trainer/ppo/ray_trainer.py
+index 364d3a97..dab2792a 100644
+--- a/verl/trainer/ppo/ray_trainer.py
++++ b/verl/trainer/ppo/ray_trainer.py
+@@ -457,7 +457,7 @@ class RayPPOTrainer:
+ 
+         lines = []
+         for i in range(n):
+-            entry = {k: v[i] for k, v in base_data.items()}
++            entry = {k: str(v[i]) if k == "acc" else v[i] for k, v in base_data.items()}
+             lines.append(json.dumps(entry, ensure_ascii=False))
+ 
+         with open(filename, "w") as f:
+diff --git a/verl/workers/actor/megatron_actor.py b/verl/workers/actor/megatron_actor.py
+index 666f26be..766d95f0 100644
+--- a/verl/workers/actor/megatron_actor.py
++++ b/verl/workers/actor/megatron_actor.py
+@@ -771,7 +771,7 @@ class MegatronPPOActor(BasePPOActor):
+                 append_to_dict(metrics, metric[0])  # append the metric from this micro-batch to global metrics.
+ 
+             update_successful, grad_norm, num_zeros_in_grad = self.actor_optimizer.step()
+-            data = {"actor/grad_norm": grad_norm}
++            data = {"actor/grad_norm": grad_norm / self.config.megatron.context_parallel_size}
+             append_to_dict(metrics, data)
+ 
+             if update_successful:
+diff --git a/verl/workers/rollout/vllm_rollout/vllm_async_server.py b/verl/workers/rollout/vllm_rollout/vllm_async_server.py
+index 759da0c7..d0f785e5 100644
+--- a/verl/workers/rollout/vllm_rollout/vllm_async_server.py
++++ b/verl/workers/rollout/vllm_rollout/vllm_async_server.py
+@@ -60,10 +60,10 @@ if vllm.__version__ > "0.11.0":
+     from vllm.utils.argparse_utils import FlexibleArgumentParser
+     from vllm.utils.network_utils import get_tcp_uri
+ 
+-    if vllm.__version__ == "0.12.0":
+-        from vllm.entrypoints.harmony_utils import get_encoding
++    # if vllm.__version__ == "0.12.0":
++    #     from vllm.entrypoints.harmony_utils import get_encoding
+ 
+-        get_encoding()
++    #     get_encoding()
+ else:
+     from vllm.utils import FlexibleArgumentParser, get_tcp_uri
+ if vllm.__version__ >= "0.12.0":
+@@ -462,7 +462,7 @@ class vLLMHttpServerBase:
+     ) -> TokenOutput:
+         """Generate sequence with token-in-token-out."""
+         # TODO(@wuxibin): switch to `/generate` http endpoint once multi-modal support ready.
+-        response_length = self.config.max_model_len - len(prompt_ids)
++        response_length = min(self.config.response_length, self.config.max_model_len - len(prompt_ids) - 1)
+         if "max_tokens" in sampling_params:
+             max_tokens = sampling_params.pop("max_tokens")
+         elif "max_new_tokens" in sampling_params:
+diff --git a/verl/workers/rollout/vllm_rollout/vllm_rollout.py b/verl/workers/rollout/vllm_rollout/vllm_rollout.py
+index 7a0105be..0d1497c5 100644
+--- a/verl/workers/rollout/vllm_rollout/vllm_rollout.py
++++ b/verl/workers/rollout/vllm_rollout/vllm_rollout.py
+@@ -268,6 +268,10 @@ class vLLMAsyncRollout(BaseRollout):
+             else:
+                 logger.info("Loading standard weights (non-FP8, async)")
+                 model.load_weights(weights)
++                model_config = model_runner.vllm_config.model_config
++                device = next(model.parameters()).device
++                from vllm.model_executor.model_loader.utils import process_weights_after_loading
++                process_weights_after_loading(model, model_config, device)
+ 
+     def generate_sequences(self, prompts: DataProto) -> DataProto:
+         """Batch generate sequences in sync mode."""

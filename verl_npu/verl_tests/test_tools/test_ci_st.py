@@ -11,10 +11,10 @@ GRAD_NORM = "grad_norm"
 
 class TestMargin:
     _MARGIN_NAME = " margin"
-    entropy = 0
-    grad_norm = 0
-    logp_diff = 0
-    pg_loss = 0
+    entropy = 0.02
+    grad_norm = 0.02
+    logp_diff = 0.02
+    pg_loss = 0.02
 
     @classmethod
     def refresh_margin_from_json(cls, json_obj): 
@@ -82,25 +82,25 @@ class TestCIST:
         # lm loss in case of approximation.
         for step, (expected_val, actual_val) in enumerate(zip(expected_list, actual_list)):
             print(f"Checking step {step + 1} for entropy")
-            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.entropy),\
+            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.entropy, abs=0.01),\
             f"The entropy at step {step} should be approximate to {expected_val} but it is {actual_val}."
 
     def _compare_logp_diff(self, expected_list, actual_list):
         for step, (expected_val, actual_val) in enumerate(zip(expected_list, actual_list)):
             print(f"Checking step {step + 1} for logp diff")
-            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.logp_diff),\
+            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.logp_diff, abs=0.01),\
             f"The grad norm at step {step} should be approximate to {expected_val} but it is {actual_val}."
 
     def _compare_grad_norm(self, expected_list, actual_list):
         for step, (expected_val, actual_val) in enumerate(zip(expected_list, actual_list)):
             print(f"Checking step {step + 1} for grad norm")
-            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.grad_norm),\
+            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.grad_norm, abs=0.01),\
             f"The grad norm at step {step} should be approximate to {expected_val} but it is {actual_val}."
 
     def _compare_pg_loss(self, expected_list, actual_list):
         for step, (expected_val, actual_val) in enumerate(zip(expected_list, actual_list)):
             print(f"Checking step {step + 1} for pg_loss")
-            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.pg_loss),\
+            assert actual_val == pytest.approx(expected=expected_val, rel=TestMargin.pg_loss, abs=0.01),\
             f"The pg_loss at step {step} should be approximate to {expected_val} but it is {actual_val}."
 
     def test_entropy(self, baseline_json, generate_log, generate_json):

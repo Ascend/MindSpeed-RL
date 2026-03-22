@@ -19,17 +19,10 @@ from mindspeed_rl.trainer.utils.parallel_state import is_pipeline_last_stage, ge
 
 class RewardWorkerBase(BaseWorker):
     """
-    RewardWorker class. This class implements the worker logic for reward model training and inference.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        **kwargs: Additional parameters for base class argument passing.
+    RewardWorker class for reward model inference.
+    
+    This class implements the worker logic for reward model inference,
+    computing reward scores for generated sequences in RL training.
     """
 
     def __init__(
@@ -43,6 +36,19 @@ class RewardWorkerBase(BaseWorker):
             get_megatron_module: Callable = None,
             **kwargs
     ):
+        """
+        Initialize the RewardWorkerBase.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             megatron_config,
             rl_config,
@@ -53,9 +59,16 @@ class RewardWorkerBase(BaseWorker):
             get_megatron_module=get_megatron_module,
             **kwargs
         )
+        # Reward model wrapper for score computation
         self.reward = None
 
     def initialize(self):
+        """
+        Initialize the reward worker.
+        
+        Sets up distributed rank, loads or initializes the reward model,
+        and creates the Reward wrapper for inference.
+        """
         self.setup_distributed_rank()
         self.model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
 
@@ -85,12 +98,27 @@ class RewardWorkerBase(BaseWorker):
         )
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+            mm_sampling_transfer_dock: Multi-modal sampling transfer dock.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
         self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def compute_rm_score(self):
+        """
+        Compute reward model scores for experience data.
+        
+        Dispatches experience data from transfer dock and computes reward
+        scores for generated sequences using the reward model.
+        """
         experience_consumer_stage = 'reward_scores'
         experience_columns = ['input_ids', 'prompt_length', "responses", "response_length",
                               *self.megatron_config.dataset_additional_keys]

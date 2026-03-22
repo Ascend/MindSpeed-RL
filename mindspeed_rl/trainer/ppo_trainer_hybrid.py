@@ -1,8 +1,8 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
 import copy
 import time
 from typing import List, Union
-import time
 import ray
 import torch
 from codetiming import Timer
@@ -22,27 +22,11 @@ from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metri
 
 class RayPPOTrainer(RayBaseTrainer):
     """
-    RayPPOTrainer class. This trainer runs on the driver process on a single CPU/GPU node.
-
-    Args:
-        actor_worker: RayActorGroup The actor worker group.
-        ref_worker: RayActorGroup The reference worker group.
-        reward_list: List[Union[RayActorGroup, RuleReward]] List of reward workers or rule-based rewards.
-        critic_worker: RayActorGroup The critic worker group.
-        train_iters: int = 1 The number of training iterations.
-        save_interval: int = 1 The interval (in iterations) for saving checkpoints.
-        kl_ctrl_type: str = 'fixed' The type of KL divergence control (e.g., 'fixed', 'adaptive').
-        adv_estimator: str = "group_norm" The method for estimating advantages (e.g., 'group_norm', 'mean').
-        kl_horizon: int = 1000 The time horizon for KL divergence control (used in adaptive methods).
-        kl_target: float = 100.0 The target value for KL divergence (used in adaptive methods).
-        init_kl_coef: float = 0.01 The initial coefficient for KL divergence penalty.
-        global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
-        n_samples_per_prompt: int = 1 The number of samples generated per prompt.
-        tokenizer: BaseTokenizer = None tokenizer to use.
-        dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
-        blocking: bool = False  Whether to enable blocking mode.
-        num_cpus_for_local_task: int = 1 Number of CPUs for local ray task.
-        **kwargs: Additional parameters for base class argument passing.
+    RayPPOTrainer class for distributed PPO (Proximal Policy Optimization) training.
+    
+    This trainer runs on the driver process on a single CPU/GPU node, coordinating
+    distributed workers for actor model inference, reference model computation,
+    critic value estimation, reward scoring, and advantage estimation.
     """
 
     def __init__(
@@ -69,6 +53,32 @@ class RayPPOTrainer(RayBaseTrainer):
             use_kl_in_reward: bool = False,
             **kwargs
     ):
+        """
+        Initialize the RayPPOTrainer.
+        
+        Args:
+            actor_worker: The actor worker group for policy generation.
+            ref_worker: The reference worker group for KL divergence calculation.
+            reward_list: List of reward workers or rule-based reward functions.
+            critic_worker: The critic worker group for value estimation.
+            train_iters: The number of training iterations.
+            save_interval: The interval (in iterations) for saving checkpoints.
+            kl_ctrl_type: The type of KL divergence control ('fixed' or 'adaptive').
+            adv_estimator: The method for estimating advantages (e.g., 'group_norm').
+            kl_horizon: The time horizon for KL divergence control in adaptive mode.
+            kl_target: The target value for KL divergence in adaptive mode.
+            init_kl_coef: The initial coefficient for KL divergence penalty.
+            global_batch_size: The global batch size for training (number of prompts per iteration).
+            micro_batch_size: Micro batch size per device for training.
+            n_samples_per_prompt: The number of samples generated per prompt.
+            tokenizer: Tokenizer to use for text processing.
+            dataset_additional_keys: Additional keys to include in the dataset.
+            blocking: Whether to enable blocking mode for remote calls.
+            guarantee_order: Whether to guarantee generation order.
+            num_cpus_for_local_task: Number of CPUs for local ray task.
+            use_kl_in_reward: Whether to apply KL penalty in reward computation.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             actor_worker,
             ref_worker,
@@ -93,18 +103,32 @@ class RayPPOTrainer(RayBaseTrainer):
             **kwargs
         )
 
+        # Transfer dock for experience data communication
         self.transfer_dock = None
+        # Metrics collector for training statistics
         self.metrics = Metric()
+        # Data strategy manager for batch processing
         self.data_strategy = DataStrategy(self.actor_worker.rl_config)
+        # Additional keyword arguments
         self.kwargs = kwargs
+        # Set flag to skip actor log probability computation when possible
         self.set_actor_log_prob_skip_flag()
+        # Additional columns to include in experience data
         self.addition_columns = ['values']
+        # Consumers for additional columns
         self.addition_consumers = ["compute_kl", "critic_train", "critic_compute_values", "ppo_metrics"]
         if self.dataset_additional_keys:
             self.addition_columns.extend(self.dataset_additional_keys)
+
         self.transfer_dock_init()
 
     def transfer_dock_init(self):
+        """
+        Initialize transfer dock for data communication between workers.
+        
+        Builds the PPO data strategy and synchronizes transfer dock references
+        with actor worker, reference worker, critic worker, and reward workers.
+        """
         self.data_strategy.build_ppo(
             prompts_num=self.global_batch_size,
             n_samples_per_prompt=self.n_samples_per_prompt,
@@ -124,6 +148,12 @@ class RayPPOTrainer(RayBaseTrainer):
                 reward.init_transfer_dock.remote(self.transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
+        """
+        Determine whether to skip actor log probability computation.
+        
+        Sets the skip flag when KL is not used in reward, batch size matches
+        mini-batch size, and only one epoch, avoiding redundant computation.
+        """
         global_batch_size = self.actor_worker.megatron_config.global_batch_size
         mini_batch_size = self.actor_worker.rl_config.mini_batch_size
         n_samples_per_prompt = self.actor_worker.rl_config.n_samples_per_prompt
@@ -133,7 +163,10 @@ class RayPPOTrainer(RayBaseTrainer):
 
     def fit(self, data_iters):
         """
-        The utils loop of PPO
+        Main training loop for PPO.
+        
+        Args:
+            data_iters: Iterator providing training data batches.
         """
         logger = Loggers('ppo_trainer_hybrid')
         metrics = Metric()
@@ -231,6 +264,13 @@ class RayPPOTrainer(RayBaseTrainer):
         ray.shutdown()
 
     def compute_advantage(self, blocking=False, guarantee_order=False):
+        """
+        Compute advantages using GAE (Generalized Advantage Estimation).
+        
+        Args:
+            blocking: Whether to block until computation completes.
+            guarantee_order: Whether to guarantee data order in computation.
+        """
         experience_count = self.kwargs["adv_dispatch_size"]
 
         start_adv_time = time.time()
@@ -261,6 +301,13 @@ class RayPPOTrainer(RayBaseTrainer):
         )
 
     def apply_kl_penalty(self, blocking=False, guarantee_order=False):
+        """
+        Apply KL divergence penalty to rewards.
+        
+        Args:
+            blocking: Whether to block until computation completes.
+            guarantee_order: Whether to guarantee data order in computation.
+        """
         experience_count = self.kwargs["kl_dispatch_size"]
 
         start_kl_time = time.time()

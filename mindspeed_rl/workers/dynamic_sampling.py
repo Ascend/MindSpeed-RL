@@ -1,4 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
 import ray
 import numpy as np
 
@@ -11,20 +12,46 @@ logger = Loggers("DynamicSampling")
 
 @ray.remote
 class DynamicSampling(object):
+    """
+    DynamicSampling class for filtering high-quality training data.
+    
+    This class implements dynamic sampling logic that filters experience data
+    based on reward model score variance within each prompt group, keeping only
+    groups with diverse enough rewards for effective training.
+    """
+
     def initialize(self, megatron_config, rl_config):
+        """
+        Initialize the DynamicSampling worker.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM.
+            rl_config: Configuration for reinforcement learning.
+        """
+        # Reinforcement learning configuration
         self.rl_config = rl_config
+        # Megatron-LM configuration
         self.megatron_config = megatron_config
+        # Number of samples generated per prompt
         self.n_samples_per_prompt = rl_config.n_samples_per_prompt
+        # Global batch size for training
         self.global_batch_size = megatron_config.global_batch_size
+        # Whether to guarantee data order during sampling
         self.guarantee_order = rl_config.guarantee_order
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
         self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def dynamic_sampling(self):
+        """
+        Perform dynamic sampling to filter high-quality training data.
+        """
         experience_consumer_stage = 'dynamic_sampling'
         experience_columns = ['prompts', 'prompt_length', 'responses', 'response_length', 'input_ids', 'rm_scores',
                               'metric_for_dapo', *self.megatron_config.dataset_additional_keys]
@@ -74,4 +101,3 @@ class DynamicSampling(object):
                         )
                         mm_index_list = [i // self.n_samples_per_prompt for i in index_list]
                         ray.get(mm_main_td.put_experience.remote(batch_mm_data, mm_index_list))
-

@@ -1,6 +1,6 @@
-# Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
-from typing import Dict, Tuple, Callable
+from typing import Dict, Tuple, Callable, Optional, Any
 
 import torch
 from torch import Tensor
@@ -10,16 +10,16 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class Critic(BaseTrainingEngine):
-    """
-    Reward class. This class implements the simple logics.
+    """Critic model for value function estimation in RL training.
 
-    Args:
-        model: The network model to be used for reward computation.
-        beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        stage: str = None The training stage identifier (e.g., pretrain/finetune).
-        cliprange_value: float = 0.5   The clipping ratio threshold for critic (limits the policy update range).
-        forward_backward_func: Callable = None The forward-backward function for distributed training.
-        **kwargs: Additional parameters for base class argument passing.
+    This class implements the critic (value function) component of actor-critic
+    algorithms. It computes state values and performs critic updates using
+    clipped value function objectives. Supports distributed training through
+    the forward-backward function mechanism.
+
+    Attributes:
+        cliprange_value (float): Clipping range for value function updates.
+        entropy_coeff (float, optional): Coefficient for entropy regularization.
     """
 
     def __init__(

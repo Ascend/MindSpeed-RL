@@ -19,25 +19,10 @@ from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metri
 
 class RayDAPOTrainer(RayBaseTrainer):
     """
-    RayDAPOTrainer class. This trainer runs on the driver process on a single CPU/GPU node.
-
-    Args:
-        actor_worker: RayActorGroup The actor worker group.
-        reward_list: List[Union[RayActorGroup, RuleReward]] List of reward workers or rule-based rewards.
-        train_iters: int = 1 The number of training iterations.
-        save_interval: int = 1 The interval (in iterations) for saving checkpoints.
-        kl_ctrl_type: str = 'fixed' The type of KL divergence control (e.g., 'fixed', 'adaptive').
-        adv_estimator: str = "group_norm" The method for estimating advantages (e.g., 'group_norm', 'mean').
-        kl_horizon: int = 1000 The time horizon for KL divergence control (used in adaptive methods).
-        kl_target: float = 100.0 The target value for KL divergence (used in adaptive methods).
-        init_kl_coef: float = 0.01 The initial coefficient for KL divergence penalty.
-        global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
-        n_samples_per_prompt: int = 1 The number of samples generated per prompt.
-        tokenizer: BaseTokenizer = None tokenizer to use.
-        dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
-        blocking: bool = False  Whether to enable blocking mode.
-        num_cpus_for_local_task: int = 1 Number of CPUs for local ray task.
-        **kwargs: Additional parameters for base class argument passing.
+    RayDAPOTrainer class for distributed DAPO (Dynamic Adaptive Policy Optimization) training.
+    
+    This trainer runs on the driver process on a single CPU/GPU node, coordinating
+    distributed workers for actor model inference, reward computation, and dynamic sampling.
     """
 
     def __init__(
@@ -63,6 +48,31 @@ class RayDAPOTrainer(RayBaseTrainer):
             partial_rollout_max_split: int = 1,
             **kwargs
     ):
+        """
+        Initialize the RayDAPOTrainer.
+        
+        Args:
+            actor_worker: The actor worker group for policy generation.
+            reward_list: List of reward workers or rule-based reward functions.
+            dynamic_sampling_list: List of dynamic sampling controllers for data filtering.
+            train_iters: The number of training iterations.
+            save_interval: The interval (in iterations) for saving checkpoints.
+            kl_ctrl_type: The type of KL divergence control ('fixed' or 'adaptive').
+            adv_estimator: The method for estimating advantages (e.g., 'group_norm').
+            kl_horizon: The time horizon for KL divergence control in adaptive mode.
+            kl_target: The target value for KL divergence in adaptive mode.
+            init_kl_coef: The initial coefficient for KL divergence penalty.
+            global_batch_size: The global batch size for training (number of prompts per iteration).
+            micro_batch_size: Micro batch size per device for training.
+            n_samples_per_prompt: The number of samples generated per prompt.
+            tokenizer: Tokenizer to use for text processing.
+            dataset_additional_keys: Additional keys to include in the dataset.
+            blocking: Whether to enable blocking mode for remote calls.
+            guarantee_order: Whether to guarantee generation order.
+            num_cpus_for_local_task: Number of CPUs for local ray task.
+            partial_rollout_max_split: Maximum split for partial rollout generation.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             actor_worker,
             None,
@@ -86,35 +96,60 @@ class RayDAPOTrainer(RayBaseTrainer):
             **kwargs
         )
 
+        # Transfer dock for experience data communication
         self.transfer_dock = None
+        # Transfer dock for sampling data communication
         self.sampling_transfer_dock = None
+        # Transfer dock for multi-modal data communication
         self.mm_transfer_dock = None
+        # Transfer dock for multi-modal sampling data communication
         self.mm_sampling_transfer_dock = None
+        # Metrics collector for training statistics
         self.metrics = Metric()
+        # Data strategy manager for batch processing and filtering
         self.data_strategy = DataStrategy(self.actor_worker.rl_config)
+        # Additional keyword arguments
         self.kwargs = kwargs
+        # Whether to enable dynamic sampling filtering
         self.should_filter = kwargs['filter_groups_enable']
+        # Maximum number of prompts in a filtered batch
         self.max_num_prompt_in_batch = kwargs['filter_groups_train_batch_size']
+        # Maximum number of generation batches for filtering
         self.max_num_gen_batches = kwargs['filter_groups_max_batches']
+        # Current number of prompts in batch
         self.num_prompt_in_batch = 0
+        # Current number of generation batches
         self.num_gen_batches = 0
+        # List of dynamic sampling controllers
         self.dynamic_sampling_list = dynamic_sampling_list
+        # Additional columns to include in experience data
         self.addition_columns = ['metric_for_dapo']
+        # Consumers for additional columns
         self.addition_consumers = ["dynamic_sampling", "dapo_metrics"]
         if self.dataset_additional_keys:
             self.addition_columns.extend(self.dataset_additional_keys)
+        # Whether multi-turn conversation is enabled
         self.multi_turn_enable = kwargs['multi_turn_enable']
         if self.multi_turn_enable:
             self.addition_columns.extend(['response_mask', 'tool_call_num'])
+        # Whether partial rollout is enabled
         self.enable_partial_rollout = self.partial_rollout_max_split > 1
+        # Maximum length of transfer dock queue
         if self.enable_partial_rollout:
             self.td_max_len = self.global_batch_size * 2
         else:
             self.td_max_len = self.global_batch_size
+
         self.transfer_dock_init()
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
+        """
+        Initialize transfer docks for data communication between workers.
+        
+        Builds the DAPO data strategy and synchronizes transfer dock references
+        with actor worker, reference worker, and reward workers.
+        """
         self.data_strategy.build_dapo(
             should_filter=self.should_filter,
             max_num_prompt_in_batch=self.max_num_prompt_in_batch,
@@ -150,6 +185,12 @@ class RayDAPOTrainer(RayBaseTrainer):
                 reward.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock, self.sampling_transfer_dock, self.mm_sampling_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
+        """
+        Determine whether to skip actor log probability computation.
+        
+        Sets the skip flag when batch size matches mini-batch size and only one epoch,
+        avoiding redundant computation in specific configurations.
+        """
         if self.should_filter:
             global_batch_size = self.max_num_prompt_in_batch
         else:
@@ -160,6 +201,14 @@ class RayDAPOTrainer(RayBaseTrainer):
         self.actor_worker.skip_actor_log_prob = self.skip_actor_log_prob
 
     def put_experience_data(self, batch, data_num, add_another_batch):
+        """
+        Put experience data into transfer dock for training.
+        
+        Args:
+            batch: Raw data batch from data loader.
+            data_num: Number of data samples to process.
+            add_another_batch: Whether to add another batch to existing data.
+        """
         if self.should_filter:
             self.data_strategy.clear_sampling(consumer='dynamic_sampling')
             index_list = self.data_strategy.prefetch_sampling_index(data_num)
@@ -181,7 +230,10 @@ class RayDAPOTrainer(RayBaseTrainer):
 
     def fit(self, data_loader):
         """
-        The utils loop of DAPO
+        Main training loop for DAPO.
+        
+        Args:
+            data_loader: PyTorch DataLoader providing training data batches.
         """
         logger = Loggers('dapo_trainer_hybrid')
         metrics = Metric()
@@ -301,15 +353,28 @@ class RayDAPOTrainer(RayBaseTrainer):
             self.data_strategy.clear_main()
             if self.should_filter:
                 logger.info(f"dapo fit clear")
-                # 刷新current train prompt num, 和filter_groups_train_batch_size比较
+                # Refresh current train prompt num, compare with filter_groups_train_batch_size
                 self.num_prompt_in_batch = 0
-                # 刷新current gen batch num, 和filter_groups_max_batches比较
+                # Refresh current gen batch num, compare with filter_groups_max_batches
                 self.num_gen_batches = 0
 
         logger.info('after dapo training is done')
         ray.shutdown()
 
     def dynamic_sampling(self):
+        """
+        Perform dynamic sampling to filter high-quality training data.
+        
+        Increments generation batch counter, executes remote sampling workers,
+        and validates if collected data meets filtering thresholds.
+        
+        Returns:
+            bool: True if sampling should continue (insufficient data), 
+                  False if enough data is collected.
+                  
+        Raises:
+            ValueError: If maximum generation batches exceeded without collecting enough data.
+        """
         logger = Loggers("dynamic_sampling")
         self.num_gen_batches += 1
 
@@ -330,6 +395,14 @@ class RayDAPOTrainer(RayBaseTrainer):
         return False
 
     def compute_advantage(self, data_num, blocking=False, guarantee_order=False):
+        """
+        Compute advantages using GAE (Generalized Advantage Estimation).
+        
+        Args:
+            data_num: Number of data samples to compute advantages for.
+            blocking: Whether to block until computation completes.
+            guarantee_order: Whether to guarantee data order in computation.
+        """
         experience_count = self.micro_batch_size
 
         start_adv_time = time.time()
@@ -360,6 +433,18 @@ class RayDAPOTrainer(RayBaseTrainer):
         )
 
     def process_metric(self, all_time, metrics_result, dapo_data_metrics, metrics):
+        """
+        Process and aggregate training metrics.
+        
+        Args:
+            all_time: Total elapsed time for the iteration.
+            metrics_result: Raw metrics from data strategy.
+            dapo_data_metrics: DAPO-specific data metrics.
+            metrics: Metrics collector object to update.
+            
+        Returns:
+            Metric: Updated metrics collector with processed statistics.
+        """
         if self.should_filter:
             enter_infer_time_list = metrics_result.metric.get("timing/resharding_enter_infer", [0])
             exit_infer_time_list = metrics_result.metric.get("timing/resharding_exit_infer", [0])

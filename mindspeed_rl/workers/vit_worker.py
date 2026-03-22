@@ -22,17 +22,10 @@ from mindspeed_rl.trainer.utils.mm_transfer_dock import unpack_mm_experience
 
 class VitWorkerBase(BaseWorker):
     """
-    ReferenceWorker class. This class implements the worker logic for reference model inference.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        **kwargs: Additional parameters for base class argument passing.
+    VitWorker class for Vision Transformer (ViT) model inference.
+    
+    This class implements the worker logic for vision transformer model inference,
+    computing image embeddings for multi-modal RL training.
     """
 
     def __init__(
@@ -46,6 +39,19 @@ class VitWorkerBase(BaseWorker):
             get_megatron_module: Callable = None,
             **kwargs
     ):
+        """
+        Initialize the VitWorkerBase.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             megatron_config,
             rl_config,
@@ -56,11 +62,20 @@ class VitWorkerBase(BaseWorker):
             get_megatron_module=get_megatron_module,
             **kwargs
         )
+        # Vision transformer wrapper for image embedding computation
         self.vit = None
+        # Vision transformer model instance
         self.vit_model = None
+        # Offloader for ViT model parameter management
         self.vit_manager = None
 
     def initialize(self):
+        """
+        Initialize the ViT worker.
+        
+        Sets up distributed rank, loads or initializes the vision transformer model,
+        and creates the Actor wrapper for image embedding computation.
+        """
         self.setup_distributed_rank()
         self.vit_model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
 
@@ -90,6 +105,14 @@ class VitWorkerBase(BaseWorker):
         )
 
     def init_transfer_dock(self, td, mm_td, sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
@@ -97,6 +120,12 @@ class VitWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def compute_image_embeds(self):
+        """
+        Compute image embeddings using the vision transformer model.
+        
+        Loads ViT parameters (if colocated with actor), dispatches experience data
+        from transfer dock, computes image embeddings, and stores results back.
+        """
         if self.rl_config.colocate_actor_and_vit:
             start_onload_time = time.time()
             self.vit_manager.onload_param()

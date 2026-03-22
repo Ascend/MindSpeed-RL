@@ -24,19 +24,10 @@ from mindspeed_rl.utils.utils import num_floating_point_operations, get_attr_wra
 
 class CriticWorkerBase(BaseWorker):
     """
-    RewardWorker class. This class implements the worker logic for reward model training and inference.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        profiler_config: ProfilerConfig, Configuration for profiling.
-        msprobe_config: MsprobeConfig, Configuration for msprobe.
-        **kwargs: Additional parameters for base class argument passing.
+    CriticWorker class for value model training and inference.
+    
+    This class implements the worker logic for critic model (value function)
+    training and inference in RL algorithms like PPO.
     """
 
     def __init__(
@@ -52,6 +43,21 @@ class CriticWorkerBase(BaseWorker):
             msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
+        """
+        Initialize the CriticWorkerBase.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            profiler_config: Configuration for profiling.
+            msprobe_config: Configuration for msprobe.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             megatron_config,
             rl_config,
@@ -64,13 +70,24 @@ class CriticWorkerBase(BaseWorker):
             msprobe_config=msprobe_config,
             **kwargs
         )
+        # Reward model (placeholder, not used in standard critic)
         self.reward = None
+        # Counter for floating point operations performed so far
         self.num_floating_point_operations_so_far = 0
+        # Offloader for managing critic model state across devices
         self.critic_offloader = None
+        # Profiler for critic operations
         self.critic_profiler = None
+        # Current profiler iteration counter
         self.prof_iteration = 1
 
     def initialize(self):
+        """
+        Initialize the critic worker.
+        
+        Sets up distributed rank, builds model and optimizer, creates offloader,
+        and initializes the critic module for value estimation.
+        """
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
         self._set_no_sync_func()
@@ -115,6 +132,15 @@ class CriticWorkerBase(BaseWorker):
         MsProbe.config_init(self.msprobe_config)
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+            mm_sampling_transfer_dock: Multi-modal sampling transfer dock.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
@@ -125,6 +151,12 @@ class CriticWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def compute_values(self):
+        """
+        Compute value estimates for experience data.
+        
+        Dispatches experience data from transfer dock and computes value
+        estimates using the critic model for advantage calculation.
+        """
         self.critic_offloader.onload_param()
 
         experience_consumer_stage = 'critic_compute_values'
@@ -192,6 +224,15 @@ class CriticWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def update(self, kl_ctrl=None):
+        """
+        Update critic parameters using experience data.
+        
+        Performs the main training loop for critic: dispatches experience data,
+        computes value loss, updates model parameters, and logs metrics.
+        
+        Args:
+            kl_ctrl: KL divergence controller for penalty calculation.
+        """
         self.critic_offloader.onload_optimizer()
         self.critic_offloader.onload_grad()
 
@@ -204,6 +245,7 @@ class CriticWorkerBase(BaseWorker):
 
         experience_count = self.rl_config.critic_update_dispatch_size
         
+        # Get current learning rate
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
@@ -264,6 +306,15 @@ class CriticWorkerBase(BaseWorker):
         logger.info("finish critic update")
 
     def save_ckpt(self, iteration: int):
+        """
+        Save critic model checkpoint at specified iteration.
+        
+        Temporarily loads all offloaded states, saves checkpoint, then
+        offloads again to maintain memory efficiency.
+        
+        Args:
+            iteration: Current training iteration number.
+        """
         self.critic_offloader.onload_optimizer()
         self.critic_offloader.onload_grad()
         self.critic_offloader.onload_param()
@@ -275,6 +326,12 @@ class CriticWorkerBase(BaseWorker):
         self.empty_cache()
 
     def _build_model_optimizer(self):
+        """
+        Build model and optimizer for critic.
+        
+        Returns:
+            tuple: (critic_module, optimizer, opt_param_scheduler)
+        """
         critic_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(
             self.model_provider, self.model_type.encoder_or_decoder)
 
@@ -283,6 +340,12 @@ class CriticWorkerBase(BaseWorker):
         return critic_module, optimizer, opt_param_scheduler
 
     def _set_no_sync_func(self):
+        """
+        Configure gradient synchronization function.
+        
+        Sets up no_sync function for distributed data parallel training
+        to control when gradients are synchronized across devices.
+        """
         config = get_attr_wrapped_model(self.model[0], 'config', allow_none=False)
 
         config.grad_scale_func = self.optimizer.scale_loss

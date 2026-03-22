@@ -1,8 +1,8 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
 import copy
 import time
 from typing import List, Union, Dict
-import time
 import ray
 import torch
 from codetiming import Timer
@@ -23,27 +23,13 @@ from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metri
 
 class RayGRPOTrainer(RayBaseTrainer):
     """
-    RayGRPOTrainer class. This trainer runs on the driver process on a single CPU/GPU node.
-
-    Args:
-        actor_worker: RayActorGroup The actor worker group.
-        ref_worker: RayActorGroup The reference worker group.
-        reward_list: List[Union[RayActorGroup, RuleReward]] List of reward workers or rule-based rewards.
-        train_iters: int = 1 The number of training iterations.
-        save_interval: int = 1 The interval (in iterations) for saving checkpoints.
-        kl_ctrl_type: str = 'fixed' The type of KL divergence control (e.g., 'fixed', 'adaptive').
-        adv_estimator: str = "group_norm" The method for estimating advantages (e.g., 'group_norm', 'mean').
-        kl_horizon: int = 1000 The time horizon for KL divergence control (used in adaptive methods).
-        kl_target: float = 100.0 The target value for KL divergence (used in adaptive methods).
-        init_kl_coef: float = 0.01 The initial coefficient for KL divergence penalty.
-        global_batch_size: int = 1 The global batch size for training (number of prompts per iteration).
-        n_samples_per_prompt: int = 1 The number of samples generated per prompt.
-        tokenizer: BaseTokenizer = None tokenizer to use.
-        dataset_additional_keys: List[str] = None Additional keys to include in the dataset.
-        blocking: bool = False  Whether to enable blocking mode.
-        num_cpus_for_local_task: int = 1 Number of CPUs for local ray task.
-        **kwargs: Additional parameters for base class argument passing.
+    RayGRPOTrainer class for distributed GRPO (Generalized Reward Policy Optimization) training.
+    
+    This trainer runs on the driver process on a single CPU/GPU node, coordinating
+    distributed workers for actor model inference, reference model computation,
+    reward scoring, and advantage estimation.
     """
+
     def __init__(
             self,
             actor_worker: RayActorGroup,
@@ -68,6 +54,32 @@ class RayGRPOTrainer(RayBaseTrainer):
             partial_rollout_max_split: int = 1,
             **kwargs
     ):
+        """
+        Initialize the RayGRPOTrainer.
+        
+        Args:
+            actor_worker: The actor worker group for policy generation.
+            ref_worker: The reference worker group for KL divergence calculation.
+            reward_list: List of reward workers or rule-based reward functions.
+            vit_worker: Vision transformer worker group for multi-modal processing.
+            train_iters: The number of training iterations.
+            save_interval: The interval (in iterations) for saving checkpoints.
+            kl_ctrl_type: The type of KL divergence control ('fixed' or 'adaptive').
+            adv_estimator: The method for estimating advantages (e.g., 'group_norm').
+            kl_horizon: The time horizon for KL divergence control in adaptive mode.
+            kl_target: The target value for KL divergence in adaptive mode.
+            init_kl_coef: The initial coefficient for KL divergence penalty.
+            global_batch_size: The global batch size for training (number of prompts per iteration).
+            micro_batch_size: Micro batch size per device for training.
+            n_samples_per_prompt: The number of samples generated per prompt.
+            tokenizer: Tokenizer to use for text processing.
+            dataset_additional_keys: Additional keys to include in the dataset.
+            blocking: Whether to enable blocking mode for remote calls.
+            guarantee_order: Whether to guarantee generation order.
+            num_cpus_for_local_task: Number of CPUs for local ray task.
+            partial_rollout_max_split: Maximum split for partial rollout generation.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             actor_worker,
             ref_worker,
@@ -92,22 +104,37 @@ class RayGRPOTrainer(RayBaseTrainer):
             **kwargs
         )
 
+        # Transfer dock for experience data communication
         self.transfer_dock = None
+        # Transfer dock for multi-modal data communication
         self.mm_transfer_dock = None
+        # Whether partial rollout is enabled
         self.enable_partial_rollout = self.partial_rollout_max_split > 1
+        # Metrics collector for training statistics
         self.metrics = Metric()
+        # Data strategy manager for batch processing
         self.data_strategy = DataStrategy(self.actor_worker.rl_config)
+        # Whether to reuse precomputed image embeddings
         self.reuse_image_embeds = self.actor_worker.rl_config.reuse_image_embeds
+        # Whether actor and ViT models are colocated on same devices
         self.colocate_actor_and_vit = self.actor_worker.rl_config.colocate_actor_and_vit
+        # Maximum length of transfer dock queue
         if self.enable_partial_rollout:
             self.td_max_len = self.global_batch_size * 2
         else:
             self.td_max_len = self.global_batch_size
+
         self.transfer_dock_init()
         self.kwargs = kwargs
         self.set_actor_log_prob_skip_flag()
 
     def transfer_dock_init(self):
+        """
+        Initialize transfer docks for data communication between workers.
+        
+        Builds the GRPO data strategy and synchronizes transfer dock references
+        with actor worker, reference worker, ViT worker, and reward workers.
+        """
         self.data_strategy.build_grpo(
             prompts_num=self.td_max_len,
             n_samples_per_prompt=self.n_samples_per_prompt,
@@ -132,6 +159,12 @@ class RayGRPOTrainer(RayBaseTrainer):
                 reward.init_transfer_dock.remote(self.transfer_dock, self.mm_transfer_dock)
 
     def set_actor_log_prob_skip_flag(self):
+        """
+        Determine whether to skip actor log probability computation.
+        
+        Sets the skip flag when batch size matches mini-batch size and only one epoch,
+        avoiding redundant computation in specific configurations.
+        """
         global_batch_size = self.actor_worker.megatron_config.global_batch_size
         mini_batch_size = self.actor_worker.rl_config.mini_batch_size
         n_samples_per_prompt = self.actor_worker.rl_config.n_samples_per_prompt
@@ -141,7 +174,13 @@ class RayGRPOTrainer(RayBaseTrainer):
 
     def fit(self, data_iters):
         """
-        The utils loop of GRPO
+        Main training loop for GRPO.
+        
+        Args:
+            data_iters: Iterator providing training data batches.
+            
+        Returns:
+            None. Runs the complete training loop and logs metrics.
         """
         logger = Loggers('grpo_trainer_hybrid')
         metrics = Metric()
@@ -164,7 +203,7 @@ class RayGRPOTrainer(RayBaseTrainer):
             with Timer(name='iteration', logger=None) as all_timer:
                 batch = next(data_iters)
                 if self.enable_partial_rollout:
-                    if not last_iter:  # and batch is not None: # None?
+                    if not last_iter:
                         batch, indexes = put_prompts_experience(batch, self.n_samples_per_prompt,
                                                                 self.dataset_additional_keys,
                                                                 add_another_batch=True)
@@ -256,6 +295,13 @@ class RayGRPOTrainer(RayBaseTrainer):
         ray.shutdown()
 
     def compute_advantage(self, blocking=False, guarantee_order=False):
+        """
+        Compute advantages using GAE (Generalized Advantage Estimation).
+        
+        Args:
+            blocking: Whether to block until computation completes.
+            guarantee_order: Whether to guarantee data order in computation.
+        """
         experience_count = self.micro_batch_size
 
         start_adv_time = time.time()

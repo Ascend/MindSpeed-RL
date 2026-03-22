@@ -10,15 +10,18 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class Reward(BaseTrainingEngine):
-    """
-    Reward class. This class implements the simple logics.
+    """Reward model for RL training.
 
-    Args:
-        model: The network model to be used for reward computation.
-        beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        stage: str = None The training stage identifier (e.g., pretrain/finetune).
-        forward_backward_func: Callable = None The forward-backward function for distributed training.
-        **kwargs: Additional parameters for base class argument passing.
+    This class implements a reward model that computes reward scores for
+    generated sequences. It serves as a learned reward function in RL
+    algorithms and supports KL divergence penalty computation when beta > 0.
+
+    Attributes:
+        model: The network model used for reward computation.
+        beta: Weight coefficient for KL divergence penalty.
+        stage: Training stage identifier (e.g., 'pretrain', 'finetune').
+        temperature: Sampling temperature for probability distribution.
+        forward_backward_func: Function for distributed forward-backward computation.
     """
 
     def __init__(

@@ -1,7 +1,7 @@
-# Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 
 from abc import ABC
-from typing import Dict, List, Callable
+from typing import Dict, List, Callable, Optional
 
 from torch import Tensor
 
@@ -10,28 +10,17 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class ActorRolloutHybrid(ABC):
-    """
-    ActorRolloutHybrid class. This class combines training and inference logic for hybrid actor models.
+    """Hybrid actor model combining training and inference logic.
 
-    Args:
-        model: The network model to be trained.
-        optimizer: The optimizer for updating model parameters (e.g., Adam).
-        opt_param_scheduler: The scheduler for optimizer parameters (e.g., learning rate scheduler).
-        inference_model: The model used for inference/generation.
-        sharding_manager: The manager for handling model sharding (e.g., for distributed training).
-        beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size_per_dp: int = 1 The size of the mini-batch for each data parallel stage.
-        epochs: int = 1 The number of training epochs.
-        shuffle_mini_batch: bool = False Whether to shuffle the mini-batch data at each epoch.
-        stage: str = None The training stage identifier (e.g., pretrain/finetune).
-        generate_config: GenerateConfig = None Configuration for generation/inference (e.g., vLLM settings).
-        clip_ratio: float = 0.1 The clipping ratio threshold for PPO (limits the policy update range).
-        forward_backward_func: Callable = None The forward-backward function for distributed training.
-        token_level_loss: bool = False   Whether to use token_level_loss for DAPO (limits the policy update range).
-        clip_higher_enable: bool = False   Whether to use higher clip for DAPO (limits the policy update range).
-        clip_ratio_low: float = 0.1   The low clipping ratio threshold for DAPO (limits the policy update range).
-        clip_ratio_high: float = 0.1   The high clipping ratio threshold for DAPO (limits the policy update range).
-        **kwargs: Additional parameters for base class argument passing.
+    This abstract base class provides a unified interface for actor models that
+    require both training (parameter updates) and inference (sequence generation)
+    capabilities. It manages separate training and inference model instances and
+    handles distributed training coordination through a sharding manager.
+
+    Attributes:
+        train_actor (Actor): Training actor instance for parameter updates.
+        inference_actor: Inference model instance for sequence generation.
+        sharding_manager: Manager for distributed model sharding.
     """
 
     def __init__(

@@ -27,19 +27,12 @@ from mindspeed_rl.models.reward import Reward
 @ray.remote(resources={"NPU": 0.7})
 class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerBase):
     """
-    IntegratedWorker class. This class implements the integrated worker for the Actor, Reference and Reward Worker.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        profiler_config: ProfilerConfig, Configuration for profiling.
-        msprobe_config: MsprobeConfig, Configuration for msprobe.
-        **kwargs: Additional parameters for base class argument passing.
+    IntegratedWorker class for combined Actor, Reference and Reward Worker functionality.
+    
+    This class implements an integrated worker that combines the functionality
+    of ActorHybridWorkerBase, ReferenceWorkerBase, and RewardWorkerBase to
+    enable efficient weight sharing and memory management across different
+    components of RL training.
     """
 
     def __init__(
@@ -55,7 +48,21 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
-
+        """
+        Initialize the IntegratedWorker.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            profiler_config: Configuration for profiling.
+            msprobe_config: Configuration for msprobe.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         # We use Actor as main worker, so only do init for Actor here.
         ActorHybridWorkerBase.__init__(
             self,
@@ -71,16 +78,27 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             **kwargs
         )
 
+        # Micro batch size for actor forward pass
         self.actor_forward_micro_batch_size = rl_config.actor_forward_micro_batch_size
+        # Micro batch size for reference model forward pass
         self.ref_forward_micro_batch_size = rl_config.ref_forward_micro_batch_size
+        # Micro batch size for vision transformer forward pass
         self.vit_forward_micro_batch_size = rl_config.vit_forward_micro_batch_size
 
+        # Reference model wrapper for KL divergence calculation
         self.reference = None
+        # Reference model instance (shared with actor if share_backbone is True)
         self.ref_model = None
+        # Offloader for reference model parameter management
         self.ref_manager = None
 
     def initialize(self):
-
+        """
+        Initialize the integrated worker.
+        
+        Initializes the actor component first, then sets up the reference model
+        either by sharing the actor backbone or loading a separate model.
+        """
         # Based on Actor
         ActorHybridWorkerBase.initialize(self)
 
@@ -122,6 +140,12 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
     @mstx_timer_decorator
     def compute_ref_log_prob(self):
+        """
+        Compute reference log probabilities for experience data.
+        
+        Loads reference model parameters, computes log probabilities using
+        the reference model, then offloads parameters to save memory.
+        """
         start_onload_time = time.time()
         self.ref_manager.onload_param()
         end_onload_time = time.time()
@@ -168,6 +192,11 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
         )
 
     def compute_log_prob(self):
+        """
+        Compute actor log probabilities with optional micro batch size override.
+        
+        Uses temporary micro batch size if configured for actor forward pass.
+        """
         if self.actor_forward_micro_batch_size is not None:
             with temporary_micro_batch_size(
                     worker=self.actor_hybrid.train_actor,
@@ -179,6 +208,11 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             ActorHybridWorkerBase.compute_log_prob(self)
 
     def compute_image_embeds(self):
+        """
+        Compute image embeddings with optional micro batch size override.
+        
+        Uses temporary micro batch size if configured for ViT forward pass.
+        """
         if self.vit_forward_micro_batch_size is not None:
             with temporary_micro_batch_size(
                 worker=self.actor_hybrid.train_actor,
@@ -190,14 +224,14 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             ActorHybridWorkerBase.compute_image_embeds(self)
 
     def load_checkpoint_with_path(self, model, path, ckpt_only=False):
-        """Load model checkpoint from a specified path with flexible control.
-
+        """
+        Load model checkpoint from a specified path with flexible control.
+        
         Args:
             model: The model to load checkpoint into.
             path: Path to the checkpoint file/directory. If None, use the path in megatron args.
             ckpt_only: If True, only loads model weights (skips optimizer/RNG states).
         """
-
         # Backup original arguments if needed
         original_args = {
             'no_load_optim': getattr(self.get_args(), "no_load_optim", None),
@@ -227,6 +261,12 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
             self._set_args(original_args)
 
     def _set_args(self, arg_dict):
+        """
+        Set multiple arguments on the args object.
+        
+        Args:
+            arg_dict: Dictionary of argument names and values to set.
+        """
         for key, value in arg_dict.items():
             if hasattr(self.get_args(), key):
                 setattr(self.get_args(), key, value)
@@ -234,6 +274,9 @@ class IntegratedWorker(ActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerB
 
 @contextmanager
 def temporary_micro_batch_size(worker, args, new_mbs):
+    """
+    Context manager for temporarily changing micro batch size.
+    """
     original_mbs = args.micro_batch_size
     try:
         worker.micro_batch_size = new_mbs

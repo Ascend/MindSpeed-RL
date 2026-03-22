@@ -39,7 +39,6 @@ from mindspeed_rl.trainer.utils.parallel_state import get_tensor_model_parallel_
     get_tensor_model_parallel_src_rank, get_tensor_model_parallel_group
 
 
-
 class ActorState(Enum):
     NONE = "none"
     INFER = "infer"
@@ -47,19 +46,11 @@ class ActorState(Enum):
 
 class ActorHybridWorkerBase(BaseWorker):
     """
-    ActorHybridWorker class. This class implements the hybrid worker logic for training and inference.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        profiler_config: ProfilerConfig, Configuration for profiling.
-        msprobe_config: MsprobeConfig, Configuration for msprobe.
-        **kwargs: Additional parameters for base class argument passing.
+    ActorHybridWorker class for hybrid training and inference.
+    
+    This class implements the hybrid worker logic that supports both
+    training (parameter updates) and inference (sequence generation) modes,
+    with efficient weight resharding between the two modes.
     """
 
     def __init__(
@@ -75,6 +66,21 @@ class ActorHybridWorkerBase(BaseWorker):
             msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
+        """
+        Initialize the ActorHybridWorkerBase.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            profiler_config: Configuration for profiling.
+            msprobe_config: Configuration for msprobe.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             megatron_config,
             rl_config,
@@ -88,16 +94,31 @@ class ActorHybridWorkerBase(BaseWorker):
             **kwargs
         )
 
+        # Counter for floating point operations performed so far
         self.num_floating_point_operations_so_far = 0
+        # Hybrid actor-rollout manager for training and inference
         self.actor_hybrid = None
+        # Offloader for managing model state across devices
         self.actor_offloader = None
+        # Current state of the actor (NONE or INFER)
         self.state = ActorState.NONE
+        # Profiler for actor operations
         self.actor_profiler = None
+        # Current profiler iteration counter
         self.prof_iteration = 1
+        # Index counter for tracking operations
         self.idx = 0
+        # Whether partial rollout is enabled based on config
         self.enable_partial_rollout = self.rl_config.partial_rollout_max_split > 1
 
     def initialize(self):
+        """
+        Initialize the actor hybrid worker.
+        
+        Sets up distributed rank, builds model and optimizer, creates offloader,
+        builds inference model and sharding manager, and initializes the hybrid
+        actor-rollout module. Also configures multi-turn tools if enabled.
+        """
         self.setup_distributed_rank()
         self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
         self._set_no_sync_func()
@@ -174,6 +195,15 @@ class ActorHybridWorkerBase(BaseWorker):
         MsProbe.config_init(self.msprobe_config)
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+            mm_sampling_transfer_dock: Multi-modal sampling transfer dock.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
@@ -187,6 +217,12 @@ class ActorHybridWorkerBase(BaseWorker):
         return self.args.consumed_train_samples
 
     def enter_infer_mode(self):
+        """
+        Enter inference mode by switching to inference sharding.
+        
+        Transitions the worker state to INFER and records timing metrics
+        for the resharding operation.
+        """
         if self.state == ActorState.INFER:
             return
 
@@ -203,6 +239,14 @@ class ActorHybridWorkerBase(BaseWorker):
         )
 
     def exit_infer_mode(self):
+        """
+        Exit inference mode and return to training sharding.
+        
+        Transitions the worker state back to NONE and records timing metrics.
+        
+        Raises:
+            RuntimeError: If current state is not INFER.
+        """
         if self.state != ActorState.INFER:
             raise RuntimeError
         start_time = time.time()
@@ -219,6 +263,16 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def update(self, kl_ctrl=None, skip_actor_log_prob=False):
+        """
+        Update actor parameters using experience data.
+        
+        Performs the main training loop: dispatches experience data from transfer dock,
+        computes policy gradients, updates model parameters, and logs metrics.
+        
+        Args:
+            kl_ctrl: KL divergence controller for penalty calculation.
+            skip_actor_log_prob: Whether to skip log probability computation.
+        """
         start_sharding_enter_train = time.time()
         self.sharding_manager.enter_train_mode()
         sharding_train_interval = time.time() - start_sharding_enter_train
@@ -241,7 +295,7 @@ class ActorHybridWorkerBase(BaseWorker):
         if skip_actor_log_prob:
             experience_columns.remove('old_log_prob')
 
-        #get lr
+        # Get current learning rate
         learning_rate = None
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
@@ -309,6 +363,15 @@ class ActorHybridWorkerBase(BaseWorker):
         logger.info("finish actor update")
 
     def save_ckpt(self, iteration: int):
+        """
+        Save model checkpoint at specified iteration.
+        
+        Temporarily switches to training mode for checkpoint saving,
+        then restores previous state.
+        
+        Args:
+            iteration: Current training iteration number.
+        """
         self.sharding_manager.enter_train_mode()
         self.save_checkpoint(iteration, self.model, self.optimizer, self.opt_param_scheduler,
                              self.num_floating_point_operations_so_far)
@@ -316,6 +379,13 @@ class ActorHybridWorkerBase(BaseWorker):
         self.empty_cache()
 
     def get_partial_rollout_stop_signal(self):
+        """
+        Check if partial rollout should stop.
+        
+        Returns:
+            bool: True if partial rollout should stop based on transfer dock state,
+                  False otherwise or if partial rollout is disabled.
+        """
         if not self.enable_partial_rollout:
             return False
         td = self.sampling_transfer_dock if self.sampling_transfer_dock else self.td
@@ -324,6 +394,13 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def generate_sequences(self):
+        """
+        Generate sequences using the inference model.
+        
+        Dispatches prompts from transfer dock, generates responses using vLLM,
+        and collects results back to transfer dock. Supports both sync and async
+        generation modes, as well as partial rollout for long sequences.
+        """
         sharding_infer_interval = 0
         if not self.rl_config.filter_groups_enable:
             start_sharding_enter_infer = time.time()
@@ -405,6 +482,15 @@ class ActorHybridWorkerBase(BaseWorker):
         logger.info("finish generate_sequences")
 
     def sync_generate_process(self, batch_data, experience_count, index, pad_token_id):
+        """
+        Synchronous generation process for a batch of prompts.
+        
+        Args:
+            batch_data: Dictionary containing prompts and metadata.
+            experience_count: Number of experiences to generate.
+            index: Index mapping for the batch.
+            pad_token_id: Token ID used for padding.
+        """
         if not self.enable_partial_rollout:
             indexes = list(range(0, experience_count, self.rl_config.n_samples_per_prompt))
             if self.rl_config.reuse_image_embeds:
@@ -487,6 +573,14 @@ class ActorHybridWorkerBase(BaseWorker):
         MsProbe.save_data({"responses": responses, "prompts": prompts})
 
     def async_generate_process(self, batch_data, index, pad_token_id):
+        """
+        Asynchronous generation process for a batch of prompts.
+        
+        Args:
+            batch_data: Dictionary containing prompts and metadata.
+            index: Index mapping for the batch.
+            pad_token_id: Token ID used for padding.
+        """
         self.actor_hybrid.inference_actor.init_cache_engine()
         prompts_data = batch_data['prompts']
         prompt_length_data = batch_data['prompt_length']
@@ -571,6 +665,16 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @torch.no_grad()
     def async_multi_turn_rollout(self, prompts, indexes):
+        """
+        Asynchronous multi-turn rollout with tool calling support.
+        
+        Generates responses iteratively, processes tool calls, and continues
+        generation until completion or max turns reached.
+        
+        Args:
+            prompts: List of prompt tensors.
+            indexes: Index mapping for the batch.
+        """
         vocab_size = self.tokenizer.vocab_size
         use_vllm = True
         rank_flg = get_tensor_model_parallel_rank(self.parallel_state, use_vllm) == 0
@@ -656,6 +760,19 @@ class ActorHybridWorkerBase(BaseWorker):
         self.actor_hybrid.inference_actor.free_cache_engine()
 
     def get_tool_response(self, rank_flg, data_map, use_vllm=True):
+        """
+        Get tool response for multi-turn generation.
+        
+        Synchronizes tool response across tensor parallel ranks via broadcast.
+        
+        Args:
+            rank_flg: Flag indicating if current rank is the leader.
+            data_map: Dictionary containing response data and metadata.
+            use_vllm: Whether using vLLM backend.
+            
+        Returns:
+            list: Tool response token IDs, or empty list if no tool call.
+        """
         tool_response_ids_length = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
         if rank_flg:
             tool_response_ids = process_response(self.tool_map, self.tool_parser, self.tokenizer.tokenizer,
@@ -680,6 +797,12 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def compute_log_prob(self):
+        """
+        Compute log probabilities for generated sequences.
+        
+        Dispatches experience data and computes old log probabilities
+        for policy gradient estimation.
+        """
         self.sharding_manager.enter_forward_mode()
 
         experience_consumer_stage = 'actor_log_prob'
@@ -747,6 +870,12 @@ class ActorHybridWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def compute_image_embeds(self):
+        """
+        Compute image embeddings for multi-modal inputs.
+        
+        Dispatches image data and computes vision transformer embeddings
+        for multi-modal experience data.
+        """
         experience_consumer_stage = 'actor_image_embeds'
         experience_columns = ['input_ids']
         experience_count = self.rl_config.actor_image_embeds_dispatch_size
@@ -809,6 +938,12 @@ class ActorHybridWorkerBase(BaseWorker):
         logger.info("finish compute_image_embeds")
 
     def _build_model_optimizer(self):
+        """
+        Build model and optimizer for training.
+        
+        Returns:
+            tuple: (actor_module, optimizer, opt_param_scheduler)
+        """
         actor_module, optimizer, opt_param_scheduler = self.setup_model_and_optimizer(
             self.model_provider, self.model_type.encoder_or_decoder)
 
@@ -817,6 +952,12 @@ class ActorHybridWorkerBase(BaseWorker):
         return actor_module, optimizer, opt_param_scheduler
 
     def _build_rollout(self):
+        """
+        Build rollout inference engine (vLLM).
+        
+        Returns:
+            VLLMInferEngine: Configured vLLM inference engine.
+        """
         self.actor_model_config = AutoConfig.from_pretrained(
             self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
 
@@ -888,6 +1029,15 @@ class ActorHybridWorkerBase(BaseWorker):
         return rollout
 
     def _build_sharding_manager(self):
+        """
+        Build sharding manager for weight resharding.
+        
+        Creates manager to handle weight resharding between training and
+        inference configurations.
+        
+        Returns:
+            MegatronShardingManager: Configured sharding manager.
+        """
         # perform weight resharding between actor and rollout
         sharding_manager = MegatronShardingManager(
             megatron_model=self.model,
@@ -910,6 +1060,12 @@ class ActorHybridWorkerBase(BaseWorker):
         return sharding_manager
 
     def _set_no_sync_func(self):
+        """
+        Configure gradient synchronization function.
+        
+        Sets up no_sync function for distributed data parallel training
+        to control when gradients are synchronized across devices.
+        """
         config = get_attr_wrapped_model(self.model[0], 'config', allow_none=False)
 
         config.grad_scale_func = self.optimizer.scale_loss

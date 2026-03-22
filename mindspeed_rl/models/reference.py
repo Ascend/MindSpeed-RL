@@ -10,15 +10,19 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 
 class Reference(BaseTrainingEngine):
-    """
-    Reference class. This class implements the simple logics.
+    """Reference model for RL training.
 
-    Args:
-        model: The network model to be used as a reference.
-        beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        stage: str = None The training stage identifier (e.g., pretrain/finetune).
-        forward_backward_func: Callable = None The forward-backward function for distributed training.
-        **kwargs: Additional parameters for base class argument passing.
+    This class implements a reference model that serves as a baseline policy
+    for computing KL divergence penalties in RL algorithms. It inherits from
+    BaseTrainingEngine and provides specific implementations for reference
+    model operations.
+
+    Attributes:
+        model: The network model used as reference.
+        beta: Weight coefficient for KL divergence penalty.
+        stage: Training stage identifier (e.g., 'pretrain', 'finetune').
+        temperature: Sampling temperature for probability distribution.
+        forward_backward_func: Function for distributed forward-backward computation.
     """
 
     def __init__(

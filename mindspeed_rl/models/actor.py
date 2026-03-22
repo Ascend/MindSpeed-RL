@@ -11,20 +11,12 @@ from mindspeed_rl.utils.utils import mstx_timer_decorator
 
 class Actor(BaseTrainingEngine):
     """
-    Actor class. This class implements the simple logics.
-    Args:
-        model:  The network model to be trained.
-        optimizer: The optimizer for updating model parameters (e.g., Adam).
-        opt_param_scheduler: The scheduler for optimizer parameters (e.g., learning rate scheduler).
-        beta: float = 0  The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size_per_dp: int = 1  The size of the mini-batch for each data parallel stage.
-        epochs: int = 1   The number of training epochs.
-        shuffle_mini_batch: bool = False   Whether to shuffle the mini-batch data at each epoch.
-        stage: str = None   The training stage identifier (e.g., pretrain/finetune).
-        clip_ratio: float = 0.1   The clipping ratio threshold for PPO (limits the policy update range).
-        forward_backward_func: Callable = None   The forward-backward function for distributed training.
-        **kwargs:  # Additional parameters for base class argument passing.
+    Actor class.
+    
+    This class implements the training logic for actor (policy) models
+    in reinforcement learning algorithms.
     """
+
     def __init__(
             self,
             model,

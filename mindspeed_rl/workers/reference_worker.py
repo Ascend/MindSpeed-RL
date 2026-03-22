@@ -24,17 +24,10 @@ logger = Loggers(__name__)
 
 class ReferenceWorkerBase(BaseWorker):
     """
-    ReferenceWorker class. This class implements the worker logic for reference model inference.
-
-    Args:
-        megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-        rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-        generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-        model_provider: Callable Function to provide the model instance.
-        initialize_func: Callable Function to initialize the model and environment.
-        tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-        get_megatron_module: Callable = megatron_module from get_megatron_module.
-        **kwargs: Additional parameters for base class argument passing.
+    ReferenceWorker class for reference model inference.
+    
+    This class implements the worker logic for reference model (fixed policy)
+    inference, computing log probabilities for KL divergence calculation in RL training.
     """
 
     def __init__(
@@ -48,6 +41,19 @@ class ReferenceWorkerBase(BaseWorker):
             get_megatron_module: Callable = None,
             **kwargs
     ):
+        """
+        Initialize the ReferenceWorkerBase.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM (e.g., model parallelism settings).
+            rl_config: Configuration for reinforcement learning (e.g., PPO settings).
+            generate_config: Configuration for generation/inference (e.g., vLLM settings).
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            tokenizer: Object to retrieve the tokenizer.
+            get_megatron_module: Function to get megatron module.
+            **kwargs: Additional parameters for base class argument passing.
+        """
         super().__init__(
             megatron_config,
             rl_config,
@@ -58,9 +64,16 @@ class ReferenceWorkerBase(BaseWorker):
             get_megatron_module=get_megatron_module,
             **kwargs
         )
+        # Reference model wrapper for log probability computation
         self.reference = None
 
     def initialize(self):
+        """
+        Initialize the reference worker.
+        
+        Sets up distributed rank, loads or initializes the reference model,
+        and creates the Reference wrapper for inference.
+        """
         self.setup_distributed_rank()
         self.model = self.get_model(self.model_provider, self.model_type, wrap_with_ddp=False)
 
@@ -95,6 +108,15 @@ class ReferenceWorkerBase(BaseWorker):
         )
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+            mm_sampling_transfer_dock: Multi-modal sampling transfer dock.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
@@ -102,6 +124,12 @@ class ReferenceWorkerBase(BaseWorker):
 
     @mstx_timer_decorator
     def compute_ref_log_prob(self):
+        """
+        Compute reference log probabilities for experience data.
+        
+        Dispatches experience data from transfer dock and computes reference
+        log probabilities for KL divergence calculation in PPO training.
+        """
         experience_consumer_stage = 'ref_log_prob'
         experience_columns = ['input_ids', 'responses', 'response_length', 'prompt_length']
         if is_multimodal():

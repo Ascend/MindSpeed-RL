@@ -77,7 +77,7 @@ class RayBaseTrainer(object):
         self.use_kl_in_reward = use_kl_in_reward
         self.kwargs = kwargs
 
-        # define KL control
+        # Define KL control strategy
         if kl_ctrl_type == 'fixed':
             self.kl_ctrl = FixedKLController(init_kl_coef=self.init_kl_coef)
         elif kl_ctrl_type == 'adaptive':
@@ -89,6 +89,7 @@ class RayBaseTrainer(object):
         else:
             raise NotImplementedError
 
+        # Initialize loggers
         self.wandb = None
         self.tensorboard = None
         self.swanlab = None

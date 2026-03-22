@@ -73,12 +73,23 @@ class DispatchZmqParameter:
 
 
 class BaseRayWorker:
+    """
+    Base class for Ray-based distributed workers.
+    
+    Handles basic Ray worker initialization including NPU device setup,
+    distributed environment configuration, and network address management.
+    """
+
     def __init__(self):
+        # World size for distributed training
         self._world_size = int(os.environ.get("WORLD_SIZE", 1))
+        # Global rank in distributed setup
         self._rank = int(os.environ.get("RANK", 0))
+        # Local NPU rank on current node
         self._local_rank = int(ray.get_runtime_context().get_accelerator_ids()["NPU"][0])
         torch.npu.set_device(self._local_rank)
         current_device = torch.npu.current_device()
+        # Master address for distributed communication
         if os.environ.get("MASTER_ADDR", 0) == "localhost":
             self._master_addr = get_current_node_ip()
             self._master_port = self._get_free_port()
@@ -88,6 +99,7 @@ class BaseRayWorker:
             self._master_addr = os.environ.get("MASTER_ADDR")
             self._master_port = os.environ.get("MASTER_PORT")
         os.environ["LOCAL_RANK"] = str(self._local_rank)
+        # ZMQ role in communication (none, client, or server)
         self.zmq_role = ZMQ_ROLE_NONE
         logger.info(f"worker init begin, current device id: {current_device}, rank: {self._rank},"
                     f" world_size: {self._world_size}, local rank: {self._local_rank},"
@@ -112,7 +124,13 @@ class BaseRayWorker:
 
 
 class BaseWorker(BaseRayWorker, ABC):
-    """基类，封装通用逻辑但保留子类接口和装饰器"""
+    """
+    Base class for RL training workers.
+    
+    Encapsulates common logic for distributed RL training including
+    model initialization, data dispatching, and communication via
+    transfer docks and ZMQ.
+    """
 
     def __init__(
             self,
@@ -127,35 +145,86 @@ class BaseWorker(BaseRayWorker, ABC):
             msprobe_config: MsprobeConfig = None,
             **kwargs
     ):
+        """
+        Initialize the BaseWorker.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM.
+            rl_config: Configuration for reinforcement learning.
+            generate_config: Configuration for generation/inference.
+            model_provider: Function to provide the model instance.
+            initialize_func: Function to initialize the model and environment.
+            get_megatron_module: Function to get megatron module.
+            tokenizer: Tokenizer for text processing.
+            profiler_config: Configuration for profiling.
+            msprobe_config: Configuration for msprobe.
+            **kwargs: Additional parameters.
+        """
         super().__init__()
         os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = '1'
+        # Reinforcement learning configuration
         self.rl_config = rl_config
+        # Megatron-LM configuration
         self.megatron_config = megatron_config
+        # Generation configuration
         self.generate_config = generate_config
+        # Profiler configuration
         self.profiler_config = profiler_config
+        # Msprobe configuration
         self.msprobe_config = msprobe_config
+        # Model provider function
         self.model_provider = model_provider
+        # Initialization function
         self.initialize_func = initialize_func
+        # Megatron module getter function
         self.get_megatron_module = get_megatron_module
+        # Tokenizer instance
         self.tokenizer = tokenizer
         self.megatron_config.update(kwargs)
+        # Inference model (vLLM engine)
         self.inference_model = None
+        # Sharding manager for weight resharding
         self.sharding_manager = None
+        # Hybrid engine for training and inference
         self.hybrid_engine = None
+        # Learning rate scheduler
         self.opt_param_scheduler = None
+        # Optimizer instance
         self.optimizer = None
+        # Model type (encoder or decoder)
         self.model_type = None
+        # Training model
         self.model = None
+        # Transfer dock for experience data
         self.td = None
+        # Multi-modal transfer dock
         self.mm_td = None
+        # Sampling transfer dock for dynamic filtering
         self.sampling_transfer_dock = None
+        # Training arguments
         self.args = None
+        # ZMQ server for data broadcast
         self.zmq_server = None
+        # ZMQ client for data reception
         self.zmq_client = None
+        # ZMQ role in communication
         self.zmq_role = ZMQ_ROLE_NONE
 
     @mstx_timer_decorator
     def all_consumed(self, experience_consumer_stage, sorted_indexes, use_vllm=False, is_generate=False):
+        """
+        Check if all experience data has been consumed.
+        
+        Args:
+            experience_consumer_stage: Stage name for experience consumption.
+            sorted_indexes: Sorted list of indices to process.
+            use_vllm: Whether using vLLM backend.
+            is_generate: Whether in generation mode.
+            
+        Returns:
+            int: _DP_RANGE_DATA_CONSUMED_FLAG if all consumed, 
+                 _DP_RANGE_DATA_NOT_CONSUMED_FLAG otherwise.
+        """
         if self.rl_config.guarantee_order and not sorted_indexes:
             return _DP_RANGE_DATA_CONSUMED_FLAG
         elif self.rl_config.guarantee_order:
@@ -283,7 +352,7 @@ class BaseWorker(BaseRayWorker, ABC):
         size = 0
         for data in batch_data.values():
             if data.is_sparse:
-                # 稀疏张量的内存占用
+                # Memory usage for sparse tensors
                 storage = data.storage()
                 element_size = storage.element_size()
                 num_elements = storage.numel()
@@ -296,6 +365,17 @@ class BaseWorker(BaseRayWorker, ABC):
         return size
 
     def broadcast_data_hccl(self, data: BroadcastHcclParameter):
+        """
+        Broadcast data using HCCL (Huawei Collective Communication Library).
+        
+        Synchronizes tensor shapes, dtypes, and data across TP/CP/PP groups.
+        
+        Args:
+            data: BroadcastHcclParameter containing broadcast configuration.
+            
+        Returns:
+            list: Indices without padding.
+        """
         rank_flg = data.rank_flg
         experience_columns = data.experience_columns
         batch_data = data.batch_data
@@ -319,13 +399,13 @@ class BaseWorker(BaseRayWorker, ABC):
                     batch_data_dtype = torch.tensor(2,
                                                     dtype=torch.int64, device=torch.cuda.current_device())
 
-                # 添加维度信息
+                # Add dimension info
                 if key not in batch_data.keys():
                     raise KeyError(f'{key} is missing!')
                 batch_data_ndim = torch.tensor(len(batch_data[key].shape),
                                                dtype=torch.int64, device=torch.cuda.current_device())
             else:
-                batch_data_shape = torch.empty(2, device=torch.cuda.current_device(), dtype=torch.int64)  # 最多支持二维张量
+                batch_data_shape = torch.empty(2, device=torch.cuda.current_device(), dtype=torch.int64)  # Max 2D tensor support
                 batch_data_dtype = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
                 batch_data_length_shape = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
                 batch_data_ndim = torch.empty(1, device=torch.cuda.current_device(), dtype=torch.int64)
@@ -436,6 +516,15 @@ class BaseWorker(BaseRayWorker, ABC):
         return index_without_pad
 
     def dispatch_transfer_dock_data_zmq(self, para: DispatchZmqParameter):
+        """
+        Dispatch data from transfer dock using ZMQ communication.
+        
+        Args:
+            para: DispatchZmqParameter containing dispatch configuration.
+            
+        Returns:
+            tuple: (padded_batch_data, index_list) or ({}, []) if no data.
+        """
         experience_consumer_stage = para.experience_consumer_stage
         experience_columns = para.experience_columns
         experience_count = para.experience_count
@@ -475,7 +564,7 @@ class BaseWorker(BaseRayWorker, ABC):
                 td = self.td
 
             if enable_partial_rollout:
-                # 获取单条数据，不满足的位置补重复样本
+                # Get single data, fill remaining positions with repeated samples
                 dp_world_size = self.parallel_state.get_data_parallel_world_size()
                 batch_data, index = ray.get(td.get_experience.remote(
                     experience_consumer_stage,
@@ -597,6 +686,25 @@ class BaseWorker(BaseRayWorker, ABC):
                                     experience_columns, experience_count, tp_size=1, cp_size=1, cp_algo=None,
                                     use_vllm=False, indexes=None,
                                     get_n_samples=True, enable_partial_rollout=False, is_generate=False):
+        """
+        Dispatch data from transfer dock using HCCL or ZMQ.
+        
+        Args:
+            experience_consumer_stage: Stage name for experience consumption.
+            experience_columns: List of column names to dispatch.
+            experience_count: Number of experiences to dispatch.
+            tp_size: Tensor parallel size.
+            cp_size: Context parallel size.
+            cp_algo: Context parallel algorithm.
+            use_vllm: Whether using vLLM backend.
+            indexes: Optional list of indices.
+            get_n_samples: Whether to get n samples per prompt.
+            enable_partial_rollout: Whether partial rollout is enabled.
+            is_generate: Whether in generation mode.
+            
+        Returns:
+            tuple: (padded_batch_data, index_list) or (None, None) if no data.
+        """
         if self.zmq_role != ZMQ_ROLE_NONE:
             zmq_parameter = DispatchZmqParameter(experience_consumer_stage,
                                                  experience_columns, experience_count,
@@ -632,7 +740,7 @@ class BaseWorker(BaseRayWorker, ABC):
                 td = self.td
 
             if enable_partial_rollout:
-                # 获取单条数据，不满足的位置补重复样本
+                # Get single data, fill remaining positions with repeated samples
                 dp_world_size = self.parallel_state.get_data_parallel_world_size()
                 batch_data, index = ray.get(td.get_experience.remote(
                     experience_consumer_stage,
@@ -651,7 +759,7 @@ class BaseWorker(BaseRayWorker, ABC):
                                              use_batch_seqlen_balance=self.rl_config.use_dp_batch_balance,
                                              allow_partial_ready_data=False))  # cpu数据
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
-            if not index:  # 判断是否取出数据，未取出数据为-1
+            if not index:  # Check if data retrieved, -1 if not
                 index = [-1] * experience_count
             elif is_multimodal():
                 batch_mm_data = ray.get(
@@ -715,6 +823,16 @@ class BaseWorker(BaseRayWorker, ABC):
 
     @mstx_timer_decorator
     def collect_transfer_dock_data(self, output, index, use_vllm=False, is_generate=False, sync=False):
+        """
+        Collect output data and send to transfer dock.
+        
+        Args:
+            output: Dictionary containing output tensors.
+            index: List of indices for the data.
+            use_vllm: Whether using vLLM backend.
+            is_generate: Whether in generation mode.
+            sync: Whether to use synchronous communication.
+        """
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
@@ -742,13 +860,31 @@ class BaseWorker(BaseRayWorker, ABC):
 
     @mstx_timer_decorator
     def collect_transfer_dock_mm_data(self, output, index, use_vllm=False):
+        """
+        Collect multi-modal output data and send to transfer dock.
+        
+        Args:
+            output: Dictionary containing multi-modal output tensors.
+            index: List of indices for the data.
+            use_vllm: Whether using vLLM backend.
+        """
         if is_pipeline_last_stage(self.parallel_state, use_vllm) and get_tensor_model_parallel_rank(self.parallel_state,
                                                                                                     use_vllm) == 0:
             output = {key: value.cpu() if not isinstance(value, List) else value for key, value in output.items()}
             ray.get(self.mm_td.put_experience.remote(batch=output, indexes=index))
 
-
     def get_dp_range_indexes(self, experience_count, use_vllm=False, assign_batch_size=None):
+        """
+        Get data parallel range indexes for current rank.
+        
+        Args:
+            experience_count: Total number of experiences.
+            use_vllm: Whether using vLLM backend.
+            assign_batch_size: Optional assigned batch size.
+            
+        Returns:
+            list: Range indexes for current data parallel rank.
+        """
         if use_vllm:
             current_dp_rank, dp_world_size = self.get_vllm_dp_rank()
         else:
@@ -762,6 +898,12 @@ class BaseWorker(BaseRayWorker, ABC):
 
     @staticmethod
     def get_vllm_dp_rank():
+        """
+        Get vLLM data parallel rank and world size.
+        
+        Returns:
+            tuple: (current_dp_rank, dp_world_size)
+        """
         get_rollout_data_parallel_rank = torch.distributed.get_rank()
         vllm_dp_groups = get_vllm_tp_group_ranks()
         if vllm_dp_groups is None:
@@ -771,8 +913,19 @@ class BaseWorker(BaseRayWorker, ABC):
                 current_dp_rank = index
         return current_dp_rank, len(vllm_dp_groups)
 
-
     def get_batch_mm_data(self, batch_mm_data, mm_columns, rank_flg, use_vllm):
+        """
+        Get multi-modal batch data via broadcast.
+        
+        Args:
+            batch_mm_data: Dictionary containing multi-modal data.
+            mm_columns: List of multi-modal column names.
+            rank_flg: Flag indicating if current rank is leader.
+            use_vllm: Whether using vLLM backend.
+            
+        Returns:
+            dict: Updated batch_mm_data with broadcasted tensors.
+        """
         for key in mm_columns:
             if rank_flg:
                 if key not in batch_mm_data.keys():
@@ -836,7 +989,7 @@ class BaseWorker(BaseRayWorker, ABC):
                                                 device=torch.cuda.current_device(),
                                                 dtype=torch.float32)
 
-            # 传输tensor数据
+            # Transfer tensor data
             torch.distributed.broadcast(
                 batch_mm_data[key].cuda(), get_tensor_model_parallel_src_rank(self.parallel_state, use_vllm),
                 group=get_tensor_model_parallel_group(self.parallel_state, use_vllm)

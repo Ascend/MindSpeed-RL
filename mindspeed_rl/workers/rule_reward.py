@@ -1,4 +1,5 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
 import ray
 from transformers import AutoTokenizer
 import torch
@@ -14,23 +15,57 @@ logger = Loggers("rule_reward")
 
 @ray.remote
 class RuleReward(object):
+    """
+    RuleReward class for rule-based reward computation.
+    
+    This class implements reward computation using rule-based verifiers
+    and mathematical accuracy metrics for RL training.
+    """
 
     def initialize(self, megatron_config, rl_config, tokenizer, trust_remote_code=False, dp_rank=0):
+        """
+        Initialize the RuleReward worker.
+        
+        Args:
+            megatron_config: Configuration for Megatron-LM.
+            rl_config: Configuration for reinforcement learning.
+            tokenizer: Tokenizer for text processing.
+            trust_remote_code: Whether to trust remote code in tokenizer.
+            dp_rank: Data parallel rank for distributed processing.
+        """
+        # Reinforcement learning configuration
         self.rl_config = rl_config
+        # Megatron-LM configuration
         self.megatron_config = megatron_config
+        # Number of samples generated per prompt
         self.n_samples_per_prompt = rl_config.n_samples_per_prompt
+        # Base tokenizer instance
         self.tokenizer = tokenizer
+        # HuggingFace tokenizer for decoding
         self.hf_tokenizer = AutoTokenizer.from_pretrained(megatron_config.tokenizer_name_or_path,
                                                           trust_remote_code=trust_remote_code)
+        # Data parallel rank
         self.dp_rank = dp_rank
 
     def init_transfer_dock(self, td, mm_td=None, sampling_transfer_dock=None, mm_sampling_transfer_dock=None):
+        """
+        Initialize transfer dock references for data communication.
+        
+        Args:
+            td: Main transfer dock for experience data.
+            mm_td: Multi-modal transfer dock for image/video data.
+            sampling_transfer_dock: Transfer dock for sampling data in filtering mode.
+            mm_sampling_transfer_dock: Multi-modal sampling transfer dock.
+        """
         self.td = td
         self.mm_td = mm_td
         self.sampling_transfer_dock = sampling_transfer_dock
         self.mm_sampling_transfer_dock = mm_sampling_transfer_dock
 
     def compute_rm_score(self):
+        """
+        Compute rule-based reward model scores for experience data.
+        """
         experience_consumer_stage = 'rule_reward'
         experience_columns = ['prompts', 'responses', 'response_length', *self.megatron_config.dataset_additional_keys]
         if self.rl_config.multi_turn_enable:
@@ -52,10 +87,10 @@ class RuleReward(object):
                     indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
                     get_n_samples=True
                 )
-            )  # cpu数据
+            )  # CPU data
             batch_data = remove_padding_tensor_dict_to_dict(batch_data)
             if batch_data and index:
-                batch_data = pad_experience(batch_data, pad_token_id) # multiple, tp_size
+                batch_data = pad_experience(batch_data, pad_token_id)  # multiple, tp_size
                 if not is_multimodal():
                     if "categories" in batch_data.keys():
                         use_verifier_mask = batch_data["categories"][:, 0].squeeze().bool()

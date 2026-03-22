@@ -1,17 +1,15 @@
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
-"""
-Note that we don't combine the main with trainer as trainer is used by other main.
-"""
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any, Optional, Callable, List, Tuple
 import sys
 
 import hydra
 import ray
 import torch
 import yaml
+from omegaconf import DictConfig
 from ray.util import placement_group
 
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
@@ -37,13 +35,35 @@ from mindspeed_rl.workers.integrated_worker import IntegratedWorker
 from mindspeed_rl.workers.critic_worker import CriticWorker
 from mindspeed_rl.workers.scheduler.launcher import construct_colocate_placement_groups
 
+# Directory of current file for path resolution
 cur_file_dir = Path(__file__).absolute().parent.parent
+
+# Logger instance for PPO training
 logger = Loggers("ppo_train")
 
 
 @ray.remote
-def train(config):
-    actor_config, ref_config, reward_config, rl_config, generate_config, critic_config, profiler_config, msprobe_config = parse_training_config(config).values()
+def train(config: Dict[str, Any]) -> None:
+    """Execute PPO training process.
+
+    Initializes Ray actor groups for actor, reference, critic, and reward
+    workers, sets up datasets and data loaders, and runs the training loop.
+
+    Args:
+        config: Training configuration dictionary (Dict[str, Any]) containing 
+            all hyperparameters and settings for actor, reference, reward, critic, 
+            RL, generation, and profiler. Passed from main() via Ray remote call.
+    """
+    (
+        actor_config,
+        ref_config,
+        reward_config,
+        rl_config,
+        generate_config,
+        critic_config,
+        profiler_config,
+        msprobe_config
+    ) = parse_training_config(config).values()
 
     MsProbe.config_init(msprobe_config)
     MsProbe.save_configs({
@@ -53,14 +73,17 @@ def train(config):
         'rl': rl_config.dict(),
         'generate': generate_config.dict(),
         'critic': critic_config.dict()
-        })
+    })
 
-    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
-                              prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
+    tokenizer = get_tokenizer(
+        tokenizer_model=actor_config.tokenizer_name_or_path,
+        prompt_type=actor_config.prompt_type,
+        prompt_type_path=actor_config.prompt_type_path
+    )
 
     logger.info('start async initializing ray actor groups')
 
-    reward_list = []
+    reward_list: List[Any] = []
 
     pgs = construct_colocate_placement_groups(rl_config)
 
@@ -161,12 +184,20 @@ def train(config):
         ray.get(pg.ready())
 
         for i in range(rule_reward_num_process):
-            rule_reward = RuleReward.options(placement_group=pg, placement_group_bundle_index=i).remote()
-            rule_reward.initialize.remote(reward_config, rl_config, tokenizer, dp_rank=i)
+            rule_reward = RuleReward.options(
+                placement_group=pg,
+                placement_group_bundle_index=i
+            ).remote()
+            rule_reward.initialize.remote(
+                reward_config,
+                rl_config,
+                tokenizer,
+                dp_rank=i
+            )
             reward_list.append(rule_reward)
 
     train_ds, _, _ = build_train_valid_test_datasets(
-        data_prefix=[actor_config.data_path, ],
+        data_prefix=[actor_config.data_path],
         splits_string=actor_config.split,
         seq_length=actor_config.seq_length,
         train_valid_test_num_samples=[
@@ -183,8 +214,11 @@ def train(config):
     consumed_train_samples = actor_worker.get_consumed_train_samples()
 
     data_loader = PromptDataLoader(
-        train_ds, actor_config.global_batch_size,
-        actor_config.num_workers, actor_config.seed, actor_config.dataset_additional_keys,
+        train_ds,
+        actor_config.global_batch_size,
+        actor_config.num_workers,
+        actor_config.seed,
+        actor_config.dataset_additional_keys,
         actor_config.no_shuffle
     )
     data_iters = iter(data_loader)
@@ -214,43 +248,71 @@ def train(config):
     logger.info("training process successfully!")
 
 
-def parse_training_config(config: Dict):
-    """
-    解析训练配置，提取 actor、ref、reward、rl 和 generate 的配置。
+def parse_training_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse training configuration into component configs.
 
-    :param config: 输入的全局配置字典。
-    :return: 包含 actor_config、ref_config、reward_config、rl_config 和 generate_config、profiler_config、msprobe_config 的实例。
+    Extracts and validates configuration for actor, reference, reward, critic,
+    RL, generation, and profiler from the global configuration dictionary.
+
+    Args:
+        config: Global configuration dictionary (Dict[str, Any]) containing all 
+            training parameters. Typically converted from DictConfig via 
+            OmegaConf.to_container() when passed through Ray.
+
+    Returns:
+        Dictionary containing parsed and validated configurations:
+        - actor_config: MegatronConfig for actor model
+        - ref_config: MegatronConfig for reference model
+        - reward_config: MegatronConfig for reward model
+        - rl_config: RLConfig for RL hyperparameters
+        - generate_config: GenerateConfig for generation settings
+        - critic_config: MegatronConfig for critic model
+        - profiler_config: Dict of ProfilerConfig for profiling
+        - msprobe_config: MsprobeConfig for MindStudio probing
+
+    Raises:
+        ValueError: If ref_config or reward_config is set when using integrated worker.
     """
-    actor_config = MegatronConfig({**config.get("megatron_training"), **config.get("actor_config")},
-                                  config.get('model'))
+    actor_config = MegatronConfig(
+        {**config.get("megatron_training"), **config.get("actor_config")},
+        config.get('model')
+    )
     rl_config = RLConfig(config.get("rl_config"))
 
     if rl_config.use_integrated_worker:
         if "ref_config" in config:
             raise ValueError(
-                f"ref_config should not be set when use_integrated_worker mode is on.")
+                "ref_config should not be set when use_integrated_worker mode is on."
+            )
         ref_config = actor_config
 
         if "reward_config" in config:
             raise ValueError(
-                f"reward_config should not be set when use_integrated_worker mode is on.")
+                "reward_config should not be set when use_integrated_worker mode is on."
+            )
         reward_config = actor_config
 
     else:
-        ref_config = MegatronConfig({**config.get("megatron_training"), **config.get("ref_config")},
-                                    config.get('model'))
+        ref_config = MegatronConfig(
+            {**config.get("megatron_training"), **config.get("ref_config")},
+            config.get('model')
+        )
 
-        reward_config = MegatronConfig({**config.get("megatron_training"), **config.get("reward_config")},
-                                       config.get('model'))
+        reward_config = MegatronConfig(
+            {**config.get("megatron_training"), **config.get("reward_config")},
+            config.get('model')
+        )
 
-    critic_config = MegatronConfig({**config.get("megatron_training"), **config.get("critic_config")},
-                                  config.get('model'))
+    critic_config = MegatronConfig(
+        {**config.get("megatron_training"), **config.get("critic_config")},
+        config.get('model')
+    )
 
     generate_config = GenerateConfig(config.get("generate_config"))
 
     validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config, critic_config)
 
-    profiler_config = {}
+    profiler_config: Dict[str, ProfilerConfig] = {}
     profiler_config.update({
         "integrated": ProfilerConfig(
             config.get("profiler_config", {}).get("integrated", {}),
@@ -259,9 +321,9 @@ def parse_training_config(config: Dict):
     })
 
     msprobe_config = MsprobeConfig(
-            config.get("msprobe_config", {}),
-            role="integrated"
-        )
+        config.get("msprobe_config", {}),
+        role="integrated"
+    )
 
     return {
         "actor_config": actor_config,
@@ -275,7 +337,13 @@ def parse_training_config(config: Dict):
     }
 
 
-def get_megatron_module():
+def get_megatron_module() -> Dict[str, Any]:
+    """Import and return Megatron training modules.
+
+    Returns:
+        Dictionary containing imported Megatron modules for model parallelism,
+        optimization, checkpointing, and distributed training.
+    """
     from megatron.core import parallel_state
     from megatron.core import DistributedDataParallel
     from megatron.core.optimizer import get_megatron_optimizer
@@ -322,36 +390,40 @@ def get_megatron_module():
     }
 
 
-def gpt_model_provider(pre_process, post_process):
-    """
-    Builds the model.
+def gpt_model_provider(pre_process: bool, post_process: bool) -> torch.nn.Module:
+    """Build GPT model for training.
 
-    If you set the use_mcore_models to True, it will return the mcore GPT model and if not the legacy GPT model.
+    Constructs a GPT model using either mcore or legacy implementation
+    based on configuration. Uses transformer layer specifications from
+    command line arguments.
 
     Args:
-        pre_process (bool, optional): Set to true if you need to compute embedings. Defaults to True.
-        post_process (bool, optional): Set to true if you need to want to compute output logits/loss.
-        Defaults to True.
-
+        pre_process: Whether to compute embeddings in this stage.
+        post_process: Whether to compute output logits/loss in this stage.
 
     Returns:
-        Union[GPTModel, megatron.legacy.model.GPTModel]: The returned model
+        GPTModel: The constructed GPT model.
     """
     from megatron.training import get_args
     from megatron.core.models.gpt import GPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from megatron.core.transformer.spec_utils import import_module
     from megatron.training.arguments import core_transformer_config_from_args
+    
     args = get_args()
 
     logger.info('building GPT model ...')
     # Experimental loading arguments from configs
+    # config: TransformerConfig from megatron.core (returned by core_transformer_config_from_args)
     config = core_transformer_config_from_args(args)
 
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+        transformer_layer_spec = get_gpt_layer_local_spec(
+            args.num_experts,
+            args.moe_grouped_gemm
+        )
 
     model = GPTModel(
         config=config,
@@ -371,32 +443,39 @@ def gpt_model_provider(pre_process, post_process):
     return model
 
 
-def rm_model_provider(pre_process, post_process):
-    """
-    Builds the model.
+def rm_model_provider(pre_process: bool, post_process: bool) -> torch.nn.Module:
+    """Build reward model (ORM) for training.
+
+    Constructs a GPT-based reward model for outcome reward modeling.
+    Automatically enables untie_embeddings_and_output_weights for pipeline
+    parallelism.
 
     Args:
-        pre_process (bool, optional): Set to true if you need to compute embedings. Defaults to True.
-        post_process (bool, optional): Set to true if you need to want to compute output logits/loss.
-        Defaults to True.
+        pre_process: Whether to compute embeddings in this stage.
+        post_process: Whether to compute output logits/loss in this stage.
 
     Returns:
-        GPTRewardModel: The returned model
+        GPTRewardModel: The constructed reward model.
     """
     from megatron.training import get_args
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from megatron.core.transformer.spec_utils import import_module
     from megatron.training.arguments import core_transformer_config_from_args
     from mindspeed_rl.models.orm.orm_model import GPTRewardModel
+    
     args = get_args()
     logger.info('building RM GPT model ...')
     # Experimental loading arguments from configs
+    # config: TransformerConfig from megatron.core (returned by core_transformer_config_from_args)
     config = core_transformer_config_from_args(args)
 
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+        transformer_layer_spec = get_gpt_layer_local_spec(
+            args.num_experts,
+            args.moe_grouped_gemm
+        )
 
     if (not args.untie_embeddings_and_output_weights) and (args.pipeline_model_parallel_size > 1):
         args.untie_embeddings_and_output_weights = True
@@ -404,6 +483,7 @@ def rm_model_provider(pre_process, post_process):
             "untie_embeddings_and_output_weights is set to True, "
             "since output_layer is not used in Outcome Reward model training."
         )
+    
     model = GPTRewardModel(
         config=config,
         transformer_layer_spec=transformer_layer_spec,
@@ -423,23 +503,43 @@ def rm_model_provider(pre_process, post_process):
 
 
 def initialize_megatron(
-        extra_args_provider=None,
-        args_defaults={},
-        ignore_unknown_args=False,
-        allow_no_cuda=False,
-        skip_mpu_initialization=False,
-        get_embedding_ranks=None,
-        get_position_embedding_ranks=None,
-        config=None,
-):
-    """Set global variables, initialize distributed, and
-    set autoresume and random seeds.
-    `allow_no_cuda` should not be set unless using megatron for cpu only
-    data processing. In general this arg should not be set unless you know
-    what you are doing.
-    Returns a function to finalize distributed env initialization
-    (optionally, only when args.lazy_mpu_init == True)
+        extra_args_provider: Optional[Callable] = None,
+        args_defaults: Optional[Dict[str, Any]] = None,
+        ignore_unknown_args: bool = False,
+        allow_no_cuda: bool = False,
+        skip_mpu_initialization: bool = False,
+        get_embedding_ranks: Optional[Callable] = None,
+        get_position_embedding_ranks: Optional[Callable] = None,
+        config: Optional[MegatronConfig] = None,
+) -> Optional[Callable]:
+    """Initialize Megatron training environment.
+
+    Sets global variables, initializes distributed training, and configures
+    autoresume and random seeds. Returns a continuation function for lazy
+    initialization when requested.
+
+    Args:
+        extra_args_provider: Optional function to provide extra arguments.
+        args_defaults: Default argument values.
+        ignore_unknown_args: Whether to ignore unknown command line arguments.
+        allow_no_cuda: Whether to allow CPU-only initialization (not recommended
+            for training).
+        skip_mpu_initialization: Whether to skip model parallel unit initialization.
+        get_embedding_ranks: Optional function to get embedding ranks.
+        get_position_embedding_ranks: Optional function to get position embedding ranks.
+        config: Megatron configuration object (MegatronConfig instance), 
+            containing merged settings from all configuration sections.
+
+    Returns:
+        Optional continuation function for lazy initialization, or None if
+        lazy initialization is not requested.
+
+    Raises:
+        ValueError: If CUDA is not available and allow_no_cuda is False.
     """
+    if args_defaults is None:
+        args_defaults = {}
+
     origin_sys_argv = sys.argv
     sys.argv = [sys.argv[0]]
     parse_args_from_config(config)
@@ -462,9 +562,12 @@ def initialize_megatron(
     from megatron.training.arguments import validate_args
     from megatron.training.checkpointing import load_args_from_checkpoint
     from megatron.training.global_vars import set_global_variables
-    from megatron.training.initialize import _set_random_seed, \
-        _init_autoresume, _compile_dependencies, \
+    from megatron.training.initialize import (
+        _set_random_seed,
+        _init_autoresume,
+        _compile_dependencies,
         _initialize_tp_communicators
+    )
 
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
         if args.load is None:
@@ -480,7 +583,7 @@ def initialize_megatron(
         logger.info("deterministic computing is applied for npu.")
 
     # torch.distributed initialization
-    def finish_mpu_init():
+    def finish_mpu_init() -> None:
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
@@ -523,10 +626,22 @@ def initialize_megatron(
         return None
 
 
-def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
-    """Initialize torch.distributed and core model parallel."""
+def _initialize_distributed(
+        get_embedding_ranks: Optional[Callable],
+        get_position_embedding_ranks: Optional[Callable]
+) -> None:
+    """Initialize torch.distributed and core model parallel.
+
+    Sets up distributed training environment including tensor, pipeline, and
+    data parallelism communicators.
+
+    Args:
+        get_embedding_ranks: Optional function to get embedding ranks.
+        get_position_embedding_ranks: Optional function to get position embedding ranks.
+    """
     from megatron.core import parallel_state
     from megatron.training import get_args
+    
     args = get_args()
 
     device_count = torch.cuda.device_count()
@@ -597,7 +712,16 @@ def _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks):
 
 
 @hydra.main(config_path='../configs', config_name='ppo_qwen25_32b_A3', version_base=None)
-def main(config):
+def main(config: DictConfig) -> None:
+    """Hydra main entry point for PPO training.
+
+    Initializes Ray cluster and launches distributed training.
+
+    Args:
+        config: Hydra/OmegaConf configuration object (DictConfig) containing 
+            all training parameters loaded from YAML config file. Automatically
+            converted to Dict[str, Any] when passed to Ray remote functions.
+    """
     if not ray.is_initialized():
         # this is for local ray cluster
         logger.info('start initializing local ray cluster')

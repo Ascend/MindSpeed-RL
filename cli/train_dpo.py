@@ -1,8 +1,10 @@
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
 import sys
+from typing import Any, Dict, Optional, Callable, Tuple
 
 import torch
 import hydra
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
@@ -12,11 +14,29 @@ from mindspeed_rl.datasets.utils import get_train_valid_test_num_samples
 from mindspeed_rl.utils import get_tokenizer, Loggers, synchronize_time, seed_all, parse_args_from_config
 
 
+# Logger instance for DPO training
 logger = Loggers('train_dpo')
 
 
-def add_config(rl_config_dict, profiler_config_dict, megatron_config):
-    # add wandb config
+def add_config(
+        rl_config_dict: Dict[str, Any],
+        profiler_config_dict: Dict[str, Any],
+        megatron_config: MegatronConfig
+) -> MegatronConfig:
+    """Add RL and profiler configurations to Megatron config.
+
+    Updates the Megatron configuration with experiment tracking settings
+    (wandb, swanlab) and profiling configurations.
+
+    Args:
+        rl_config_dict: Dictionary containing RL configuration parameters.
+        profiler_config_dict: Dictionary containing profiler configuration.
+        megatron_config: Megatron configuration object to be updated.
+
+    Returns:
+        Updated MegatronConfig with additional settings.
+    """
+    # Add wandb configuration
     if 'use_wandb' in rl_config_dict:
         megatron_config.use_wandb = rl_config_dict['use_wandb']
     if 'wandb_exp_name' in rl_config_dict:
@@ -26,7 +46,7 @@ def add_config(rl_config_dict, profiler_config_dict, megatron_config):
     if 'wandb_save_dir' in rl_config_dict:
         megatron_config.wandb_save_dir = rl_config_dict['wandb_save_dir']
 
-    # add swanlab config
+    # Add swanlab configuration
     if 'use_swanlab' in rl_config_dict:
         megatron_config.use_swanlab = rl_config_dict['use_swanlab']
     if 'swanlab_exp_name' in rl_config_dict:
@@ -36,7 +56,7 @@ def add_config(rl_config_dict, profiler_config_dict, megatron_config):
     if 'swanlab_save_dir' in rl_config_dict:
         megatron_config.swanlab_save_dir = rl_config_dict['swanlab_save_dir']
 
-    # add profile config
+    # Add profiler configuration
     for key, value in profiler_config_dict.items():
         if 'profile' in key:
             setattr(megatron_config, key, value)
@@ -46,7 +66,12 @@ def add_config(rl_config_dict, profiler_config_dict, megatron_config):
     return megatron_config
 
 
-def dpo_train():
+def dpo_train() -> None:
+    """Execute DPO training process.
+
+    Initializes Megatron environment, builds tokenizer and datasets,
+    creates data loader, and runs the DPO training loop.
+    """
     from megatron.core import parallel_state
     from megatron.core.utils import get_model_config
     from megatron.core.enums import ModelType
@@ -63,15 +88,19 @@ def dpo_train():
 
     start_time = synchronize_time()
     logger.info("dpo training starting time: {}".format(start_time))
+    
     from mindspeed_llm.tasks.posttrain.base.base_trainer import BaseTrainer
     BaseTrainer.model_provider = model_provider_swap
 
-    # build tokenizer
-    tokenizer = get_tokenizer(args.tokenizer_name_or_path,
-                              prompt_type=args.prompt_type, prompt_type_path=args.prompt_type_path)
+    # Build tokenizer
+    tokenizer = get_tokenizer(
+        args.tokenizer_name_or_path,
+        prompt_type=args.prompt_type,
+        prompt_type_path=args.prompt_type_path
+    )
     logger.info('after tokenizer is built')
 
-    # build dataset
+    # Build dataset
     train_valid_test_num_samples = get_train_valid_test_num_samples(
         train_samples=args.train_samples,
         train_iters=args.train_iters,
@@ -98,9 +127,14 @@ def dpo_train():
     logger.info('after datasets are built')
 
     data_loader = PromptDataLoader(
-        train_dataset, args.global_batch_size,
-        args.num_workers, args.seed, args.dataset_additional_keys,
-        args.no_shuffle, args.is_pairwise_dataset, tokenizer=tokenizer.tokenizer
+        train_dataset,
+        args.global_batch_size,
+        args.num_workers,
+        args.seed,
+        args.dataset_additional_keys,
+        args.no_shuffle,
+        args.is_pairwise_dataset,
+        tokenizer=tokenizer.tokenizer
     )
     data_iters = iter(data_loader)
     [next(data_iters) for _ in range(args.consumed_train_samples // args.global_batch_size)]
@@ -108,40 +142,44 @@ def dpo_train():
     logger.info('after dataloaders are built')
 
     trainer = DPOTrainer()
-
     trainer.train()
 
 
-def gpt_model_provider(pre_process, post_process):
-    """
-    Builds the model.
+def gpt_model_provider(pre_process: bool, post_process: bool) -> torch.nn.Module:
+    """Build GPT model for training.
 
-    If you set the use_mcore_models to True, it will return the mcore GPT model and if not the legacy GPT model.
+    Constructs a GPT model using either mcore or legacy implementation
+    based on configuration. Uses transformer layer specifications from
+    command line arguments.
 
     Args:
-        pre_process (bool, optional): Set to true if you need to compute embedings. Defaults to True.
-        post_process (bool, optional): Set to true if you need to want to compute output logits/loss.
-        Defaults to True.
-
+        pre_process: Whether to compute embeddings in this stage.
+        post_process: Whether to compute output logits/loss in this stage.
 
     Returns:
-        Union[GPTModel, megatron.legacy.model.GPTModel]: The returned model
+        GPTModel: The constructed GPT model.
     """
     from megatron.training import get_args
     from megatron.core.models.gpt import GPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from megatron.core.transformer.spec_utils import import_module
     from megatron.training.arguments import core_transformer_config_from_args
+    
     args = get_args()
 
     logger.info('building GPT model ...')
     # Experimental loading arguments from configs
+    # config: TransformerConfig from megatron.core (returned by core_transformer_config_from_args)
     config = core_transformer_config_from_args(args)
 
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm, qk_layernorm=args.qk_layernorm)
+        transformer_layer_spec = get_gpt_layer_local_spec(
+            args.num_experts,
+            args.moe_grouped_gemm,
+            qk_layernorm=args.qk_layernorm
+        )
 
     model = GPTModel(
         config=config,
@@ -162,22 +200,39 @@ def gpt_model_provider(pre_process, post_process):
 
 
 def initialize_megatron(
-        extra_args_provider=None,
-        args_defaults=None,
-        ignore_unknown_args=False,
-        allow_no_cuda=False,
-        skip_mpu_initialization=False,
-        get_embedding_ranks=None,
-        get_position_embedding_ranks=None,
-        config=None,
-):
-    """Set global variables, initialize distributed, and
-    set autoresume and random seeds.
-    `allow_no_cuda` should not be set unless using megatron for cpu only
-    data processing. In general this arg should not be set unless you know
-    what you are doing.
-    Returns a function to finalize distributed env initialization
-    (optionally, only when args.lazy_mpu_init == True)
+        extra_args_provider: Optional[Callable] = None,
+        args_defaults: Optional[Dict[str, Any]] = None,
+        ignore_unknown_args: bool = False,
+        allow_no_cuda: bool = False,
+        skip_mpu_initialization: bool = False,
+        get_embedding_ranks: Optional[Callable] = None,
+        get_position_embedding_ranks: Optional[Callable] = None,
+        config: Optional[MegatronConfig] = None,
+) -> Optional[Callable]:
+    """Initialize Megatron training environment.
+
+    Sets global variables, initializes distributed training, and configures
+    autoresume and random seeds. Returns a continuation function for lazy
+    initialization when requested.
+
+    Args:
+        extra_args_provider: Optional function to provide extra arguments.
+        args_defaults: Default argument values.
+        ignore_unknown_args: Whether to ignore unknown command line arguments.
+        allow_no_cuda: Whether to allow CPU-only initialization (not recommended
+            for training).
+        skip_mpu_initialization: Whether to skip model parallel unit initialization.
+        get_embedding_ranks: Optional function to get embedding ranks.
+        get_position_embedding_ranks: Optional function to get position embedding ranks.
+        config: Megatron configuration object (MegatronConfig instance), 
+            containing merged settings from all configuration sections.
+
+    Returns:
+        Optional continuation function for lazy initialization, or None if
+        lazy initialization is not requested.
+
+    Raises:
+        ValueError: If CUDA is not available and allow_no_cuda is False.
     """
     if args_defaults is None:
         args_defaults = {}
@@ -186,7 +241,7 @@ def initialize_megatron(
     sys.argv = [sys.argv[0]]
     parse_args_from_config(config)
     
-    # Note: Importing this line activates the megatron_adapter 
+    # Note: Importing this line activates the megatron_adapter
     from mindspeed_llm.training.arguments import parse_args_decorator
     import megatron
 
@@ -202,9 +257,13 @@ def initialize_megatron(
     from megatron.training.arguments import validate_args
     from megatron.training.checkpointing import load_args_from_checkpoint
     from megatron.training.global_vars import set_global_variables
-    from megatron.training.initialize import _set_random_seed, \
-        _init_autoresume, _compile_dependencies, \
-        _initialize_tp_communicators, _initialize_distributed
+    from megatron.training.initialize import (
+        _set_random_seed,
+        _init_autoresume,
+        _compile_dependencies,
+        _initialize_tp_communicators,
+        _initialize_distributed
+    )
 
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
         if args.load is None:
@@ -225,7 +284,7 @@ def initialize_megatron(
         logger.info("deterministic computing is applied for npu.")
 
     # torch.distributed initialization
-    def finish_mpu_init():
+    def finish_mpu_init() -> None:
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)
@@ -268,18 +327,38 @@ def initialize_megatron(
         return None
 
 
-def model_provider_swap(self, pre_process, post_process):
+def model_provider_swap(
+        self: Any,
+        pre_process: bool,
+        post_process: bool
+) -> torch.nn.Module:
+    """Swap model provider for DPO training.
+
+    Alternative model provider that supports both YAML and argument-based
+    configuration loading. Used to replace the default model provider in
+    BaseTrainer.
+
+    Args:
+        self: Trainer instance (unused, for interface compatibility).
+        pre_process: Whether to compute embeddings in this stage.
+        post_process: Whether to compute output logits/loss in this stage.
+
+    Returns:
+        GPTModel: The constructed GPT model.
+    """
     from megatron.training import get_args, print_rank_0
     from megatron.training.arguments import core_transformer_config_from_args
     from megatron.training.yaml_arguments import core_transformer_config_from_yaml
     from megatron.core.transformer.spec_utils import import_module
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_spec
     from mindspeed_llm.core.models.gpt.gpt_model import GPTModel
+    
     args = get_args()
     use_te = args.transformer_impl == "transformer_engine"
 
     print_rank_0('building GPT model ...')
     # Experimental loading arguments from yaml
+    # config: TransformerConfig from megatron.core (via core_transformer_config_from_yaml or core_transformer_config_from_args)
     if args.yaml_cfg is not None:
         config = core_transformer_config_from_yaml(args, "language_model")
     else:
@@ -288,7 +367,11 @@ def model_provider_swap(self, pre_process, post_process):
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)
     else:
-        transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm, qk_layernorm=args.qk_layernorm)
+        transformer_layer_spec = get_gpt_layer_local_spec(
+            args.num_experts,
+            args.moe_grouped_gemm,
+            qk_layernorm=args.qk_layernorm
+        )
     mtp_block_spec = None
 
     model = GPTModel(
@@ -310,7 +393,23 @@ def model_provider_swap(self, pre_process, post_process):
     return model
 
 
-def separate_config_and_parse_args(config):
+def separate_config_and_parse_args(config: DictConfig) -> MegatronConfig:
+    """Separate and parse Hydra configuration.
+
+    Extracts model, training, RL, and profiler configurations from the
+    Hydra config object and merges them into a MegatronConfig.
+
+    Args:
+        config: Hydra/OmegaConf configuration object (DictConfig) containing 
+                all settings. Expected structure includes:
+                - model: Model architecture configuration
+                - megatron_training: Megatron training parameters
+                - rl_config (optional): RL experiment tracking settings
+                - profiler_config (optional): Profiler configuration
+
+    Returns:
+        MegatronConfig with merged settings from all configuration sections.
+    """
     model_config = config.model
     dpo_config = config.megatron_training
     rl_config = config.get('rl_config', OmegaConf.create())
@@ -332,7 +431,13 @@ def separate_config_and_parse_args(config):
 
 
 @hydra.main(config_path='../configs', config_name='dpo_qwen3_30b_a3b_A3', version_base=None)
-def main(config):
+def main(config: DictConfig) -> None:
+    """Hydra main entry point for DPO training.
+
+    Args:
+        config: Hydra/OmegaConf configuration object (DictConfig) containing 
+                all training parameters loaded from YAML config file.
+    """
     megatron_config = separate_config_and_parse_args(config)
     initialize_megatron(config=megatron_config)
     dpo_train()

@@ -5,89 +5,75 @@ from mindspeed_rl.config_cls.base_config import BaseConfig
 
 
 class GenerateConfig(BaseConfig):
-    """
-    Generate configuration class.
-    Initialize model configuration from the provided config dictionary.
-    All instance attributes are initialized using the dictionary keys.
+    """Generate configuration class for model generation settings.
 
-    :param config_dict: Dictionary containing the configuration parameters.
-                        If None, default values will be used for all attributes.
-    data_parallel_size: data parallel size for rollout (default: None)
-    tokenizer_name_or_path: Path or name of the tokenizer. Default is "/path/to/tokenizer".
-    trust_remote_code: Whether to trust remote code (e.g., for custom tokenizers). Default is True.
-    eplb_token_collects: Collect the number of tokens from each expert for EPLB.
-    eplb_token_save_path: Save path of the tokens-number of each expert.
+    This class manages generation parameters including parallel configuration,
+    tokenizer settings, memory management, and sampling parameters for inference.
 
-    infer_tensor_parallel_size: Tensor parallel size during inference. Default is 8.
-    infer_pipeline_parallel_size: Pipeline parallel size during inference. Default is 1.
-    infer_expert_parallel_size: Expert parallel size during inference. Default is 1.
-
-    max_num_seqs: Maximum number of sequences to process simultaneously. Default is 256.
-    max_model_len: Maximum model length (in tokens). Default is 2048.
-    max_num_batched_tokens: The maximum number of tokens model can run in a single batch. Default is 2048.
-    dtype: Data type for model weights. Default is "bfloat16".
-    gpu_memory_utilization: GPU memory utilization factor. Default is 0.5.
-
-    enforce_eager: Whether to always use eager-mode PyTorch. If True, we will disable ACL graph and always execute the model in eager mode.
-                   If False, we will use ACL graph and eager execution in hybrid for maximal performance and flexibility.
-    torchair_graph: Whether to enable TorchAir graph optimization. If True, uses accelerated computational graph optimizations.
-    enable_expert_parallel: Whether to enable expert parallel computation for Mixture-of-Experts (MoE) layers.
-    ascend_scheduler_config_enabled: Whether to enable ascend scheduler config.
-    expert_map_path: The path of expert_map in EPLB. When expert_map_path is None, the EPLB is used.
-    sampling_config: Configuration for text generation sampling. Default values are set for various sampling parameters.
-        - num_completions: The number of independent completions to generate for each input prompt. Default is 1.
-        - logprobs: The number of top tokens to return log probabilities for. Default is 1.
-        - max_tokens: The maximum number of tokens to generate in the output. Default is 128.
-        - best_of: The number of candidate completions to generate internally before returning the best one. Default is 2.
-        - top_p: The cumulative probability threshold for nucleus sampling. Default is 1.0.
-        - top_k: The number of highest - probability tokens to consider for sampling. Default is 50.
-        - min_p: The minimum probability threshold for token selection. Default is 0.0.
-        - temperature: Controls the randomness of predictions by scaling the logits before applying softmax. Default is 0.2.
-        - detokenize: Whether to convert the generated tokens back into a human - readable string. Default is False.
+    Attributes:
+        limit_mm_image_per_prompt (int): Maximum number of images per prompt in multi-image scenarios.
+        limit_mm_video_per_prompt (int): Maximum number of videos per prompt in multi-video scenarios.
+        data_parallel_size (int): Data parallel size for rollout.
+        tokenizer_name_or_path (str): Path or name of the tokenizer.
+        trust_remote_code (bool): Whether to trust remote code (e.g., for custom tokenizers).
+        eplb_token_collects (bool): Whether to collect the number of tokens from each expert for EPLB.
+        eplb_token_save_path (str): Save path of the token counts for each expert.
+        expert_map_path (str): Path of expert_map in EPLB. When None, EPLB is used.
+        infer_tensor_parallel_size (int): Tensor parallel size during inference.
+        infer_pipeline_parallel_size (int): Pipeline parallel size during inference.
+        infer_expert_parallel_size (int): Expert parallel size during inference.
+        max_num_seqs (int): Maximum number of sequences to process simultaneously.
+        max_model_len (int): Maximum model length (in tokens).
+        max_num_batched_tokens (int): The maximum number of tokens model can run in a single batch.
+        dtype (str): Data type for model weights (e.g., "bfloat16", "float16").
+        gpu_memory_utilization (float): GPU memory utilization factor.
+        offload_train_optimizer (bool): Whether to offload training optimizer state to CPU.
+        offload_train_grad (bool): Whether to offload training gradients to CPU.
+        offload_train_param (bool): Whether to offload training parameters to CPU.
+        enable_prefix_caching (bool): Whether to enable prefix caching for generation.
+        num_scheduler_steps (int): Number of scheduler steps for generation.
+        enforce_eager (bool): Whether to always use eager-mode PyTorch (disable ACL graph).
+        torchair_graph (bool): Whether to enable TorchAir graph optimization.
+        enable_expert_parallel (bool): Whether to enable expert parallel computation for MoE layers.
+        ascend_scheduler_config_enabled (bool): Whether to enable ascend scheduler config.
+        sampling_config (dict): Configuration for text generation sampling parameters including:
+            - logprobs (int): Number of top tokens to return log probabilities for.
+            - max_tokens (int): Maximum number of tokens to generate.
+            - top_p (float): Cumulative probability threshold for nucleus sampling.
+            - top_k (int): Number of highest-probability tokens to consider.
+            - min_p (float): Minimum probability threshold for token selection.
+            - temperature (float): Controls randomness of predictions.
+            - detokenize (bool): Whether to convert tokens back to readable string.
+            - seed (int): Random seed for sampling.
     """
 
     def __init__(self, config_dict):
-        # 多图场景最多图片数量。
+        """Initialize GenerateConfig with configuration dictionary.
+
+        Args:
+            config_dict (dict): Dictionary containing the configuration parameters.
+                If None, default values will be used for all attributes.
+        """
         self.limit_mm_image_per_prompt = 1
-        # 多图场景最多视频数量。
         self.limit_mm_video_per_prompt = 0
 
         self.data_parallel_size = None
-        # 设置 tokenizer 的名称或路径，默认指向一个示例路径，可根据实际情况修改
         self.tokenizer_name_or_path = "/path/to/tokenizer"
-        # 是否信任远程代码，例如用于自定义 tokenizer，默认为 True
         self.trust_remote_code = False
 
-        # eplb
-        # token热度采集
         self.eplb_token_collects = False
-        # token热度采集结果的保存路径
         self.eplb_token_save_path = "./"
-        # eplb map table
         self.expert_map_path = None
 
-        
-        # 推理时的张量并行大小，默认为 8
         self.infer_tensor_parallel_size = 8
-
-        # 推理时的流水线并行大小，默认为 1
         self.infer_pipeline_parallel_size = 1
-
-        # 推理时的专家并行大小，默认为 1
         self.infer_expert_parallel_size = 1
 
-        # 最大可处理的序列数量，默认为 1
         self.max_num_seqs = 1
-
-        # 模型的最大长度（以 token 为单位），默认为 2048
         self.max_model_len = 2048
-
         self.max_num_batched_tokens = 2048
-
-        # 模型权重的数据类型，默认为 bfloat16
         self.dtype = "bfloat16"
 
-        # GPU 内存的利用率，默认为 0.5
         self.gpu_memory_utilization = 0.5
         self.offload_train_optimizer = False
         self.offload_train_grad = False
@@ -100,16 +86,15 @@ class GenerateConfig(BaseConfig):
         self.enable_expert_parallel = False
         self.ascend_scheduler_config_enabled = True
 
-        # 采样配置的默认值，用于生成文本时的采样策略设置
         self.sampling_config = {
-            "logprobs": 1,  # 返回的 top token 的对数概率数量
-            "max_tokens": 128,  # 生成输出的最大 token 数量
-            "top_p": 1.0,  # 核采样的累积概率阈值
-            "top_k": 50,  # 采样时考虑的最高概率 token 的数量
-            "min_p": 0.0,  # token 选择的最小概率阈值
-            "temperature": 0.2,  # 控制预测随机性的温度参数
-            "detokenize": False,  # 是否将生成的 token 转换回可读字符串
-            "seed": None # 随机种子
+            "logprobs": 1,
+            "max_tokens": 128,
+            "top_p": 1.0,
+            "top_k": 50,
+            "min_p": 0.0,
+            "temperature": 0.2,
+            "detokenize": False,
+            "seed": None
         }
 
         if config_dict.get("sampling_config") is not None:
@@ -118,5 +103,4 @@ class GenerateConfig(BaseConfig):
                     raise ValueError(f"The key: {key} is missing, causing the setup to fail. Please check."
                             f" If necessary, register it in the config file.")
 
-        # 如果提供了配置字典，则更新默认值
         self.update(config_dict)

@@ -1,126 +1,127 @@
 # coding=utf-8
 # Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+
 import os
 from pathlib import Path
 from typing import Optional
 
 from mindspeed_rl.config_cls.base_config import BaseConfig
 
-cur_file_dir = Path(__file__).absolute().parent
 
+cur_file_dir = Path(__file__).absolute().parent
 TEMPLATES_DIR = os.path.join(cur_file_dir, "../../configs/model/templates.json")
 
 
 class DataHandlerConfig(BaseConfig):
+    """DataHandler configuration class for dataset processing and tokenization.
+
+    This class manages data handling parameters including input/output paths,
+    dataset preprocessing, tokenization configuration, and caching strategies
+    for large-scale language model training.
+
+    Attributes:
+        input (str): Path to input data. Supported formats:
+            - Path to JSON file
+            - Path to directory containing dataset files
+            - HuggingFace dataset name
+            - Directory path for merge datasets (containing all document files to merge).
+        handler_name (str): Name of the dataset handler to use for processing.
+        streaming (bool): Whether to use streaming mode for large datasets.
+            When True, data is loaded on-the-fly without full memory loading.
+        json_keys (list): List of keys to extract from JSON records.
+            Defaults to ['text'] for single text field extraction.
+        split_sentences (bool): Whether to split documents into individual sentences.
+        keep_newlines (bool): Whether to preserve newline characters when splitting sentences.
+        prompt_type (str): Template name for constructing prompts in training.
+            "empty" means no template is applied.
+        prompt_type_path (str): Path to the JSON file containing prompt templates.
+            Defaults to TEMPLATES_DIR.
+        dataset_additional_keys (list): Additional field keys to extract from dataset
+            beyond the default keys.
+        interleave_probs (str): Sampling probabilities for multiple datasets.
+            Format: comma-separated values summing to 1.0.
+            Example: "0.1,0.2,0.3,0.4".
+        overwrite_cache (bool): Whether to overwrite existing cached training and evaluation sets.
+        seed (int): Random seed for deterministic data mixing and shuffling.
+        cache_dir (str): Local directory path for storing cached dataset files.
+        map_keys (dict): Field name mapping for dataset column renaming.
+            Format: {"original_name": "new_name"}.
+        pack (bool): Whether to pack multiple samples into a single sample
+            for fine-tuning dataset efficiency.
+        neat_pack (bool): Whether to use zigzag attention mask for packed sequences.
+        script_data_dir (str): Directory path for Python script-based dataset loading.
+        tokenizer_type (str): Tokenizer implementation type.
+            Default: 'HuggingFaceTokenizer'.
+        tokenizer_not_use_fast (bool): Whether to disable HuggingFace fast tokenizer.
+            When True, uses the slower Python implementation.
+        vocab_file (str): Path to vocabulary file for custom tokenizers.
+        merge_file (str): Path to BPE merge file for BPE-based tokenizers.
+        append_eod (bool): Whether to append <eod> (end-of-document) token
+            at the end of each document.
+        tokenizer_name_or_path (str): HuggingFace tokenizer name or local path.
+        seq_length (int): Maximum sequence length for model input processing.
+        make_vocab_size_divisible_by (int): Padding value to make vocabulary size
+            divisible by this number for computational efficiency.
+        pad_vocab_size_to (int): Target vocabulary size after padding.
+            Must be greater than initial tokenizer vocabulary size.
+            When set, overrides `make_vocab_size_divisible_by`.
+        placeholder_token (str): Special token marking step boundaries for PRM (Process Reward Model)
+            predictions. Default is Cyrillic "ки".
+        reward_tokens (list): Token labels indicating correctness of each reasoning step
+            in the reasoning process.
+        output_prefix (str): Output file path prefix (without suffix) for binary dataset files.
+        dataset_impl (str): Dataset storage backend implementation.
+            Options: 'lazy', 'cached', 'mmap'.
+        workers (int): Number of parallel worker processes for data processing.
+        n_subs (int): Number of subsets to split data for multiprocessing.
+        log_interval (int): Step interval between progress logging updates.
+        merge_group_keys (list): List of keys for grouping files to merge.
+            Files with matching keys in 'bin-idx' filenames are merged together.
+        enable_thinking (bool): Whether to enable thinking label for Qwen3 template.
+    """
+
     def __init__(self, config_dict):
-        # input data parameters
-        # Path to input JSON or path or a huggingface dataset name; for merge datasets, it is the directory path containing all document files to merge (required)
-        self.input: str = None
+        """Initialize DataHandlerConfig with configuration dictionary.
 
-        # specify a dataset handler
-        self.handler_name: str = ""
-
-        # weather to use streaming
-        self.streaming: bool = False
-
-        # space separate listed of keys to extract from json
-        self.json_keys: list = ['text']
-
-        # Split documents into sentences.
-        self.split_sentences: bool = False
-
-        # Keep newlines between sentences when splitting.
-        self.keep_newlines: bool = False
-
-        # Which template to use for constructing prompts in training. e.g., "qwen"
-        self.prompt_type: str = "empty"
-
-        # Path to the json file of templates.
-        self.prompt_type_path: str = TEMPLATES_DIR
-
-        # Additional keys need to be added from dataset.
-        self.dataset_additional_keys: list = []
-
-        # Probabilities to sample data from datasets. Use commas to separate multiple datasets. probabilities should sum to 1. ex: "0.1, 0.2, 0.3, 0.4"
-        self.interleave_probs: Optional[str] = None
-
-        # Overwrite the cached training and evaluation sets.
-        self.overwrite_cache: bool = False
-
-        # Random seed to be used with data mix.
-        self.seed: int = 1234
-
-        # Directory to store the cached dataset locally.
-        self.cache_dir: str = os.path.join(os.path.expanduser("~"), "cache")
-
-        # Dataset field mapping.
-        self.map_keys: Optional[dict] = None
-
-        # Package multiple samples into one sample in a fine-tuning dataset
-        self.pack: bool = False
-
-        # Use a zigzag attention mask.
-        self.neat_pack: bool = False
-
-        # Python script dataset direction
-        self.script_data_dir: Optional[str] = None
-
-        # tokenizer parameters
-        # What type of tokenizer to use.
-        self.tokenizer_type: str = 'HuggingFaceTokenizer'
-
-        # HuggingFace tokenizer not use the fast version.
-        self.tokenizer_not_use_fast: bool = True
-
-        # Path to the vocab file
-        self.vocab_file: Optional[str] = None
-
-        # Path to the BPE merge file
-        self.merge_file: Optional[str] = None
-
-        # Append an <eod> token to the end of a document.
-        self.append_eod: bool = False
-
-        # Name or path of the huggingface tokenizer.
-        self.tokenizer_name_or_path: str = None
-
-        # Maximum sequence length to process.
-        self.seq_length: int = None
-
-        # Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-        self.make_vocab_size_divisible_by: int = 128
-
-        # Pad the vocab size to be divisible by this value. Value of the size of the vocabulary of the tokenizer to reach.
-        # This value must be greater than the initial size of the tokenizer. If this argument is used the value of
-        # `make-vocab-size-divisible-by` will be ignored.
-        self.pad_vocab_size_to: int = None
-
-        # A special placeholder token marking the end of each step where the PRM can make predictions.
-        self.placeholder_token: str = "ки"
-
-        # The labels represent the correctness of each reasoning step in the entire reasoning process.
-        self.reward_tokens: list = []
-
-        # Path to binary output file without suffix (required)
-        self.output_prefix: str = None
-
-        # Dataset storage format, options: ['lazy', 'cached', 'mmap']
-        self.dataset_impl: str = "mmap"
-
-        # Number of worker processes to launch
-        self.workers: int = 1
-
-        # Number of subsets to cut for multiprocessing
-        self.n_subs: int = 1
-
-        # Interval between progress updates
-        self.log_interval: int = 100
-
-        # The `bin-idx` pair files with the same key in their filename will be merged.
-        self.merge_group_keys: list = None
-
-        # Enable thining label for Qwen3 Template
-        self.enable_thinking: bool = False
+        Args:
+            config_dict (dict): Dictionary containing the configuration parameters.
+                If None, default values will be used for all attributes.
+        """
+        self.input = None
+        self.handler_name = ""
+        self.streaming = False
+        self.json_keys = ['text']
+        self.split_sentences = False
+        self.keep_newlines = False
+        self.prompt_type = "empty"
+        self.prompt_type_path = TEMPLATES_DIR
+        self.dataset_additional_keys = []
+        self.interleave_probs = None
+        self.overwrite_cache = False
+        self.seed = 1234
+        self.cache_dir = os.path.join(os.path.expanduser("~"), "cache")
+        self.map_keys = None
+        self.pack = False
+        self.neat_pack = False
+        self.script_data_dir = None
+        self.tokenizer_type = 'HuggingFaceTokenizer'
+        self.tokenizer_not_use_fast = True
+        self.vocab_file = None
+        self.merge_file = None
+        self.append_eod = False
+        self.tokenizer_name_or_path = None
+        self.seq_length = None
+        self.make_vocab_size_divisible_by = 128
+        self.pad_vocab_size_to = None
+        self.placeholder_token = "ки"
+        self.reward_tokens = []
+        self.output_prefix = None
+        self.dataset_impl = "mmap"
+        self.workers = 1
+        self.n_subs = 1
+        self.log_interval = 100
+        self.merge_group_keys = None
+        self.enable_thinking = False
 
         if config_dict is not None:
             self.update(config_dict)

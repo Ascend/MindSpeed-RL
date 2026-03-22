@@ -1,7 +1,8 @@
 # Copyright (c) 2025, HUAWEI CORPORATION.  All rights reserved.
+
 import random
 from abc import ABC
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 from functools import partial
 import itertools
 
@@ -21,29 +22,10 @@ from mindspeed_rl.utils.utils import is_multimodal
 
 
 class BaseTrainingEngine(ABC):
-    """
-    Initialize the base trainning engine.
+    """Base class for the training engine.
 
-    Args:
-        model: The network model to be trained.
-        optimizer: The optimizer for updating model parameters (e.g., Adam).
-        opt_param_scheduler: The scheduler for optimizer parameters (e.g., learning rate scheduler).
-        beta: float = 0 The weight coefficient for KL divergence (used in algorithms like PPO).
-        mini_batch_size_per_dp: int = 1  The size of the mini-batch for each data parallel stage.
-        epochs: int = 1 The number of training epochs.
-        shuffle_mini_batch: bool = False Whether to shuffle the mini-batch data at each epoch.
-        stage(str): str = None The training stage identifier (e.g., ray_grpo).
-        kl_ctrl: float = 0.1 Adaptive kl ctrl.
-        clip_ratio: float = 0.1 The clipping ratio threshold for PPO (limits the policy update range).
-        role: str The role of actor in the RLHF frameworker.
-        micro_batch_size: int = 1 Micro batch size for actor rollout.
-        forward_backward_func: Callable = None The forward-backward function for distributed training.
-        token_level_loss: bool = False   Whether to use token_level_loss for DAPO (limits the policy update range).
-        clip_higher_enable: bool = False   Whether to use higher clip for DAPO (limits the policy update range).
-        clip_ratio_low: float = 0.1   The low clipping ratio threshold for DAPO (limits the policy update range).
-        clip_ratio_high: float = 0.1   The high clipping ratio threshold for DAPO (limits the policy update range).
-        cliprange_value: float = 0.5 The clipping ratio threshold for PPO critic (limits the policy update range).
-        **kwargs: Additional keyword arguments.
+    This class initializes the base training engine with model, optimizer, scheduler,
+    and training hyperparameters for reinforcement learning algorithms like PPO.
     """
 
     def __init__(
@@ -72,6 +54,34 @@ class BaseTrainingEngine(ABC):
             clip_ratio_high: float = 0.1,
             cliprange_value: float = 0.5,
             **kwargs):
+        """Initialize the base training engine.
+
+        Args:
+            model: The network model to be trained.
+            optimizer (optional): The optimizer for updating model parameters (e.g., Adam).
+            opt_param_scheduler (optional): The scheduler for optimizer parameters (e.g., learning rate scheduler).
+            megatron_config (optional): Megatron configuration object.
+            beta (float, optional): The weight coefficient for KL divergence (used in algorithms like PPO). Defaults to 0.
+            mini_batch_size_per_dp (int, optional): The size of the mini-batch for each data parallel stage. Defaults to 1.
+            epochs (int, optional): The number of training epochs. Defaults to 1.
+            shuffle_mini_batch (bool, optional): Whether to shuffle the mini-batch data at each epoch. Defaults to False.
+            stage (str, optional): The training stage identifier (e.g., 'ray_grpo'). Defaults to None.
+            kl_ctrl (float, optional): Adaptive KL control coefficient. Defaults to 0.0.
+            clip_ratio (float, optional): The clipping ratio threshold for PPO (limits the policy update range). Defaults to 0.1.
+            temperature (float, optional): Temperature parameter for sampling. Defaults to 1.0.
+            role (str, optional): The role of actor in the RLHF framework. Defaults to None.
+            micro_batch_size (int, optional): Micro batch size for actor rollout. Defaults to 1.
+            reuse_image_embeds (bool, optional): Whether to reuse image embeddings. Defaults to False.
+            forward_backward_func (Callable, optional): The forward-backward function for distributed training. Defaults to None.
+            entropy_coeff (float, optional): Entropy coefficient for regularization. Defaults to 0.0.
+            kl_penalty (str, optional): Type of KL penalty to apply. Defaults to "low_var_kl".
+            token_level_loss (bool, optional): Whether to use token level loss for DAPO. Defaults to False.
+            clip_higher_enable (bool, optional): Whether to use higher clip for DAPO. Defaults to False.
+            clip_ratio_low (float, optional): The low clipping ratio threshold for DAPO. Defaults to 0.1.
+            clip_ratio_high (float, optional): The high clipping ratio threshold for DAPO. Defaults to 0.1.
+            cliprange_value (float, optional): The clipping ratio threshold for PPO critic. Defaults to 0.5.
+            **kwargs: Additional keyword arguments.
+        """
         self.forward_backward_func = forward_backward_func
         self.micro_batch_size = micro_batch_size
         self.reuse_image_embeds = reuse_image_embeds
@@ -97,7 +107,7 @@ class BaseTrainingEngine(ABC):
         self.cliprange_value = cliprange_value
         self.loss_func: BaseLossFunc = LossFuncFactory.get_instance(self.stage, self.role)
         self.kwargs = kwargs
-        
+
         self.use_remove_padding = kwargs.get('use_remove_padding', False)
         self.use_dynamic_bsz = kwargs.get('use_dynamic_bsz', False)
         self.max_packing_token_size = kwargs.get('ref_max_packing_token_size', None)
@@ -111,16 +121,29 @@ class BaseTrainingEngine(ABC):
         self.set_actual_seq_len = kwargs.get('set_actual_seq_len', None)
         self.get_actual_seq_len = kwargs.get('get_actual_seq_len', None)
         self.set_position_ids = kwargs.get('set_position_ids', None)
-        
+
     @staticmethod
     def _split_batches(batch: Dict, batch_size: int, shuffle_mini_batch: bool, dim: int = 0, keep_list: bool = False) -> List[Dict]:
+        """Split batch into smaller micro-batches.
+
+        Args:
+            batch (Dict): Input batch dictionary containing tensors or lists.
+            batch_size (int): Size of each micro-batch.
+            shuffle_mini_batch (bool): Whether to shuffle the micro-batches.
+            dim (int, optional): Dimension to split along. Defaults to 0.
+            keep_list (bool, optional): Whether to keep list type for multimodal scenarios. Defaults to False.
+
+        Returns:
+            List[Dict]: List of micro-batch dictionaries.
+        """
         batches = []
         for key, value in batch.items():
             if isinstance(value, torch.Tensor):
                 split_values = torch.split(value, batch_size, dim)
-            elif isinstance(value, List): # 多模态场景
+            elif isinstance(value, List):
+                # Multimodal scenario
                 num_batches = (len(value) + batch_size - 1) // batch_size
-                if keep_list: # 保持值为list类型
+                if keep_list:
                     split_values = [value[i * batch_size: (i + 1) * batch_size] for i in range(num_batches)]
                 else:
                     split_values = [torch.concat(value[i * batch_size: (i + 1) * batch_size]) for i in range(num_batches)]
@@ -134,7 +157,17 @@ class BaseTrainingEngine(ABC):
         return batches
 
     @staticmethod
-    def _split_batches_with_dynamic_bsz(batch: Dict, max_packing_token: int, dynamic_max_batch_size: int) -> tuple[List[Dict], List[List[int]]]:
+    def _split_batches_with_dynamic_bsz(batch: Dict, max_packing_token: int, dynamic_max_batch_size: int) -> Tuple[List[Dict], List[List[int]]]:
+        """Split batches with dynamic batch size based on token packing.
+
+        Args:
+            batch (Dict): Input batch dictionary.
+            max_packing_token (int): Maximum number of tokens per batch.
+            dynamic_max_batch_size (int): Maximum batch size for dynamic batching.
+
+        Returns:
+            Tuple[List[Dict], List[List[int]]]: Tuple of micro-batches and partition indices.
+        """
         seq_len_list = []
         for prompt_len, response_len in zip(batch['prompt_length'], batch['response_length']):
             seq_len_list.append(prompt_len.item() + response_len.item())
@@ -154,12 +187,23 @@ class BaseTrainingEngine(ABC):
         return batches, partitions
 
     def _forward_backward_batch(self, batch: Dict[str, torch.Tensor], forward_only: bool = False):
+        """Perform forward and backward pass on a batch.
+
+        Args:
+            batch (Dict[str, torch.Tensor]): Input batch data.
+            forward_only (bool, optional): Whether to perform forward pass only. Defaults to False.
+
+        Returns:
+            Reduced losses from the forward-backward computation.
+        """
         if self.use_dynamic_bsz:
             if isinstance(self.max_packing_token_size, dict):
-                max_packing_token_size = self.max_packing_token_size['actor'] if forward_only else self.max_packing_token_size['update'] # actor forward or update
+                # Actor forward or update
+                max_packing_token_size = self.max_packing_token_size['actor'] if forward_only else self.max_packing_token_size['update']
                 dynamic_max_batch_size = self.dynamic_max_batch_size['actor'] if forward_only else self.dynamic_max_batch_size['update']
             else:
-                max_packing_token_size = self.max_packing_token_size # reference forward
+                # Reference forward
+                max_packing_token_size = self.max_packing_token_size
                 dynamic_max_batch_size = self.dynamic_max_batch_size
             batches, indices = self._split_batches_with_dynamic_bsz(batch, max_packing_token_size, dynamic_max_batch_size)
         else:
@@ -186,7 +230,7 @@ class BaseTrainingEngine(ABC):
                                                      cu_seqlens_padded=cu_seqlens_padded,
                                                      seq_len=seq_len)
                     output.div_(self.temperature)
-                
+
             elif self.use_remove_padding:
                 input_ids, position_ids, process_batch, seqlens_in_batch, cu_seqlens_padded, index = self._get_forward_batch_info(batch_iter)
                 output = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
@@ -205,7 +249,7 @@ class BaseTrainingEngine(ABC):
                 input_ids, position_ids, process_batch, index = self._get_forward_batch_info(batch_iter)
                 output = model(input_ids=input_ids, attention_mask=None, position_ids=position_ids)
                 output.div_(self.temperature)
-                
+
             return output, partial(self.loss_func.compute_loss,
                                    batch=process_batch,
                                    forward_only=forward_only,
@@ -213,7 +257,7 @@ class BaseTrainingEngine(ABC):
                                    actual_micro_batch_size=batch_size / n_micro_batch,
                                    index=index)
 
-        # batch should be a list of batches inside micro-batches
+        # Batch should be a list of batches inside micro-batches
         losses_reduced = self.forward_backward_func(
             forward_step_func=forward_step,
             data_iterator=data_iter,
@@ -233,8 +277,16 @@ class BaseTrainingEngine(ABC):
             losses_reduced = [losses_reduced_list[[idx, ]] for idx in revert_indices]
 
         return losses_reduced
-    
+
     def _compute_image_embeds(self, data: Dict) -> torch.Tensor:
+        """Compute image embeddings using ViT.
+
+        Args:
+            data (Dict): Input data containing images.
+
+        Returns:
+            torch.Tensor: Computed image embeddings.
+        """
         batches = self._split_batches(data, batch_size=self.micro_batch_size,
                                         shuffle_mini_batch=self.shuffle_mini_batch)
         n_micro_batch = len(batches)
@@ -242,7 +294,7 @@ class BaseTrainingEngine(ABC):
         data_iter = iter(batches)
         if len(self.model) > 1:
             data_iter = [iter(batches) for _ in self.model]
-        
+
         def _extract_vit_embeds(output, **kwargs):
             return output['vit_embeds']
 
@@ -265,13 +317,25 @@ class BaseTrainingEngine(ABC):
         return vit_embeds
 
     def get_loss_meta_func(self) -> Dict:
-        """
-        获取具体的loss计算超参
-        :return: loss计算超参。
+        """Get hyperparameters for loss computation.
+
+        Returns:
+            Dict: Dictionary containing hyperparameters for loss calculation.
         """
         return {}
 
     def _get_batch_data_with_cp(self, batch, input_ids, position_ids, labels):
+        """Get batch data with context parallelism support.
+
+        Args:
+            batch: Input batch data.
+            input_ids: Input token IDs.
+            position_ids: Position IDs.
+            labels: Labels tensor.
+
+        Returns:
+            Tuple: Input IDs, position IDs, batch data, and index.
+        """
         batch_for_cp = {
             'input_ids': input_ids,
             'position_ids': position_ids,
@@ -282,16 +346,24 @@ class BaseTrainingEngine(ABC):
         batch['position_ids'] = batch_cp['position_ids']
         batch['labels'] = batch_cp['labels']
         self.set_position_ids(batch['position_ids'].transpose(0, 1).contiguous())
-        
+
         return batch['input_ids'], batch['position_ids'], batch, index
 
-
     def _get_forward_batch_info(self, batch_iter):
+        """Get forward batch information with padding removal support.
+
+        Args:
+            batch_iter: Batch iterator.
+
+        Returns:
+            Tuple containing input IDs, position IDs, batch data, and optionally sequence lengths.
+        """
         batch = next(batch_iter)
         input_ids = batch['input_ids']
 
-        # generate a labels tensor based on input_id. Remove the first token along the sequence dimension, and append a token with value 0 at the end. 
-        # This is done to align the data and enable subsequent log probability (logP) calculation
+        # Generate a labels tensor based on input_ids. Remove the first token along the sequence dimension,
+        # and append a token with value 0 at the end. This is done to align the data and enable
+        # subsequent log probability (logP) calculation.
         labels = batch['input_ids']
         labels = labels[:, 1:]
         tmp_add = torch.zeros(labels.size(0), 1, dtype=labels.dtype, device=labels.device)
@@ -308,30 +380,39 @@ class BaseTrainingEngine(ABC):
                 multi = 2 * tp_size * cp_size
             else:
                 multi = tp_size * cp_size
-            
+
             input_ids, position_ids, labels, seqlens_in_batch, cu_seqlens_padded = preprocess_packed_seqs(
                 input_ids=input_ids, labels=labels, attention_mask_1d=attention_mask_1d, tp_size=multi)
             batch['labels'] = labels
-            
+
             cu_seqlens_padded_ring = cu_seqlens_padded
-            if self.megatron_config.attention_mask_type == 'causal': 
+            if self.megatron_config.attention_mask_type == 'causal':
                 cu_seqlens_padded_ring = (cu_seqlens_padded / get_ring_degree(self.megatron_config)).to(torch.int)
             self.set_actual_seq_len(cu_seqlens_padded_ring)
 
             if cp_size > 1:
                 input_ids, position_ids, batch, index = self._get_batch_data_with_cp(batch, input_ids, position_ids, labels)
-                
+
             return input_ids, position_ids, batch, seqlens_in_batch, cu_seqlens_padded, index
-        
+
         else:
             position_ids = torch.tensor(generate_position_ids(input_ids)).to(input_ids.device)
-            
+
             if cp_size > 1:
                 input_ids, position_ids, batch, index = self._get_batch_data_with_cp(batch, input_ids, position_ids, labels)
 
         return input_ids, position_ids, batch, index
-    
+
     def _get_mulitmodal_forward_batch_info(self, batch_iter, compute_vit_only: bool = False):
+        """Get multimodal forward batch information with padding removal.
+
+        Args:
+            batch_iter: Batch iterator.
+            compute_vit_only (bool, optional): Whether to compute ViT embeddings only. Defaults to False.
+
+        Returns:
+            Tuple containing processed batch, sequence lengths, and cumulative sequence lengths.
+        """
         batch = next(batch_iter)
 
         if compute_vit_only:
@@ -372,21 +453,31 @@ class BaseTrainingEngine(ABC):
         batch['attention_mask'] = None
         return batch, seqlens_in_batch, cu_seqlens_padded
 
-    def post_process_forward_backward_output(self, output: [torch.Tensor],
+    def post_process_forward_backward_output(self, output: List[torch.Tensor],
                                              batch: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """
-        模型前反向计算结果后处理
-        :param output: 模型前反向计算结果
-        :param batch: 参与计算的batch数据
-        :return: 模型前向计算结果。
+        """Post-process the output from forward-backward computation.
+
+        Args:
+            output (List[torch.Tensor]): Output from forward-backward computation.
+            batch (Dict[str, torch.Tensor]): Batch data used in computation.
+
+        Returns:
+            torch.Tensor: Processed output tensor.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
     def forward(self, data: Dict, compute_vit_only: bool = False) -> torch.Tensor:
-        """
-        模型前向计算
-        :param data: 前向计算数据
-        :return: 模型前向计算结果。
+        """Perform forward computation on the model.
+
+        Args:
+            data (Dict): Input data for forward computation.
+            compute_vit_only (bool, optional): Whether to compute ViT embeddings only. Defaults to False.
+
+        Returns:
+            torch.Tensor: Output from the forward computation.
         """
         for k, v in data.items():
             if isinstance(v, List):
@@ -403,11 +494,14 @@ class BaseTrainingEngine(ABC):
             return self.post_process_forward_backward_output(output=output, batch=data)
 
     def update(self, data: Dict, kl_ctrl=None) -> Dict:
-        """
-        模型反向更新
-        :param data: 反向更新数据
-        :param kl_ctrl：KL散度计算controller
-        :return: 模型反向计算结果。
+        """Perform backward update on the model.
+
+        Args:
+            data (Dict): Input data for backward update.
+            kl_ctrl: KL divergence controller.
+
+        Returns:
+            Dict: Metrics from the update process.
         """
         self.kl_ctrl = kl_ctrl
         metrics = {}
@@ -437,7 +531,7 @@ class BaseTrainingEngine(ABC):
                 grad_norm_list.append(grad_norm)
 
                 for metric in metric_micro_batch:
-                    append_to_dict(metrics, metric)  # append the metric from this micro-batch to global metrics.
+                    append_to_dict(metrics, metric)  # Append the metric from this micro-batch to global metrics.
 
         metrics[f"{self.role}/grad_norm"] = grad_norm_list
         return metrics

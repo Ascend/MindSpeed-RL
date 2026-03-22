@@ -1,18 +1,20 @@
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+
 from mindspeed_rl.config_cls.base_config import BaseConfig
 
 
 class ProfilerConfig(BaseConfig):
-    '''
-    Profiler configuration class.
+    """Profiler configuration class for performance profiling.
 
-    Parameters:
-        config_dict: Dictionary containing the profiling configuration parameters
-        role: String identifier for the profiler role
+    This class manages profiling parameters for performance analysis including
+    profiling level, export options, and hardware-specific profiling settings.
 
     Attributes:
         role (str): Identifier for the profiler role.
         profile (bool): Enable/disable the profiler. Set to True to enable performance analysis.
         mstx (bool): Enable/disable lightweight collection mode. True for lightweight mode.
+        stage (str): Profiling stage, options include "all", "actor_generate", 
+            "actor_compute_log_prob", "actor_update", "reference_compute_log_prob".
         profile_save_path (str): Path where profiling data will be saved.
         profile_export_type (str): Export file format, options include "db" and "text".
         profile_level (str): Profiling level, options include "level0", "level1", "level2", "level_none".
@@ -23,13 +25,17 @@ class ProfilerConfig(BaseConfig):
         profile_with_module (bool): Whether to analyze with stack.
         profile_step_start (int): Step to start profiling.
         profile_step_end (int): Step to end profiling.
-        profile_analysis(bool): Whether to analyze profile data online.
+        profile_analysis (bool): Whether to analyze profile data online.
         profile_ranks (str): The ranks to be profiled, can be set to "all" for all ranks.
-        stage (str): Profiling stage, options include "all", "actor_generate", "actor_compute_log_prob", 
-                     "actor_update", "reference_compute_log_prob.
-    '''
+    """
 
     def __init__(self, config_dict, role=""):
+        """Initialize ProfilerConfig with configuration dictionary and role.
+
+        Args:
+            config_dict (dict): Dictionary containing the profiling configuration parameters.
+            role (str, optional): String identifier for the profiler role. Defaults to empty string.
+        """
         self.role = role
         self.profile = False
         self.mstx = False
@@ -51,19 +57,34 @@ class ProfilerConfig(BaseConfig):
 
 
 class MsprobeConfig(BaseConfig):
-    '''
-    Msprobe configuration class.
+    """Msprobe configuration class for debugging and data dumping.
 
-    Parameters:
-        config_dict: Dictionary containing the msprobe configuration parameters
-        role: String identifier for the Msprobe role
+    This class manages msprobe parameters for dumping key data, configurations,
+    and training/inference information for debugging purposes.
 
     Attributes:
         role (str): Identifier for the msprobe role.
         msprobe (bool): Enable/disable the msprobe. Set to True to enable msprobe.
-    '''
+        dump_path (str): Path where msprobe dump data will be saved.
+        key_data_dump (bool): Whether to dump key data.
+        configurations_dump (bool): Whether to dump configurations.
+        actor_train_dump (bool): Whether to dump actor training data.
+        actor_infer_dump (bool): Whether to dump actor inference data.
+        token_range_start (int): Start of token range for dumping.
+        token_range_end (int): End of token range for dumping.
+        reference_dump (bool): Whether to dump reference model data.
+        critic_train_dump (bool): Whether to dump critic training data.
+        step_start (int): Step to start dumping.
+        step_end (int): Step to end dumping.
+    """
 
     def __init__(self, config_dict, role=""):
+        """Initialize MsprobeConfig with configuration dictionary and role.
+
+        Args:
+            config_dict (dict): Dictionary containing the msprobe configuration parameters.
+            role (str, optional): String identifier for the Msprobe role. Defaults to empty string.
+        """
         self.role = role
         self.msprobe = False
         self.dump_path = "./msprobe_dump"

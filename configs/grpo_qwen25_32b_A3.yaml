@@ -56,6 +56,7 @@ actor_config:
   no_load_rng: true
 
 rl_config:
+  hccl_buffersize: 64
   blocking: true
   use_remove_padding: true
   ref_forward_micro_batch_size: 16

@@ -17,7 +17,7 @@ verl_npu框架提供了一套易用、完整的修改和扩展外部模块的特
 
 ## 目录结构
 
-```
+```text
 verl_npu/
 ├── verl_npu/
 │   ├── patch_summary/               # patch概述模块
@@ -33,15 +33,21 @@ verl_npu/
 ```
 
 ## 开发指南
+
 ### 1、Patch文件生成
+
 对verl对应分支进行开发，开发完成后使用`git diff [文件名] > [patch文件名].patch`重定向生成patch文件，以verl仓库的`verl/workers/megatron_workers.py`文件为例：
+
 ```python
 git diff verl/workers/megatron_workers.py > megatron_workers.patch
 ```
+
 执行完成后会生成对应的`megatron_workers.patch`文件，将文件移动到`verl_npu/patch/`对应目录下
 
 ### 2、patch_summary.yaml配置
+
 `patch_summary.yaml`文件中包含了patch的一些关键信息。其中一些是必填项，一些是选填项，下列以对transformers仓库进行patch为例对配置文件中的所有字段进行解析。
+
 ``` python
 patches: # 描述patch关键信息
   - repo: transformers # patch的仓库名，可能需要patch多个仓库，用`-`表示当前字段为一个列表，必填
@@ -71,8 +77,10 @@ patches: # 描述patch关键信息
 ```
 
 ### 3、安装verl_npu
+
 修改完毕后，按照`README.MD`中的指引进行`pip install -e .`源码安装插件即可生效（需要提前源码安装`verl` package），如果patch成功，执行`verl`的训练行为时会在日志中打屏幕输出对应的patch详细信息。
 如：
+
 ``` python
 ================================ NPU Patch Summary ==================================
 

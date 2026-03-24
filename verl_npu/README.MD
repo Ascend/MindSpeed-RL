@@ -1,6 +1,7 @@
 # 环境依赖
 
 ## 
+
 | MindSpeed RL版本 | PyTorch版本 | torch_npu版本 | CANN版本  | Python版本 |
 | ---------------- | ------------ |-----------| ---------- | ---------- |
 | master（主线）   | 2.7.1     | 2.7.1       | 8.2.RC3 | Python3.10 |
@@ -8,6 +9,7 @@
 注：如果需要安装sglang作为推理后端，请参考 **[sglang_readme](docs/sglang_readme.md)** 进行安装使用。
 
 ## 1、安装 vllm 和 vllm-ascend
+
 ```bash
 # vllm==0.11.0
 git clone https://github.com/vllm-project/vllm.git
@@ -27,7 +29,7 @@ git clone https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
 git checkout 00ba07102212c7c7a40de427f09848f2e203c498
 pip install -r requirements.txt
-export COMPILE_CUSTOM_KERNELS=1	 
+export COMPILE_CUSTOM_KERNELS=1  
 python setup.py install
 cd ..
 
@@ -39,6 +41,7 @@ pip install -e .
 ```
 
 ## 2、安装 MindSpeed 与 Megatron
+
 ```bash
 # MindSpeed
 git clone https://gitcode.com/Ascend/MindSpeed.git
@@ -52,6 +55,7 @@ pip install git+https://github.com/NVIDIA/Megatron-LM.git@core_v0.12.1
 ```
 
 ## 3、安装 verl
+
 ```bash
 # verl==0.6.1
 git clone https://github.com/volcengine/verl.git
@@ -62,6 +66,7 @@ cd ..
 ```
 
 ## 4、安装插件
+
 ```bash
 # 请确保 vllm 已正确安装并且之后不会做覆盖
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git
@@ -78,7 +83,7 @@ VERL_PATH=path_to_verl pip install -e .
 
 **注意**：请在安装完插件后做如下检查，确保插件安装成功
 
-~~~bash
+```text
 # 使用verl拉起训练时检查是否有如下输出：
 ================================ NPU Patch Summary ==================================
 
@@ -149,15 +154,15 @@ Patch File3: src.transformers.integrations.npu_flash_attention.py
 ============ transformers Patch Summary End ==============
 
 ============================= NPU Patch Summary End==================================
-~~~
+```
 
 若没有，则执行下面的操作：
 
-~~~bash
+```python
 # 打开verl/__init__.py 找到`if is_npu_available:`，做如下添加
 if is_npu_available:
-	import verl_npu  # 添加上这一行
-~~~
+    import verl_npu  # 添加上这一行
+```
 
 ## 5、内存管理优化（可选）
 
@@ -166,16 +171,18 @@ if is_npu_available:
 可通过源码编译安装，前往官方仓库获取最新稳定版本
 
 安装步骤：
-``` python
-    tar -xvf jemalloc-{version}.tar.bz2
-    cd jemalloc-{version}
-    ./configure --prefix=/usr/local
-    make
-    make install
+
+```bash
+tar -xvf jemalloc-{version}.tar.bz2
+cd jemalloc-{version}
+./configure --prefix=/usr/local
+make
+make install
 ```
 
 安装完成后设置环境变量(假设安装路径为 `/usr/local/lib/libjemalloc.so.2`): 
-``` python
+
+```bash
 export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 ```
 

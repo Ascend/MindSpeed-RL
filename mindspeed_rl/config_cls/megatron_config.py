@@ -376,6 +376,7 @@ class MegatronConfig(BaseConfig):
         self.lora_alpha = 16
         self.lora_fusion = False
         self.lora_target_modules = None
+        self.transformer_impl = "local"
 
         # Update configuration from input dictionaries
         self.update(training_config, model_config)

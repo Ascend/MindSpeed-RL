@@ -1,7 +1,7 @@
 # Sglang安装指导说明
 
-
 ## 1. 环境依赖
+
 | MindSpeed RL版本 | PyTorch版本 | torch_npu版本 | triton-ascend版本 | CANN版本 | Python版本 |
 | ---------------- | ----------- | ------------- | ----------------- | -------- | ---------- |
 | master（主线）   | 2.7.1       | 2.7.1         | 3.2.0             | 8.5.0  | Python3.11 |
@@ -29,7 +29,6 @@ pip install torch-2.7.1-cp311-cp311-*
 pip install torch_npu-2.7.1-cp311-cp311-*
 pip install -i https://test.pypi.org/simple/ --trusted-host=test-files.pythonhosted.org --trusted-host=test.pypi.org triton_ascend==3.2.0.dev20251226
 ```
-
 
 ## 4. 安装 sgl-kernel-npu
 
@@ -69,7 +68,6 @@ pip install -r requirements-npu-sgl.txt
 pip uninstall timm
 ```
 
-
 ## 6. 安装插件
 
 ```bash
@@ -85,9 +83,10 @@ cd ../..
 ```bash
 VERL_PATH=path_to_verl pip install -e .
 ```
+
 **注意**：请在安装完插件后做如下检查，确保插件安装成功
 
-~~~bash
+```text
 # 使用verl拉起训练时检查是否有如下输出：
 ================================ NPU Patch Summary ==================================
 
@@ -112,15 +111,15 @@ VERL_PATH=path_to_verl pip install -e .
  ============ verl Patch Summary End ==============
 
  ============================= NPU Patch Summary End==================================
-~~~
+```
 
 若没有，则执行下面的操作：
 
-~~~bash
+```python
 # 打开verl/__init__.py 找到`if is_npu_available:`，做如下添加
 if is_npu_available:
-	import verl_npu  # 添加上这一行
-~~~
+    import verl_npu  # 添加上这一行
+```
 
 ## 7. 启动训练
 
@@ -128,15 +127,16 @@ if is_npu_available:
 
 ### 7.1 数据集使用（可选）
 
-#### 下载数据集：
+#### 下载数据集
 
 deepscaler数据集下载链接：[huggingface: DeepScaleR-Preview-Dataset](https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/blob/main/deepscaler.json)。
 
-#### 数据集预处理：
+#### 数据集预处理
 
 在使用verl框架进行训练时，需要将该数据集从json文件转换为parquet文件。提供转换脚本，在数据文件格式转换的同时给prompt增加了激发模型思考的模板：[verl: deepscaler_json_to_parquet.py](../../tests/verl_examples/data_preprocess/deepscaler_json_to_parquet.py)。**需要修改其中的`input_file_path、output_file_path`为数据集实际读取和保存路径。**
 
 将`deepscaler_json_to_parquet.py`文件移至verl项目中，比如 `verl/examples/data_preprocess/` 文件夹下，执行命令示例如下：
+
 ```bash
 python examples/data_preprocess/deepscaler_json_to_parquet.py
 ```

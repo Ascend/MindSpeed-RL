@@ -14,7 +14,7 @@
 | vllm-ascend | 0.11.0 |
 |verl | 0.6.1-releasee |
 |megatron-core | core_v0.12.1 |
-|mindspeed |2.2.0_ core_r0.12.1 |
+|mindspeed |2.2.0_core_r0.12.1 |
 |mbridge | 0.13.1|
 
 ## 1.安装vllm、vllm-ascend、transformers、verl库
@@ -22,6 +22,7 @@
 参考[verl_npu](../../README.MD)指导安装vllm、transformers、verl等依赖库
 
 安装vllm-ascend：
+
 ```bash
 git clone https://github.com/vllm-project/vllm-ascend.git
 cd vllm-ascend
@@ -31,7 +32,9 @@ export COMPILE_CUSTOM_KERNELS=1
 python setup.py install
 cd ..
 ```
+
 ## 2.安装 MindSpeed 与 Megatron
+
 ```bash
 # clone and setup MindSpeed (2.2.0_ core_r0.12.1)
 git clone https://gitcode.com/Ascend/MindSpeed.git
@@ -51,6 +54,7 @@ cd ..
 ```
 
 ## 3.安装bridge
+
 ``` bash
 # mbridge (0.13.1)
 git clone https://github.com/ISEEKYAN/mbridge.git
@@ -61,13 +65,17 @@ cd ..
 ```
 
 ## 4.安装插件
+
 参考[verl_npu](../../README.MD)指导完成插件的安装，打上patch，若未打上执行下面的操作：
+
 ```bash
 # 打开verl/__init__.py 找到`if is_npu_available:`，做如下添加
 if is_npu_available:
-	import verl_npu  # 添加上这一行
+ import verl_npu  # 添加上这一行
 ```
 
 # gsm8k数据集预处理
+
 ## 参照verl处理gsm8k数据集
+
 下载完gsm8k数据集后，修改verl/examples/data_preprocess/gsm8k.py文件中的内容：第50行`dataset = datasets.load_dataset(local_dataset_path, "main")`修改为本地gsm8k数据集路径，即包含train/test-00000-of-00001.parquet的父文件夹。参照预处理脚本，增加对应命令行参数，对gsm8k数据集进行预处理

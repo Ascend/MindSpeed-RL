@@ -9,10 +9,10 @@
 | vllm            | v0.13.0            | commit 72506c98349                 |
 | vllm-ascend     | releases/v0.13.0   | commit 0f812dcc58514               |
 | verl            | main               | commit 0c06358d6b5624              |
-| transformers    | 4.57.3       | commit 47b0e478f|
+| transformers    | 4.57.3             | commit 47b0e478f                   |
 | Megatron        | main               | commit 1d462bd37dac21              |
-| Megatron-Bridge |   main   | commit 7cabf71  |
-| MindSpeed       | dev分支            |                                    |
+| Megatron-Bridge | main               | commit 7cabf71                     |
+| MindSpeed       | dev分支            | commit 07056df5                    |
 | triton-ascend   | 需手动卸载         | 装了pip uninstall triton-ascend -y |
 
 # 环境安装：
@@ -43,6 +43,7 @@ cd ..
 ```
 git clone https://github.com/vllm-project/vllm-ascend.git -b releases/v0.13.0
 cd vllm-ascend
+git checkout 0f812dcc58
 pip install -r requirements.txt
 pip install -v -e .
 cd ..
@@ -64,6 +65,7 @@ cd ..
 ```
 git clone https://gitcode.com/Ascend/MindSpeed.git -b dev
 cd MindSpeed
+git checkout 07056df5
 pip install -e .
 cd ..
 ```
@@ -74,9 +76,9 @@ cd ..
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 cd transformers && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/transformers/47b0e478f/transformers.patch && pip install -e . && cd ..
 cd vllm && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm/72506c98349/common.patch && cd ..
-cd vllm-ascend && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm_ascend/0f812dcc58/sfa_v1.patch && cd..
-cd verl && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/07056df535/dsa.patch && cd ..
-cd MindSpeed && git apply ../MindSpeed/verl_npu/verl_npu/patch/mindspeed/07056df535 && cd ..
+cd vllm-ascend && git apply --whitespace=fix ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm_ascend/0f812dcc58/sfa_v1.patch && cd..
+cd verl && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/verl/0c06358d6/vllm_async_server.patch && cd ..
+cd MindSpeed && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/mindspeed/07056df535/dsa.patch && cd ..
 #需手动卸载triton
 pip uninstall triton-ascend -y
 ```
@@ -108,8 +110,17 @@ cd ..
 ```
 cd verl
 cp ../MindSpeed-RL/tests/verl_examples/configs/test_grpo_deepseekv3.2exp_megatron_A3.sh ./
-cp ../MindSpeed-RL/tests/verl_examples/grpo/grpo_deepseekv3.2exp_megatron_A3.sh.sh ./
+cp ../MindSpeed-RL/tests/verl_examples/grpo/grpo_deepseekv3.2exp_megatron_A3.sh ./
 ```
 
-复制后修改相应的配置，包括IP、网卡、节点数、模型路径与数据集路径等
-`bash test_grpo_deepseekv3.2exp_megatron_A3.sh`
+请参照**[verl_npu安装指南](https://gitcode.com/Minds66/MindSpeed-RL/tree/master/verl_npu)** 安装内存管理优化库
+修改`test_grpo_deepseekv3.2exp_megatron_A3.sh`脚本中的相应的配置
+* `ASCEND_CUSTOM_OPP_PATH`为 VLLM_ASCEND 编译后生成的自定义算子路径
+* `SOCKET_IFNAME`为当前节点的通信网卡
+* `MASTER_ADDR`为对应主节点IP
+* `NNODES`为使用的节点数
+
+修改`grpo_deepseekv3.2exp_megatron_A3.sh`脚本中的权重`hf_weights`和所用数据集`train_files`和`test_files`
+```
+bash test_grpo_deepseekv3.2exp_megatron_A3.sh
+```

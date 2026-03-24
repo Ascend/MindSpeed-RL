@@ -25,3 +25,18 @@ index 22e55917..c8431581 100644
          pm.register_patch('megatron.core.transformer.experimental_attention_variant.dsa.DSAttention.forward', fused_dsa_attn_forward)
  
          if int(getattr(args, 'context_parallel_size', 1)) > 1 and getattr(args, 'context_parallel_algo', 'megatron_cp_algo') == 'kvallgather_cp_algo':
+diff --git a/mindspeed/te/pytorch/module/grouped_linear.py b/mindspeed/te/pytorch/module/grouped_linear.py
+index d421f79b..d25fc63f 100644
+--- a/mindspeed/te/pytorch/module/grouped_linear.py
++++ b/mindspeed/te/pytorch/module/grouped_linear.py
+@@ -60,7 +60,9 @@ class MindSpeedTEGroupedLinearGMM(torch.autograd.Function):
+         # K spilt gmm.
+         grad_weight = torch_npu.npu_grouped_matmul([inp.T], [grad_output], bias=None, group_list=group_list,
+                                     split_item=3, group_type=2, group_list_type=group_list_type)[0]
+-        
++        if torch.all(group_list == 0).item():
++            grad_weight = torch.zeros_like(grad_weight).npu().requires_grad_(True)
++            grad = torch.zeros_like(grad).npu().requires_grad_(True)
+         return grad, None, None, None, *grad_weight
+ 
+ 

@@ -332,3 +332,29 @@ index 00000000..67c0ee61
 +
 +        return MegatronMappingRegistry(*mapping_list)
 \ No newline at end of file
+diff --git a/src/megatron/bridge/models/gpt_provider.py b/src/megatron/bridge/models/gpt_provider.py
+index 6a939800..e5cac258 100644
+--- a/src/megatron/bridge/models/gpt_provider.py
++++ b/src/megatron/bridge/models/gpt_provider.py
+@@ -19,8 +19,6 @@ from dataclasses import dataclass, field
+ from functools import partial
+ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
+ 
+-import modelopt.torch.distill as mtd
+-import modelopt.torch.distill.plugins.megatron as mtd_mcore
+ import torch
+ from megatron.core import parallel_state
+ from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+diff --git a/src/megatron/bridge/peft/utils.py b/src/megatron/bridge/peft/utils.py
+index 01a67590..ce22314b 100644
+--- a/src/megatron/bridge/peft/utils.py
++++ b/src/megatron/bridge/peft/utils.py
+@@ -60,7 +60,7 @@ HAVE_TE = all(
+     )
+ )
+ 
+-MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
++HAVE_APEX=False
+ 
+ TECL = (TEColumnParallelLinear, TELayerNormColumnParallelLinear, TEColumnParallelGroupedLinear)
+ TERL = (TERowParallelLinear, TERowParallelGroupedLinear)

@@ -7,7 +7,7 @@ set -x
 
 # no offline dist checkpoint needed, now with mbridge>=0.13.0, we can directly init model from huggingface downloaded fp8 weights
 # tested on docker://verlai/verl:app-verl0.5-transformers4.55.4-vllm0.10.0-mcore0.13.0-te2.2
-LLM="DeepSeek-V3.2-Exp-bf16"
+hf_weights="DeepSeek-V3.2-Exp-bf16"
 DIST_CKPT_PATH=""
 
 export RAY_DEDUP_LOGS="0"
@@ -57,7 +57,6 @@ n_resp_per_prompt=4
 
 balance_batch=False
 
-# NPU 910C
 max_prompt_length=$((1024 * 16))
 max_response_length=$(( 1024 * 8 ))
 total_length=$(($max_prompt_length+$max_response_length))
@@ -88,7 +87,7 @@ python3 -m verl.trainer.main_ppo \
     data.filter_overlong_prompts=False \
     data.truncation='left' \
     actor_rollout_ref.nccl_timeout=7200 \
-    actor_rollout_ref.model.path=$LLM \
+    actor_rollout_ref.model.path=$hf_weights \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.ppo_mini_batch_size=${ppo_mini_batch_size} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \

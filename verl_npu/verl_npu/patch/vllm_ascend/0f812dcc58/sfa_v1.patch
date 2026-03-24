@@ -4,22 +4,23 @@ index 52574bcc..5a59da03 100644
 +++ b/vllm_ascend/attention/sfa_v1.py
 @@ -435,7 +435,7 @@ class AscendSFAImpl(MLAAttentionImpl):
          # self.W_UV = maybe_trans_nz(self.W_UV)
-
+ 
          # Dispose kv_b_proj since it is replaced by W_UV and W_UK_T to save memory
 -        dispose_layer(self.kv_b_proj)
-+        #dispose_layer(self.kv_b_proj)
++        # dispose_layer(self.kv_b_proj)
          if self.enable_dsa_cp:
              if self.enable_dsa_cp_prefill_only:
                  for layer in (self.layer_sharding_kwargs or []):
 diff --git a/vllm_ascend/ops/fused_moe/moe_mlp.py b/vllm_ascend/ops/fused_moe/moe_mlp.py
-index d102a1d5..2b68ac68 100644
+index d102a1d5..0ec2ba85 100644
 --- a/vllm_ascend/ops/fused_moe/moe_mlp.py
 +++ b/vllm_ascend/ops/fused_moe/moe_mlp.py
 @@ -279,7 +279,7 @@ def unquant_apply_mlp(hidden_states: torch.Tensor,
                        topk_scales: Optional[torch.Tensor] = None,
                        need_trans: bool = True) -> torch.Tensor:
-
+ 
 -    if need_trans:
-+    if hidden_states.shape[1]!=w1.shape[1]:^M
++    if hidden_states.shape[1]!=w1.shape[1]: 
          w1 = w1.transpose(1, 2)
          w2 = w2.transpose(1, 2)
+ 

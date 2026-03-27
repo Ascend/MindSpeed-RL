@@ -5,7 +5,7 @@ latex2sympy2
 numpy==1.26.4
 omegaconf
 pybind11
-ray==2.42.1
+ray==2.54.0
 regex
 sympy
 tensorboard
@@ -13,7 +13,6 @@ tensordict==0.8.1
 transformers==4.57.1
 word2number
 wandb
-pillow==11.3.0
 av==14.3.0
 qwen_vl_utils==0.0.11
 mathruler==0.1.0

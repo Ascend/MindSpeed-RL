@@ -12,6 +12,7 @@ tensorboard
 tensordict==0.8.1
 transformers==4.57.1
 word2number
+pillow==12.1.1
 wandb
 av==14.3.0
 qwen_vl_utils==0.0.11

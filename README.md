@@ -11,6 +11,8 @@ MindSpeed RL：基于昇腾生态的强化学习加速框架，旨在为华为 [
 # 最新消息
 
 ---
+🌆🌆🌆2026.4 当前MindSpeed-RL仓库已完成既定开发目标，将暂停新增功能的集成，但我们仍然会投入到现有功能的迭代优化与问题响应中，以保障相关应用场景的稳定性和使用体验。
+如果希望体验最新的昇腾强化学习方案，可以访问[verl昇腾实践](https://github.com/verl-project/verl/blob/main/docs/ascend_tutorial/quick_start/ascend_quick_start.rst)。🌆🌆🌆
 
 🚀🚀🚀 2025.11 MindSpeed RL 已支持[agent rl多轮迭代训练](./docs/zh/features/multi_turn.md) ！！！🚀🚀🚀
 

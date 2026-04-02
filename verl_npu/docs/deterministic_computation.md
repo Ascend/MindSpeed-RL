@@ -18,7 +18,7 @@ data.validation_shuffle=False
      
 ### 使能端到端的确定性seed
 
-对于fsdp训练后端和megatron后端开启方式分别为在fsdp_worker.py/megatron_worker.py文件开头使能seed函数
+对于fsdp训练后端和megatron后端，开启方式分别为在fsdp_worker.py和megatron_worker.py文件开头使能seed函数
       
 ```python
 import random

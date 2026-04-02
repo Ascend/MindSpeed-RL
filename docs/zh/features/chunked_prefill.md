@@ -6,7 +6,7 @@ Chunked Prefill（Splitfuse）特性的目的是将长prompt request分解成更
 
 关键行为：
 
-1. 长prompts被分解成更小的块，并在多个迭代中进行调度，只有最后一遍迭代执行输出生成token。
+1. 长prompts被分解成更小的块，并在多个迭代中进行调度，只有最后一遍迭代执行输出，生成token。
 2. 构建batch时，一个prefill块和其余槽位用decode填充，降低仅decode组batch的成本。
 
 其优势主要包括：

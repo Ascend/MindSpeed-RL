@@ -22,7 +22,7 @@
 * 重计算方案，  `recompute_method`可配置参数uniform或block，任选其一：
 
 `recompute_method uniform`：将Transformer层均匀划分组（每组大小`recompute_num_layers`），按组存储输入和激活值。
-`recompute-method block`：将前`recompute_num_layers`个Transformer层重计算，剩余层不进行重计算。
+`recompute_method block`：将前`recompute_num_layers`个Transformer层重计算，剩余层不进行重计算。
 
 ### 说明
 

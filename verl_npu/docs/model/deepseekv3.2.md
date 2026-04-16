@@ -6,8 +6,8 @@
 
 | **组件**  | **配套版本** | **备注**                     |
 | ----------------- | -------------------- | ------------------------------------ |
-| python          | 3.11               |                                    |
-| pytorch         | 2.8.0              |                                    |
+| Python          | 3.11               |                                    |
+| PyTorch         | 2.8.0              |                                    |
 | vllm            | v0.13.0            | commit 72506c98349                 |
 | vllm-ascend     | releases/v0.13.0   | commit 0f812dcc58514               |
 | verl            | main               | commit 0c06358d6b5624              |
@@ -78,7 +78,7 @@ cd ..
 git clone https://gitcode.com/Ascend/MindSpeed-RL.git
 cd transformers && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/transformers/47b0e478f/transformers.patch && pip install -e . && cd ..
 cd vllm && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm/72506c98349/common.patch && cd ..
-cd vllm-ascend && git apply --whitespace=fix ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm_ascend/0f812dcc58/sfa_v1.patch && cd..
+cd vllm-ascend && git apply --whitespace=fix ../MindSpeed-RL/verl_npu/verl_npu/patch/vllm_ascend/0f812dcc58/sfa_v1.patch && cd ..
 cd verl && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/verl/0c06358d6/vllm_async_server.patch && cd ..
 cd MindSpeed && git apply ../MindSpeed-RL/verl_npu/verl_npu/patch/mindspeed/07056df535/dsa.patch && cd ..
 #需手动卸载triton

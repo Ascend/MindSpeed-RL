@@ -66,7 +66,7 @@ bash examples/data/preprocess_data.sh deepscaler
 
 ## 模型权重转换
 
-根据 GRPO 算法要求，Actor 和 Reference 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。GRPO 算法模型权重均使用 Megatron-mcore 格式，其他格式的权重需要进行模型权重转换。
+根据 GRPO 算法要求，Actor 和 Reference 模型应该使用 SFT 微调后的模型进行初始化，Reward 模型应该使用规则奖励。GRPO 算法模型权重均使用 Megatron-Mcore 格式，其他格式的权重需要进行模型权重转换。
 
 ```bash
 #注意，MSRL里跑MoE模型默认设置moe_tp_extend_ep为true，转换权重时要加上下面的配置（不加会导致推理乱码）
@@ -76,7 +76,7 @@ bash examples/data/preprocess_data.sh deepscaler
 ### 环境要求
 
 **权重转换需要安装MindSpeed-LLM，建议在新建虚拟环境中安装，避免和MindSpeed RL 出现依赖冲突。**
-如果环境里已有驱动和CANN，具体安装方法参考[“PTA”和“MindSpeed-LLM及相关依赖”安装指南](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/install_guide.md#pta%E5%AE%89%E8%A3%85)。
+如果环境里已有驱动和CANN，具体安装方法参考[MindSpeed LLM安装指导](https://gitcode.com/Ascend/MindSpeed-LLM/blob/master/docs/zh/pytorch/training/install_guide.md)。
 
 接下来，以 Qwen2.5-7B 模型的权重转换脚本为参考，相应的权重转换步骤如下:
 
@@ -87,21 +87,29 @@ bash examples/data/preprocess_data.sh deepscaler
 
 ### hf 转 mcore
 
-在训练前，需要将 HuggingFace 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
+在训练前，需要将 HuggingFace 权重转换成 Mcore 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ### mcore 转 hf（可选）
 
-训练结束后，如果需要将生成的 Mcore 格式权重转换回 HuggingFace 格式,具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed-LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
+训练结束后，如果需要将生成的 Mcore 格式权重转换回 HuggingFace 格式，具体权重转换方式可见[安装指南](../install_guide.md)中对应 commit id 的[MindSpeed LLM 权重转换部分](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.1.0/docs/pytorch/solutions/checkpoint_convert.md)。
 
 ## 启动训练
 
-以 Qwen25 7B 模型为例,在启动训练之前，需要修改[启动脚本](../../../examples/grpo/grpo_trainer_qwen25_7b.sh)的配置：
+以 Qwen2.5-7B 模型为例，在启动训练之前，需要修改[启动脚本](../../../examples/grpo/grpo_trainer_qwen25_7b.sh)的配置：
 
-1. 根据实际安装路径设置 jemalloc 环境变量，用于更好管理内存，避免长跑过程中内存 OOM ，例如：export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 
-2. 修改 DEFAULT_YAML 为指定的 yaml，目前已支持的配置文件放置在 configs / 文件夹下，同时需要对[环境变量配置文件](../../../configs/envs/runtime_env.yaml) 中的 VLLM_DP_SIZE 及 HCCL_SOCKET_IFNAME 等参数进行配置，具体参数说明可见 [配置文件参数介绍](../features/grpo_yaml.md)；
-3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为8；
-4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP (需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost)；
-5. 启动脚本中的 SOCKET_IFNAME 需要设置为 CURRENT_IP 所对应的通信网卡名；
+1. 根据实际安装路径设置 jemalloc 环境变量，用于更好管理内存，避免长跑过程中内存 OOM ，例如：
+
+    ```bash
+    export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2 
+    ```
+
+2. 修改 DEFAULT_YAML 为指定的 yaml，目前已支持的配置文件放置在 configs / 文件夹下，同时需要对[环境变量配置文件](../../../configs/envs/runtime_env.yaml) 中的 VLLM_DP_SIZE 及 HCCL_SOCKET_IFNAME 等参数进行配置，具体参数说明可见 [配置文件参数介绍](../features/grpo_yaml.md)。
+
+3. 根据使用机器的情况，修改 NNODES 、NPUS_PER_NODE 配置， 例如单机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A3</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为16；单机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为 1 （双机 <term> Atlas A2</term> 训练系列产品可设置 NNODES 为2）、NPUS_PER_NODE 为8。
+
+4. 如果是单机，需要保证 MASTER_ADDR 与 CURRENT_IP 一致，如果为多机，需要保证各个机器的 MASTER_ADDR 一致，CURRENT_IP 为各个节点的 IP (需要注意的是MASTER_ADDR 与 CURRENT_IP 不能设置为 localhost)。
+
+5. 启动脚本中的 SOCKET_IFNAME 需要设置为 CURRENT_IP 所对应的通信网卡名。
 
 ```bash
 #上述注意点修改完毕后，可启动脚本开启训练
@@ -165,9 +173,9 @@ $$
 
 | 模型                  | 机器型号     | GBS | n_samples | max_prompt_length | max_tokens | 端到端 tps | 
 |---------------------|----------|-----|-----------|-------------------|------------|---------| 
-| Qwen25-7B           | Atlas 900 A3 SuperPoD | 32  | 8         | 2048              | 2048       | 220     | 
-| Qwen25-32B          | Atlas 900 A3 SuperPoD | 64  | 16        | 1024              | 2048       | 220     | 
-| Qwen25-32B          | Atlas 900 A2 PODc | 64  | 16        | 1024              | 1024       | 100     |
+| Qwen2.5-7B           | Atlas 900 A3 SuperPoD | 32  | 8         | 2048              | 2048       | 220     | 
+| Qwen2.5-32B          | Atlas 900 A3 SuperPoD | 64  | 16        | 1024              | 2048       | 220     | 
+| Qwen2.5-32B          | Atlas 900 A2 PODc | 64  | 16        | 1024              | 1024       | 100     |
 | Qwen3-8B            | Atlas 900 A3 SuperPoD | 32  | 8         | 2048              | 8192       | 252     |
 | DeepSeek-R1-671B    | Atlas 900 A3 SuperPoD | 384 | 32        | 1024              | 2048       | 210     |
 

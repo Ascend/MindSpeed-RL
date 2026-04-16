@@ -18,7 +18,7 @@ data.validation_shuffle=False
      
 ### 使能端到端的确定性seed
 
-对于fsdp训练后端和megatron后端，开启方式分别为在fsdp_worker.py和megatron_worker.py文件开头使能seed函数
+对于fsdp训练后端和Megatron后端，开启方式分别为在fsdp_worker.py和megatron_worker.py文件开头使能seed函数
       
 ```python
 import random
@@ -30,7 +30,7 @@ import os
 def seed_all(seed=1234):
       random.seed(seed)
       os.environ['PYTHONHASHSEED'] = str(seed)
-      os.environ['HCCL_DETERMINISTIC'] = str(True)
+      os.environ['HCCL_DETERMINISTIC'] = str(1)
       os.environ['LCCL_DETERMINISTIC'] = str(1)
       os.environ['CLOSE_MATMUL_K_SHIFT'] = str(1)
       os.environ['ATB_LLM_LCOC_ENABLE'] = "0"

@@ -147,7 +147,7 @@ python3 recipe/retool/retool_sft_preprocess.py
 bash recipe/retool/run_qwen2_7b_sft.sh
 ```
 
-#### 5.3 合并预训练后生成的checkpiont
+#### 5.3 合并预训练后生成的checkpoint
 
 执行脚本合并权重，路径修改为自己权重路径
 

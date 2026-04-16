@@ -61,7 +61,7 @@ profiler_config:
 | profile_save_path | 性能数据输出目录 | 任意有效路径，默认为"./profiler_data" |
 | profile_export_type | 导出格式 | text、db(性能数据交付件为db格式，可减少约70%磁盘空间)，默认值text |
 | profile_step_start | 开启采集数据的步骤 | 任意正整数，默认为1，profile_step_start从1开始 |
-| profile_step_end | 结束采集数据的步骤 | 任意正整数，默认为2，实际采集步数为 profile_step_end-profile_step_start，不包含profile_step_end |
+| profile_step_end | 结束采集数据的步骤 | 任意正整数，默认为2，实际采集步数为 profile_step_end - profile_step_start，不包含profile_step_end |
 | profile_level | 采集级别 | level_none、level0、level1、level2，默认值level0 |
 | profile_with_memory | 内存分析开关 | true/false，默认值false，启用/关闭内存分析 |
 | profile_record_shapes | 张量形状记录开关 | true/false，默认值false，是否记录张量形状 |

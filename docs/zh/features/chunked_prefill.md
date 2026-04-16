@@ -24,4 +24,4 @@ Chunked Prefill（Splitfuse）特性的目的是将长prompt request分解成更
 
 * 该特性不能和Prefix Cache(APC)、KV Cache量化特性同时使用。
 * Qwen系列模型支持此特性。
-* vllm v1 scheduler 默认开启；开启ascend_scheduler_config后，默认关闭。
+* vLLM v1 scheduler 默认开启；开启ascend_scheduler_config后，默认关闭。

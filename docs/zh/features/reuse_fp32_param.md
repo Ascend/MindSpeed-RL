@@ -19,13 +19,13 @@
 
 **图1 参数副本复用流程**
 
-<p align="center"> <img src="https://gitee.com/ascend/MindSpeed/raw/master/docs/zh/figures/reuse_fp32_param_a.png" height="300px" width="750px"></p>
+<p align="center"> <img src="https://raw.gitcode.com/Ascend/MindSpeed/raw/master/docs%2Fzh%2Ffigures%2Freuse_fp32_param_a.png" height="300px" width="750px"></p>
 
-数值变化的详细逻辑如下图所示：
+数值变换的详细逻辑如下图所示：
 
 **图2 数值变换的详细逻辑**
 
-<p align="center"> <img src="https://gitee.com/ascend/MindSpeed/raw/master/docs/zh/figures/reuse_fp32_param_b.png" height="400px" width="750px"></p>
+<p align="center"> <img src="https://raw.gitcode.com/Ascend/MindSpeed/raw/master/docs%2Fzh%2Ffigures%2Freuse_fp32_param_b.png" height="400px" width="750px"></p>
 
 ## 使用介绍
 

@@ -6,15 +6,15 @@
 | AI服务器 | Atlas 800T A3 64G*16 |
 | 驱动固件 | 25.3.rc1 |
 | Python | 3.10 |
-|CANN  |  25.3.rc1 |
+|CANN  | 25.3.rc1 |
 |torch | 2.7.1  |
-| torch_npu |  2.7.1|
-| transformers |  4.56.0 |
+| torch_npu | 2.7.1|
+| transformers | 4.56.0 |
 |vllm  | 0.11.0 |
 | vllm-ascend | 0.11.0 |
-|verl | 0.6.1-releasee |
-|megatron-core | core_v0.12.1 |
-|mindspeed |2.2.0_core_r0.12.1 |
+|verl | 0.6.1-release |
+|Megatron-Core | core_v0.12.1 |
+|MindSpeed | 2.2.0_core_r0.12.1 |
 |mbridge | 0.13.1|
 
 ## 1.安装vllm、vllm-ascend、transformers、verl库
@@ -36,7 +36,7 @@ cd ..
 ## 2.安装 MindSpeed 与 Megatron
 
 ```bash
-# clone and setup MindSpeed (2.2.0_ core_r0.12.1)
+# clone and setup MindSpeed (2.2.0_core_r0.12.1)
 git clone https://gitcode.com/Ascend/MindSpeed.git
 cd MindSpeed
 git checkout a654440c
@@ -78,4 +78,4 @@ if is_npu_available:
 
 ## 参照verl处理gsm8k数据集
 
-下载完gsm8k数据集后，修改verl/examples/data_preprocess/gsm8k.py文件中的内容：第50行`dataset = datasets.load_dataset(local_dataset_path, "main")`修改为本地gsm8k数据集路径，即包含train/test-00000-of-00001.parquet的父文件夹。参照预处理脚本，增加对应命令行参数，对gsm8k数据集进行预处理
+下载完gsm8k数据集后，修改verl/examples/data_preprocess/gsm8k.py文件中的内容：第50行`dataset = datasets.load_dataset(local_dataset_path, "main")`修改为本地gsm8k数据集路径，即包含train/test-00000-of-00001.parquet的父文件夹。参照预处理脚本，增加对应命令行参数，对gsm8k数据集进行预处理。

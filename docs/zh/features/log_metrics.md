@@ -1,6 +1,6 @@
 # 日志打点指标说明
 
-强化学习算法迭代打屏日志说明如下：
+强化学习算法迭代打印日志说明如下：
 
 **时间相关指标说明**
 
@@ -42,7 +42,7 @@
 | `response_length/max`              | 最长生成长度，当前 batch 中生成最长的 response 长度          |
 | `prompt_length/mean`               | 平均输入长度，输入 prompt 的平均长度                         |
 | `prompt_length/max`                | 最长输入长度，当前 batch 中最长的 prompt长度                 |
-| `prompt_length/min`                | 最短输入长度，当前 batch 中最长的 prompt长度                 |
+| `prompt_length/min`                | 最短输入长度，当前 batch 中最短的 prompt长度                 |
 | `global_batch_size`                | 每次训练迭代所处理的总prompt数量                             |
 | `n_samples_per_prompt`             | 每条prompt在rollout阶段生成的response数量                   |
 | `world_size`                       | 在分布式训练中集群中总的设备数量（并行训练的总进程数）         |

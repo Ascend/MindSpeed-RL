@@ -24,7 +24,7 @@ rl_config:
 
 ### LoRA 的原理
 
-GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `get_model_provider` 阶段通过构造 MindSpeed LLM 框架内置的 LoRA 模块完成初始化。关于具体的低秩矩阵分解原理、权重转换（如 mg2hf）脚本以及更多细节，请参见: [MindSpeed-LLM LoRA 官方文档链接](https://gitcode.com/Ascend/MindSpeed-LLM/blob/master/docs/pytorch/solutions/finetune/lora_finetune.md)
+GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `get_model_provider` 阶段通过构造 MindSpeed LLM 框架内置的 LoRA 模块完成初始化。关于具体的低秩矩阵分解原理、权重转换（如 mg2hf）脚本以及更多细节，请参见: [MindSpeed LLM LoRA 官方文档链接](https://gitcode.com/Ascend/MindSpeed-LLM/blob/master/docs/zh/pytorch/training/finetune/mcore/lora_finetune.md)
 
 ### Share Backbone 机制
 
@@ -62,7 +62,7 @@ GRPO-LoRA 中的 LoRA 模块构造继承自 MindSpeed-LLM 框架，模型在 `ge
 对照试验基本配置如下：
 <div style="margin: 0 auto; width: 50%;">
 
-| | 硬件配置 | 学习率 | gbs | n_sample | mbs | lora alpha | lora r |
+| | 硬件配置 | 学习率 | gbs | n_sample | mbs | lora_alpha | lora_r |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **全参数** | 32x 32GB NPUs | 2e-6 | 32 | 8 | 32 | 不涉及 | 不涉及 |
 | **lora** | 16x 32GB NPUs | 3e-5 | 32 | 8 | 32 | 128 | 128 |

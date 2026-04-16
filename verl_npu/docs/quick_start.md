@@ -78,7 +78,7 @@ patches: # 描述patch关键信息
 
 ### 3、安装verl_npu
 
-修改完毕后，按照`README.MD`中的指引进行`pip install -e .`源码安装插件即可生效（需要提前源码安装`verl` package），如果patch成功，执行`verl`的训练行为时会在日志中打屏幕输出对应的patch详细信息。
+修改完毕后，按照`README.MD`中的指引进行`pip install -e .`源码安装插件即可生效（需要提前源码安装`verl` package），如果patch成功，执行`verl`的训练行为时会在日志中打印并输出对应的patch详细信息。
 如：
 
 ``` python

@@ -193,7 +193,7 @@ SERVERS = (
 
 在 examples/eplb/eplb.sh 文件中配置以下参数：
 
-```python
+```bash
 python  mindspeed_rl/workers/eplb/eplb_generate_map_ds.py \
 --json_folder ./json_file \
 --num_replicas 40  \

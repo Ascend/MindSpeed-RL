@@ -9,7 +9,7 @@
 
 ### Swanlab使用
 
-MindSpeed RL使用开源库Swanlab能力
+MindSpeed RL使用开源库SwanLab能力
 
 ### 官方网址
 
@@ -88,7 +88,7 @@ swanlab watch . -host xxxx -port xxxx
 注：
 >
 >1. 如果遇到如下问题  
-    File "xxxxxx/lib/python3.11/site-packages/swanboard/run/run.py", line 83, in run
+    File "xxxxxx/lib/python3.10/site-packages/swanboard/run/run.py", line 83, in run
     tip = "\n".join([URL(i, port).__str__() for i in ipv4])
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: sequence item 0: expected str instance, Text found

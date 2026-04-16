@@ -54,7 +54,7 @@ actor_config:
 
 ### 背景介绍
 
-Megatron流水线并行策略(pipeline parallel)虽能有效分割模型，但在运行过程中仍存在较高的空泡率，计算资源利用率仍有提高空间。
+Megatron流水线并行策略（Pipeline Parallelism）虽能有效分割模型，但在运行过程中仍存在较高的空泡率，计算资源利用率仍有提高空间。
 
 ### 方案介绍
 

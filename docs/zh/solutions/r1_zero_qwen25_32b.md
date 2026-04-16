@@ -118,7 +118,7 @@ DeepSeek-R1-Zero的训练过程使用GRPO算法，将ORM（结果奖励模型）
 ray start --head --port 6344 --dashboard-host=$MASTER_ADDR --dashboard-port=8260
 ```
 
-随后，在其他节点加入主节点的集群(多机环境可选)：
+随后，在其他节点加入主节点的集群（多机环境可选）：
 
 ```shell
 # IP_ADDRESS 处填写主节点 IP 地址

@@ -158,7 +158,7 @@ wandb开关:
 
 ### vllm 模型相关设置
 
-vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/latest/serving/engine_args.html)：
+vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/stable/configuration/engine_args)：
 
 | 参数名 | 说明 |
 |--------|------|
@@ -174,7 +174,7 @@ vllm 模型参数 可以参照 [vllm官网参数介绍](https://docs.vllm.ai/en/
 
 ### 采样配置
 
-| 参数名 | 说明 ｜
+| 参数名 | 说明 |
 |--------|------|
 | `logprobs` | 是否生成logprobs |
 | `max_tokens` | 单条response最大生成token数量 |

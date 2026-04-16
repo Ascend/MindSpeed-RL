@@ -42,7 +42,7 @@ rl_config:
 
 `multi_turn_enable` 表示是否使能多轮迭代
 
-`tool_config_path` 需要传入工具相关配置的路径，需要传入工具相关配置的路径，默认传入**search_tool_config.yaml**
+`tool_config_path` 需要传入工具相关配置的路径，默认传入**search_tool_config.yaml**
 
 `max_tool_calls` 表示多轮迭代过程中，累积最多可以调用多少次工具
 

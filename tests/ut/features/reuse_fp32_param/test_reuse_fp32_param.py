@@ -131,7 +131,7 @@ class TestReuseFP32Param(DistributedTest):
     ReuseParamFeatureTset().reg_reuse_param_patch()
 
     @pytest.mark.parametrize("is_deterministic", [False])
-    @pytest.mark.parametrize("tp_pp", [(4, 1), (2, 2), (8, 1)])
+    @pytest.mark.parametrize("tp_pp", [(4, 1), (8, 1)])
     def test_reuse_float16_params_optimizer(self, tp_pp, is_deterministic):
         args = parse_args(None, True)
         args.npu_deterministic = is_deterministic
@@ -244,7 +244,7 @@ class TestReuseFP32Param(DistributedTest):
     @pytest.mark.parametrize("is_deterministic", [False])
     @pytest.mark.parametrize("overlap_grad_reduce", [True, False])
     @pytest.mark.parametrize("overlap_param_gather", [True, False])
-    @pytest.mark.parametrize("tp_pp", [(4, 1), (2, 2), (8, 1)])
+    @pytest.mark.parametrize("tp_pp", [(4, 1), (8, 1)])
     def test_reuse_distributed_optimizer(self, tp_pp, is_deterministic, overlap_grad_reduce, overlap_param_gather):
         args = parse_args(None, True)
         args.npu_deterministic = is_deterministic

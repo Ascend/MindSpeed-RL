@@ -160,4 +160,4 @@ profiler_config:
     profile_with_npu: true
     profile_with_module: false
     profile_analysis: true
-    profile_ranks: [0, 1]
+    profile_ranks: [0]

@@ -22,8 +22,8 @@ def check_profiler_output(profiler_dir: str) -> bool:
 
     # Find all xxx_ascend_xxx directories
     dirs = glob.glob(os.path.join(profiler_dir, "actor_update", "*_ascend_*"), recursive=True)
-    if len(dirs) != 2:
-        logger.error(f'Expected 2 *_ascend_* directories, found {len(dirs)}')
+    if len(dirs) != 1:
+        logger.error(f'Expected 1 *_ascend_* directories, found {len(dirs)}')
         return False
 
     # Check each xxx_ascend_xxx directory

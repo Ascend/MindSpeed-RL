@@ -88,7 +88,7 @@ swanlab watch . -host xxxx -port xxxx
 注：
 >
 >1. 如果遇到如下问题  
-    File "xxxxxx/lib/python3.10/site-packages/swanboard/run/run.py", line 83, in run
+    File "xxxxxx/lib/python3.11/site-packages/swanboard/run/run.py", line 83, in run
     tip = "\n".join([URL(i, port).__str__() for i in ipv4])
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: sequence item 0: expected str instance, Text found
@@ -96,7 +96,7 @@ TypeError: sequence item 0: expected str instance, Text found
 可以按照下列方式修改
 
 ```python
-vi /usr/local/lib/python3.10/site-packages/swanboard/run/run.py
+vi /usr/local/lib/python3.11/site-packages/swanboard/run/run.py
 ## 注释掉81-85 然后 86 行添加 tip = URL(host, port).__str__() 示例如下
 # ipv4 = URL.get_all_ip()
 # if URL.is_zero_ip(host):

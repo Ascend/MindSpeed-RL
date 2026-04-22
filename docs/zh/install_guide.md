@@ -167,7 +167,7 @@ export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 
 #### OpenEuler 操作系统
 
-执行如下命令重操作系统源安装jemalloc
+执行如下命令通过操作系统源安装jemalloc
 
 ```shell
 yum install jemalloc

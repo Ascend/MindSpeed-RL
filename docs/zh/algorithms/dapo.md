@@ -157,7 +157,7 @@ RuntimeError: Failed to import transformers.data.data_collator because of the fo
 /usr/local/python3.10/lin/python3.10/site-packages/sklearn/utils/../../scikit_learn.libs/libgomp-947d5fa1.so.1.0.0: cannot allocate memory in static TLS block
 ```
 
-A：这是由于在ARM架构或某些Linux环境中，当程序尝试加载libgomp库时，可能会遇到静态TLS (线程局部存储) 内存分配失败。libgomp库在初始化的时候会占用静态TLS空间，但如果库加载顺序不当（例如，其他库先于libgomp加载并占用了TLS空间），会导致内存分配失败，进而引发以来该库的模块（如sklearn）无法导入。解决方法（仅当前终端生效）：
+A：这是由于在ARM架构或某些Linux环境中，当程序尝试加载libgomp库时，可能会遇到静态TLS (线程局部存储) 内存分配失败。libgomp库在初始化的时候会占用静态TLS空间，但如果库加载顺序不当（例如，其他库先于libgomp加载并占用了TLS空间），会导致内存分配失败，进而导致该库的模块（如sklearn）无法导入。解决方法（仅当前终端生效）：
 
 ```shell
 export LD_PRELOAD=${LD_PRELOAD}:$(find /usr/ -name libgomp-947d5fa1.so.1.0.0 | grep scikit_learn)

@@ -41,5 +41,5 @@
 
 ## 注意事项
 
-1. 使用legacy model训练时，`reuse_fp32_param`暂不支持和`--overlap-param-gather`一起使用。
-2. 使用fused_ema_adamw优化器时，不支持同时开启`reuse_fp32_param`。
+1. 使用legacy model训练时，`--reuse-fp32-param`暂不支持和`--overlap-param-gather`一起使用。
+2. 使用fused_ema_adamw优化器时，不支持同时开启`--reuse-fp32-param`。

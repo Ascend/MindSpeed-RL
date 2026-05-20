@@ -8,11 +8,40 @@
 
 MindSpeed RL：基于昇腾生态的强化学习加速框架，旨在为华为 [昇腾芯片](https://www.hiascend.com/) 生态合作伙伴提供端到端的RL训推解决方案，支持超大昇腾集群训推共卡/分离部署、多模型异步流水调度、训推异构切分通信等核心加速能力。
 
+# 目录结构
+
+---
+
+```text
+MindSpeed-RL/
+├── ci/                       # CI/CD流水线脚本
+├── cli/                      # 命令行入口，支持DAPO/DPO/GRPO/PPO训练启动
+├── configs/                  # 训练配置文件（模型、数据集、算法YAML配置）
+├── docs/                     # 项目文档（算法说明、特性指南、解决方案）
+├── examples/                 # 训练示例脚本（各算法的Shell启动脚本）
+├── mindspeed_rl/             # 核心RL训练框架
+│   ├── config_cls/           # 配置类定义与校验
+│   ├── datasets/             # 数据集加载与预处理
+│   ├── models/               # 模型定义（Actor/Critic/Reward/Reference/Rollout）
+│   ├── tools/                # 工具集成（ReTool/SearchTool）
+│   ├── trainer/              # 训练器实现（GRPO/DAPO/PPO）
+│   ├── utils/                # 通用工具函数（计算/日志/通信/指标）
+│   └── workers/              # 分布式工作器（Actor/Critic/Reward/Resharding/Scheduler）
+├── tests/                    # 测试用例（单元测试ut/系统测试st/verl示例）
+├── verl_npu/                 # verl昇腾NPU适配层（patch文件与插件）
+├── setup.py                  # 安装脚本
+├── requirements.txt          # 依赖列表
+└── LICENSE                   # 许可证
+```
+
+完整目录结构说明请参考[目录结构文档](./docs/zh/dir_structure.md)。
+
 # 最新消息
 
 ---
+
 🌆🌆🌆2026.4 当前MindSpeed-RL仓库已完成既定开发目标，将暂停新增功能的集成，但我们仍然会投入到现有功能的迭代优化与问题响应中，以保障相关应用场景的稳定性和使用体验。
-如果希望体验最新的昇腾强化学习方案，可以访问[verl昇腾实践](https://github.com/verl-project/verl/blob/main/docs/ascend_tutorial/quick_start/ascend_quick_start.rst)。🌆🌆🌆
+如果希望体验最新的昇腾强化学习方案，可以访问[verl昇腾实践](https://github.com/verl-project/verl/blob/main/docs/ascend_tutorial/get_start/quick_start.rst)。🌆🌆🌆
 
 🚀🚀🚀 2025.11 MindSpeed RL 已支持[agent rl多轮迭代训练](./docs/zh/features/multi_turn.md) ！！！🚀🚀🚀
 
@@ -331,7 +360,10 @@ MindSpeed RL已发布版本维护策略：
 
 ## License声明
 
-Ascend MindSpeed RL提供的模型，如模型目录下存在License的，以该License为准。如模型目录下不存在License的，以Apache 2.0许可证许可，对应许可证文本可查阅Ascend MindSpeed RL根目录。
+---
+
+- MindSpeed RL产品的使用许可证，具体请参见[LICENSE](LICENSE)。
+- MindSpeed RL工具docs目录下的文档适用CC-BY 4.0许可证，具体请参见[LICENSE](./docs/zh/LICENSE)。
 
 # 致谢
 
